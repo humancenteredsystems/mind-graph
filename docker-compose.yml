@@ -1,0 +1,44 @@
+version: "3.8"
+services:
+  zero:
+    image: dgraph/dgraph:latest
+    container_name: dgraph-zero
+    ports:
+      - "5080:5080"
+      - "6080:6080"
+    volumes:
+      - dgraph_zero:/dgraph
+    command: dgraph zero --my=zero:5080
+    networks:
+      - dgraph_net
+
+  alpha:
+    image: dgraph/dgraph:latest
+    container_name: dgraph-alpha
+    ports:
+      - "8080:8080"  # HTTP (GraphQL + DQL)
+      - "9080:9080"  # gRPC
+    volumes:
+      - dgraph_alpha:/dgraph
+    command: dgraph alpha --my=alpha:7080 --zero=zero:5080 --security whitelist=0.0.0.0/0
+    depends_on:
+      - zero
+    networks:
+      - dgraph_net
+
+  ratel:
+    image: dgraph/ratel:latest
+    container_name: dgraph-ratel
+    ports:
+      - "8000:8000"
+    networks:
+      - dgraph_net
+    depends_on:
+      - alpha
+
+volumes:
+  dgraph_zero:
+  dgraph_alpha:
+
+networks:
+  dgraph_net:

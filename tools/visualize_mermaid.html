@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Graph Visualizer</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; max-width: 1200px; margin: 0 auto; padding: 20px; }
+    h1 { color: #333; }
+    .controls { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+    #file-input { margin-bottom: 10px; }
+    #mermaid-container { margin-top: 20px; overflow: auto; }
+    button { margin-right: 10px; padding: 8px 15px; background: #4285F4; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #3367D6; }
+    select { padding: 8px; border-radius: 4px; border: 1px solid #ddd; }
+    .error { color: #D32F2F; font-weight: bold; margin: 10px 0; padding: 10px; background: #FFEBEE; border-radius: 4px; }
+    .info { margin-top: 20px; padding: 10px; background: #E8F5E9; border-radius: 4px; }
+    .node-legend { display: flex; margin-top: 15px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; margin-right: 20px; margin-bottom: 10px; }
+    .color-box { width: 20px; height: 20px; margin-right: 8px; border: 1px solid #333; }
+  </style>
+</head>
+<body>
+  <h1>MakeItMakeSense.io Graph Visualizer</h1>
+  
+  <div class="controls">
+    <h3>Load Graph Data</h3>
+    <input type="file" id="file-input" accept=".json">
+    <div style="margin-top: 10px;">
+      <button id="render-btn">Render Graph</button>
+      <select id="layout-select">
+        <option value="TD">Top-Down</option>
+        <option value="LR">Left-Right</option>
+        <option value="RL">Right-Left</option>
+        <option value="BT">Bottom-Top</option>
+      </select>
+    </div>
+    
+    <div class="node-legend">
+      <div class="legend-item">
+        <div class="color-box" style="background-color: #e1f5fe; border-color: #01579b;"></div>
+        <span>Concept</span>
+      </div>
+      <div class="legend-item">
+        <div class="color-box" style="background-color: #e8f5e9; border-color: #2e7d32;"></div>
+        <span>Example</span>
+      </div>
+      <div class="legend-item">
+        <div class="color-box" style="background-color: #ffebee; border-color: #c62828;"></div>
+        <span>Question</span>
+      </div>
+      <div class="legend-item">
+        <div class="color-box" style="background-color: #fff9c4; border-color: #fbc02d;"></div>
+        <span>Other</span>
+      </div>
+    </div>
+  </div>
+  
+  <div id="error-message" class="error" style="display:none;"></div>
+  <pre id="mermaid-code" style="display:none;"></pre>
+  <div id="mermaid-container" class="mermaid"></div>
+  
+  <div class="info">
+    <p><strong>How to use:</strong></p>
+    <ol>
+      <li>Export your graph data using <code>python tools/dump_graph.py --output graph_data.json</code></li>
+      <li>Click "Browse" above and select your JSON file</li>
+      <li>Click "Render Graph" to visualize the data</li>
+      <li>Use the dropdown to change the layout direction if needed</li>
+    </ol>
+  </div>
+
+  <!-- Load Mermaid from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  
+  <script>
+    // Initialize Mermaid
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose'
+    });
+
+    document.getElementById('render-btn').addEventListener('click', renderGraph);
+    document.getElementById('layout-select').addEventListener('change', renderGraph);
+    
+    function renderGraph() {
+      const fileInput = document.getElementById('file-input');
+      const errorMessage = document.getElementById('error-message');
+      const mermaidContainer = document.getElementById('mermaid-container');
+      const mermaidCode = document.getElementById('mermaid-code');
+      const layoutDirection = document.getElementById('layout-select').value;
+      
+      errorMessage.style.display = 'none';
+      
+      if (!fileInput.files || fileInput.files.length === 0) {
+        errorMessage.textContent = 'Please select a JSON file first';
+        errorMessage.style.display = 'block';
+        return;
+      }
+      
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      
+      reader.onload = function(event) {
+        try {
+          const data = JSON.parse(event.target.result);
+          const mermaidSyntax = generateMermaidSyntax(data, layoutDirection);
+          
+          mermaidCode.textContent = mermaidSyntax;
+          mermaidContainer.innerHTML = mermaidSyntax;
+          
+          // Render the Mermaid diagram
+          mermaid.init(undefined, '.mermaid');
+        } catch (error) {
+          errorMessage.textContent = 'Error parsing JSON: ' + error.message;
+          errorMessage.style.display = 'block';
+        }
+      };
+      
+      reader.readAsText(file);
+    }
+    
+    function generateMermaidSyntax(data, direction) {
+      if (!data.nodes || !data.edges) {
+        throw new Error('Invalid data format: missing nodes or edges');
+      }
+      
+      let syntax = `graph ${direction}\n`;
+      
+      // Add node definitions with styling
+      data.nodes.forEach(node => {
+        const nodeId = node.id.replace(/[^a-zA-Z0-9]/g, '_'); // Sanitize ID for Mermaid
+        const label = node.label.replace(/"/g, '\\"'); // Escape quotes
+        
+        syntax += `    ${nodeId}["${label}"]\n`;
+        
+        // Style nodes based on type
+        const nodeType = node.type || '';
+        if (nodeType === 'concept') {
+          syntax += `    style ${nodeId} fill:#e1f5fe,stroke:#01579b\n`;
+        } else if (nodeType === 'example') {
+          syntax += `    style ${nodeId} fill:#e8f5e9,stroke:#2e7d32\n`;
+        } else if (nodeType === 'question') {
+          syntax += `    style ${nodeId} fill:#ffebee,stroke:#c62828\n`;
+        } else {
+          syntax += `    style ${nodeId} fill:#fff9c4,stroke:#fbc02d\n`;
+        }
+      });
+      
+      // Add edge definitions
+      data.edges.forEach(edge => {
+        const fromNode = edge.from.replace(/[^a-zA-Z0-9]/g, '_');
+        const toNode = edge.to.replace(/[^a-zA-Z0-9]/g, '_');
+        const edgeType = edge.type || '';
+        
+        syntax += `    ${fromNode} -->|${edgeType}| ${toNode}\n`;
+      });
+      
+      return syntax;
+    }
+  </script>
+</body>
+</html>
