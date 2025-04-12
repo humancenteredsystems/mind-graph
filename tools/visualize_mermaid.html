@@ -23,18 +23,22 @@
   <h1>MakeItMakeSense.io Graph Visualizer</h1>
   
   <div class="controls">
-    <h3>Load Graph Data</h3>
-    <input type="file" id="file-input" accept=".json">
-    <div style="margin-top: 10px;">
-      <button id="render-btn">Render Graph</button>
-      <select id="layout-select">
+    <h3>Graph Controls</h3>
+    <div style="margin-bottom: 15px;">
+      <label for="layout-select">Layout:</label>
+      <select id="layout-select" title="Select graph layout direction">
         <option value="TD">Top-Down</option>
         <option value="LR">Left-Right</option>
         <option value="RL">Right-Left</option>
         <option value="BT">Bottom-Top</option>
       </select>
+      <!-- Removed duplicate </select> tag -->
     </div>
-    
+    <div>
+      <label for="file-input">Load Specific File:</label>
+      <input type="file" id="file-input" accept=".json" title="Select a .json graph export file">
+      <button id="load-file-btn" title="Render the graph from the selected file">Load Selected File</button>
+    </div>
     <div class="node-legend">
       <div class="legend-item">
         <div class="color-box" style="background-color: #e1f5fe; border-color: #01579b;"></div>
@@ -60,13 +64,13 @@
   <div id="mermaid-container" class="mermaid"></div>
   
   <div class="info">
-    <p><strong>How to use:</strong></p>
-    <ol>
-      <li>Export your graph data using <code>python tools/dump_graph.py --output graph_data.json</code></li>
-      <li>Click "Browse" above and select your JSON file</li>
-      <li>Click "Render Graph" to visualize the data</li>
-      <li>Use the dropdown to change the layout direction if needed</li>
-    </ol>
+    <p><strong>Info:</strong></p>
+    <ul>
+      <li>This page automatically loads the latest graph data from <code>../exports/latest_json_graph.json</code> on startup.</li>
+      <li>Run <code>python tools/export_graph.py</code> to update this latest export file.</li>
+      <li>Use the "Load Specific File" option above to view older timestamped exports or other compatible JSON files.</li>
+      <li>Use the layout dropdown to change the graph orientation.</li>
+    </ul>
   </div>
 
   <!-- Load Mermaid from CDN -->
@@ -80,48 +84,143 @@
       securityLevel: 'loose'
     });
 
-    document.getElementById('render-btn').addEventListener('click', renderGraph);
-    document.getElementById('layout-select').addEventListener('change', renderGraph);
-    
-    function renderGraph() {
-      const fileInput = document.getElementById('file-input');
-      const errorMessage = document.getElementById('error-message');
-      const mermaidContainer = document.getElementById('mermaid-container');
-      const mermaidCode = document.getElementById('mermaid-code');
+    let loadedGraphData = null; // Store the loaded graph data globally
+    const errorMessage = document.getElementById('error-message');
+    const mermaidContainer = document.getElementById('mermaid-container');
+    const mermaidCode = document.getElementById('mermaid-code');
+
+    // Function to fetch and render the latest graph
+    async function loadAndRenderLatestGraph() {
       const layoutDirection = document.getElementById('layout-select').value;
-      
+      errorMessage.style.display = 'none'; // Hide previous errors
+      mermaidContainer.innerHTML = 'Loading latest graph...'; // Show loading message
+
+      try {
+        // Fetch the fixed latest graph file
+        const response = await fetch('../exports/latest_json_graph.json'); // Updated filename
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status} - Could not load latest_json_graph.json. Run export_graph.py.`);
+        }
+        const data = await response.json();
+        loadedGraphData = data; // Store the data globally
+        renderGraph(loadedGraphData, layoutDirection);
+
+      } catch (error) {
+        console.error('Error loading or rendering latest graph:', error);
+        errorMessage.textContent = 'Error loading latest graph: ' + error.message;
+        errorMessage.style.display = 'block';
+        mermaidContainer.innerHTML = ''; // Clear loading message
+        // Do not clear loadedGraphData here, might be from manual load previously
+      }
+    }
+
+    // Function to handle loading a manually selected file
+    function loadSelectedFile() {
+      const fileInput = document.getElementById('file-input');
+      const layoutDirection = document.getElementById('layout-select').value;
       errorMessage.style.display = 'none';
-      
+
       if (!fileInput.files || fileInput.files.length === 0) {
         errorMessage.textContent = 'Please select a JSON file first';
         errorMessage.style.display = 'block';
         return;
       }
-      
+
       const file = fileInput.files[0];
       const reader = new FileReader();
-      
+
       reader.onload = function(event) {
         try {
           const data = JSON.parse(event.target.result);
-          const mermaidSyntax = generateMermaidSyntax(data, layoutDirection);
-          
-          mermaidCode.textContent = mermaidSyntax;
-          mermaidContainer.innerHTML = mermaidSyntax;
-          
-          // Render the Mermaid diagram
-          mermaid.init(undefined, '.mermaid');
+          loadedGraphData = data; // Update global data with manually loaded file
+          renderGraph(loadedGraphData, layoutDirection);
         } catch (error) {
-          errorMessage.textContent = 'Error parsing JSON: ' + error.message;
+          console.error('Error parsing selected JSON file:', error);
+          errorMessage.textContent = 'Error parsing selected file: ' + error.message;
           errorMessage.style.display = 'block';
+          mermaidContainer.innerHTML = ''; // Clear graph area
         }
       };
-      
+
+      reader.onerror = function() {
+          console.error('Error reading selected file:', reader.error);
+          errorMessage.textContent = 'Error reading selected file: ' + reader.error;
+          errorMessage.style.display = 'block';
+          mermaidContainer.innerHTML = ''; // Clear graph area
+      };
+
       reader.readAsText(file);
     }
-    
+
+
+    // Function to render the graph using provided data
+    function renderGraph(data, layoutDirection) {
+       if (!data) {
+         errorMessage.textContent = 'No graph data loaded yet.';
+         errorMessage.style.display = 'block';
+         return;
+       }
+       try {
+          const mermaidSyntax = generateMermaidSyntax(data, layoutDirection);
+          mermaidCode.textContent = mermaidSyntax; // Keep for debugging if needed
+          // mermaidContainer.innerHTML = mermaidSyntax; // REMOVED - Don't put raw syntax in container
+
+          // --- Alternative Rendering using mermaid.run() ---
+          console.log("Placing syntax in container and calling mermaid.run():\n", mermaidSyntax); // Log syntax
+          // Ensure the container has the 'mermaid' class if not already present
+          if (!mermaidContainer.classList.contains('mermaid')) {
+              mermaidContainer.classList.add('mermaid');
+          }
+          // Place the raw syntax directly into the container
+          mermaidContainer.innerHTML = mermaidSyntax;
+          // Remove any previously generated SVG to avoid duplicates if re-rendering
+          const existingSvg = mermaidContainer.querySelector('svg');
+          if (existingSvg) {
+              existingSvg.remove();
+          }
+
+          try {
+            // Call mermaid.run() to render diagrams in specified elements
+            // This is generally more robust than mermaid.render for direct display
+            mermaid.run({
+              nodes: [mermaidContainer] // Target only our specific container
+            });
+            console.log("mermaid.run() called successfully.");
+          } catch (runError) {
+             console.error("Error during mermaid.run() call:", runError);
+             errorMessage.textContent = 'Error calling Mermaid run: ' + runError.message;
+             errorMessage.style.display = 'block';
+             mermaidContainer.innerHTML = ''; // Clear on error
+          }
+
+        } catch (error) {
+          console.error('Error generating or rendering Mermaid syntax:', error);
+          errorMessage.textContent = 'Error rendering graph: ' + error.message;
+          errorMessage.style.display = 'block';
+          mermaidContainer.innerHTML = ''; // Clear previous graph
+        }
+    }
+
+    // Event listener for layout changes
+    document.getElementById('layout-select').addEventListener('change', () => {
+      if (loadedGraphData) {
+        const layoutDirection = document.getElementById('layout-select').value;
+        renderGraph(loadedGraphData, layoutDirection); // Re-render with stored data
+      } else {
+         errorMessage.textContent = 'Graph data not loaded yet. Cannot change layout.';
+         errorMessage.style.display = 'block';
+      }
+      // Removed erroneous second 'else' block
+    });
+
+    // Add event listener for the manual load button
+    document.getElementById('load-file-btn').addEventListener('click', loadSelectedFile);
+
+    // Initial load when the page is ready
+    document.addEventListener('DOMContentLoaded', loadAndRenderLatestGraph);
+
     function generateMermaidSyntax(data, direction) {
-      if (!data.nodes || !data.edges) {
+      if (!data || !data.nodes || !data.edges) { // Check if data itself is null/undefined
         throw new Error('Invalid data format: missing nodes or edges');
       }
       

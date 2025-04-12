@@ -283,26 +283,61 @@ def main():
         else:
              print(f"Processed {len(processed_result.get('nodes',[]))} nodes and {len(processed_result.get('edges',[]))} edges.")
 
+    # --- Determine output paths ---
+    timestamp = _get_timestamp_str()
+    exports_dir = Path("exports") # Define exports directory
 
-    # Determine the output file path
+    # Determine timestamped output path
     if args.output:
-        output_path_str = args.output
+        timestamped_output_path = Path(args.output)
     else:
-        timestamp = _get_timestamp_str() # Use internal function
         if args.node:
-            # Sanitize node ID for filename if needed (basic example)
             safe_node_id = "".join(c if c.isalnum() else "_" for c in args.node)
-            output_path_str = f"node_{safe_node_id}_export_{timestamp}.json"
+            # Place node exports also in exports dir for consistency
+            timestamped_output_path = exports_dir / f"node_{safe_node_id}_export_{timestamp}.json"
         else:
-            output_path_str = f"graph_export_{timestamp}.json"
+            timestamped_output_path = exports_dir / f"graph_export_{timestamp}.json"
 
-    # Save the data
+    # Define fixed 'latest' output path as requested (always in exports dir)
+    latest_output_path = exports_dir / "latest_json_graph.json" # Changed filename
+
+    # --- Ensure directories exist ---
     try:
-        _save_json(processed_result, output_path_str) # Use internal function
+        timestamped_output_path.parent.mkdir(parents=True, exist_ok=True)
+        # Ensure exports dir exists for the 'latest' file as well
+        latest_output_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        print(f"❌ Failed to create output directories: {e}")
+        return 1
+
+    # --- Save the data ---
+    save_timestamped_ok = False
+    try:
+        _save_json(processed_result, str(timestamped_output_path))
         # Success message printed by _save_json
-        return 0
+        save_timestamped_ok = True
     except Exception as e:
-        print(f"❌ Failed to save output file: {str(e)}") # Replaced logger
+        print(f"❌ Failed to save timestamped output file '{timestamped_output_path}': {str(e)}")
+        # Don't proceed to save 'latest' if timestamped failed
+
+    save_latest_ok = False
+    if save_timestamped_ok: # Only attempt saving 'latest' if timestamped succeeded
+        try:
+            _save_json(processed_result, str(latest_output_path))
+            print(f"Also updated {latest_output_path}") # Custom message for 'latest'
+            save_latest_ok = True
+        except Exception as e:
+            print(f"❌ Failed to save latest output file '{latest_output_path}': {str(e)}")
+            # Log error, but script might still be considered partially successful
+
+    # Determine final exit code
+    if save_timestamped_ok and save_latest_ok:
+        return 0 # Both succeeded
+    elif save_timestamped_ok:
+        print("⚠️ Saved timestamped file, but failed to update latest file.")
+        return 1 # Indicate partial failure
+    else:
+        # Timestamped save failed, error already printed
         return 1
 
 if __name__ == "__main__":
