@@ -8,12 +8,40 @@ and retrieve data from the graph database.
 import argparse
 import sys
 import json
+import requests
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-# Add parent directory to path to import utils
-sys.path.append(str(Path(__file__).parent))
-from utils import execute_graphql, logger, DEFAULT_ENDPOINT
+# --- Constants moved from utils.py ---
+DEFAULT_ENDPOINT = "http://localhost:8080/graphql"
+# --- End Constants ---
+
+# --- execute_graphql logic moved here ---
+def _execute_graphql_http(
+    query: str,
+    variables: Optional[Dict[str, Any]] = None,
+    endpoint: str = DEFAULT_ENDPOINT
+) -> Dict[str, Any]:
+    """Internal function to execute GraphQL via HTTP POST."""
+    headers = {"Content-Type": "application/json"}
+    payload = {"query": query}
+    if variables:
+        payload["variables"] = variables
+
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"❌ GraphQL request failed: {str(e)}") # Replaced logger
+        if hasattr(response, 'text'):
+            print(f"Response: {response.text}") # Replaced logger
+        # Re-raise the exception to be caught by the calling function
+        raise
+    except Exception as e:
+        print(f"❌ An unexpected error occurred during GraphQL request: {str(e)}") # Replaced logger
+        raise
+# --- End execute_graphql logic ---
 
 # Predefined query templates
 QUERIES = {
@@ -29,7 +57,7 @@ QUERIES = {
       }
     }
     """,
-    
+
     "nodes_by_type": """
     query NodesByType($type: String!) {
       queryNode(filter: {type: {eq: $type}}) {
@@ -41,9 +69,9 @@ QUERIES = {
       }
     }
     """,
-    
+
     "node_connections": """
-    query NodeConnections($id: ID!) {
+    query NodeConnections($id: String!) { # Changed ID! to String!
       getNode(id: $id) {
         id
         label
@@ -59,9 +87,9 @@ QUERIES = {
       }
     }
     """,
-    
+
     "node_with_depth": """
-    query NodeWithDepth($id: ID!, $depth: Int!) {
+    query NodeWithDepth($id: String!, $depth: Int!) { # Changed ID! to String!
       getNode(id: $id) {
         id
         label
@@ -83,42 +111,24 @@ QUERIES = {
 }
 
 def format_result(result: Dict[str, Any], pretty: bool = True) -> str:
-    """
-    Format a GraphQL result for display.
-    
-    Args:
-        result: The GraphQL result
-        pretty: Whether to pretty-print the result
-        
-    Returns:
-        A formatted string representation of the result
-    """
+    """Format a GraphQL result for display."""
     if pretty:
         return json.dumps(result, indent=2)
     else:
         return json.dumps(result)
 
 def run_query(
-    query: str, 
-    variables: Optional[Dict[str, Any]] = None, 
+    query: str,
+    variables: Optional[Dict[str, Any]] = None,
     endpoint: str = DEFAULT_ENDPOINT
 ) -> Dict[str, Any]:
-    """
-    Run a GraphQL query against the Dgraph endpoint.
-    
-    Args:
-        query: The GraphQL query string
-        variables: Optional variables for the query
-        endpoint: The GraphQL endpoint URL
-        
-    Returns:
-        The query result
-    """
+    """Run a GraphQL query against the Dgraph endpoint."""
     try:
-        result = execute_graphql(query, variables, endpoint)
+        result = _execute_graphql_http(query, variables, endpoint) # Use internal function
         return result
     except Exception as e:
-        logger.error(f"Query failed: {str(e)}")
+        # Error already printed by _execute_graphql_http
+        print(f"Query execution failed.")
         return {"error": str(e)}
 
 def main():
@@ -139,7 +149,7 @@ def main():
     )
     parser.add_argument(
         "--endpoint", "-e",
-        default=DEFAULT_ENDPOINT,
+        default=DEFAULT_ENDPOINT, # Use local constant
         help=f"Dgraph GraphQL endpoint (default: {DEFAULT_ENDPOINT})"
     )
     parser.add_argument(
@@ -147,63 +157,70 @@ def main():
         help="Path to save the query result (default: print to stdout)"
     )
     args = parser.parse_args()
-    
+
     # Validate arguments
     if not args.query and not args.file:
-        logger.error("Either --query or --file must be specified")
+        print("❌ Either --query or --file must be specified") # Replaced logger
         return 1
-    
+
     # Get the query
     if args.query:
         query = QUERIES[args.query]
-        logger.info(f"Using predefined query: {args.query}")
+        print(f"Using predefined query: {args.query}") # Replaced logger
     else:
         try:
-            with open(args.file, "r", encoding="utf-8") as f:
+            query_path = Path(args.file).resolve()
+            with open(query_path, "r", encoding="utf-8") as f:
                 query = f.read()
-            logger.info(f"Using custom query from file: {args.file}")
+            print(f"Using custom query from file: {query_path}") # Replaced logger
         except Exception as e:
-            logger.error(f"Failed to read query file: {str(e)}")
+            print(f"❌ Failed to read query file '{args.file}': {str(e)}") # Replaced logger
             return 1
-    
+
     # Parse variables
     variables = None
     if args.variables:
         try:
-            # Check if the variables argument is a file path
-            if Path(args.variables).exists():
-                with open(args.variables, "r", encoding="utf-8") as f:
+            var_path = Path(args.variables)
+            if var_path.exists():
+                with open(var_path.resolve(), "r", encoding="utf-8") as f:
                     variables = json.load(f)
+                print(f"Loaded variables from file: {var_path.resolve()}")
             else:
-                # Assume it's a JSON string
                 variables = json.loads(args.variables)
+                print("Parsed variables from JSON string.")
         except Exception as e:
-            logger.error(f"Failed to parse variables: {str(e)}")
+            print(f"❌ Failed to parse variables: {str(e)}") # Replaced logger
             return 1
-    
+
     # Run the query
-    logger.info(f"Running query against {args.endpoint}")
+    print(f"Running query against {args.endpoint}") # Replaced logger
     result = run_query(query, variables, args.endpoint)
-    
+
     # Output the result
     formatted_result = format_result(result)
     if args.output:
         try:
-            with open(args.output, "w", encoding="utf-8") as f:
+            output_path = Path(args.output).resolve()
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(formatted_result)
-            logger.info(f"Query result saved to {args.output}")
+            print(f"Query result saved to {output_path}") # Replaced logger
         except Exception as e:
-            logger.error(f"Failed to write output file: {str(e)}")
+            print(f"❌ Failed to write output file '{args.output}': {str(e)}") # Replaced logger
             return 1
     else:
+        # Print separator for clarity
+        print("-" * 20 + " Query Result " + "-" * 20)
         print(formatted_result)
-    
+        print("-" * 54)
+
+
     # Check for errors in the result
     if "errors" in result:
-        logger.warning("Query returned errors")
+        print("⚠️ Query returned errors.") # Replaced logger
         return 1
-    
-    logger.info("✅ Query executed successfully")
+
+    print("✅ Query executed successfully.") # Replaced logger
     return 0
 
 if __name__ == "__main__":

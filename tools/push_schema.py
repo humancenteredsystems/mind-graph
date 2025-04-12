@@ -6,51 +6,69 @@ This tool uploads a GraphQL schema file to the Dgraph admin endpoint.
 """
 import argparse
 import sys
-import os
 import requests
 import time
 from pathlib import Path
 
-# Add parent directory to path to import utils
-sys.path.append(str(Path(__file__).parent))
-from utils import push_schema_to_dgraph, logger, DEFAULT_ADMIN_ENDPOINT, DEFAULT_ENDPOINT
+# --- Constants moved from utils.py ---
+DEFAULT_ENDPOINT = "http://localhost:8080/graphql"
+DEFAULT_ADMIN_ENDPOINT = "http://localhost:8080/admin"
+# --- End Constants ---
+
+# --- push_schema_to_dgraph logic moved here ---
+def _push_schema_http(schema: str, endpoint: str) -> bool:
+    """Internal function to push schema via HTTP POST."""
+    headers = {"Content-Type": "application/graphql"}
+    try:
+        response = requests.post(endpoint, data=schema, headers=headers)
+        response.raise_for_status()
+        print("Schema push request sent successfully.") # Replaced logger
+        return True
+    except requests.RequestException as e:
+        print(f"❌ Failed to push schema: {str(e)}") # Replaced logger
+        if hasattr(response, 'text'):
+            print(f"Response: {response.text}") # Replaced logger
+        return False
+# --- End push_schema_to_dgraph logic ---
 
 def verify_schema_loaded() -> bool:
     """
     Simple verification that the schema was loaded into Dgraph.
-
+    Uses standard introspection query.
     Returns:
         True if the schema is loaded, False otherwise
     """
     try:
-        time.sleep(10)  # Wait longer for the schema to be loaded
-        # Use a minimal standard introspection query for verification
+        print("Waiting for schema to apply...") # Replaced logger
+        time.sleep(10)  # Wait for the schema to be loaded
         introspection_query = "{ __schema { queryType { name } } }"
         verify_response = requests.post(
-            DEFAULT_ENDPOINT,  # Use the GraphQL endpoint for verification
+            DEFAULT_ENDPOINT,  # Use locally defined constant
             json={"query": introspection_query},
             headers={"Content-Type": "application/json"}
         )
 
-        logger.info(f"Verification response status: {verify_response.status_code}")
+        print(f"Verification response status: {verify_response.status_code}") # Replaced logger
 
         if verify_response.status_code == 200:
             result = verify_response.json()
-            logger.info(f"Verification response: {result}")
+            print(f"Verification response: {result}") # Replaced logger
 
             # Check if the introspection query returned data for __schema
             if "errors" not in result and result.get("data", {}).get("__schema"):
                 return True
             else:
                 if "errors" in result:
-                    logger.error(f"GraphQL errors: {result['errors']}")
+                    # Extract just the message for cleaner output
+                    error_messages = [err.get('message', 'Unknown error') for err in result['errors']]
+                    print(f"GraphQL errors during verification: {'; '.join(error_messages)}") # Replaced logger
         else:
-            logger.error(f"Verification request failed with status {verify_response.status_code}")
-            logger.error(f"Response: {verify_response.text}")
+            print(f"Verification request failed with status {verify_response.status_code}") # Replaced logger
+            print(f"Response: {verify_response.text}") # Replaced logger
 
         return False
     except Exception as e:
-        logger.error(f"Schema verification error: {str(e)}")
+        print(f"Schema verification error: {str(e)}") # Replaced logger
         return False
 
 def main():
@@ -58,13 +76,15 @@ def main():
     parser = argparse.ArgumentParser(description="Push a GraphQL schema to Dgraph")
     parser.add_argument(
         "--schema", "-s",
-        default="../schema.graphql",
+        default="../schema.graphql", # Adjusted default path relative to scripts/
         help="Path to the schema file (default: ../schema.graphql)"
     )
+    # Construct endpoint default using local constant
+    admin_schema_endpoint = f"{DEFAULT_ADMIN_ENDPOINT}/schema"
     parser.add_argument(
         "--endpoint", "-e",
-        default=f"{DEFAULT_ADMIN_ENDPOINT}/schema",
-        help=f"Dgraph admin schema endpoint (default: {DEFAULT_ADMIN_ENDPOINT}/schema)"
+        default=admin_schema_endpoint,
+        help=f"Dgraph admin schema endpoint (default: {admin_schema_endpoint})"
     )
     parser.add_argument(
         "--no-verify", "-n",
@@ -73,46 +93,49 @@ def main():
     )
     args = parser.parse_args()
 
-    # Resolve the schema path relative to the current working directory
-    schema_path = Path(args.schema).resolve()
+    # Resolve the schema path:
+    # 1. Try the provided path directly (could be absolute or relative to CWD)
+    # 2. If not found, try resolving relative to the script's directory
+    schema_path_arg = Path(args.schema)
+    schema_path = schema_path_arg.resolve() # Resolve relative to CWD first
 
-    # Check if the schema file exists
     if not schema_path.exists():
-        # Try resolving relative to script location if CWD fails (common if run from outside project root)
-        script_dir_schema_path = (Path(__file__).parent / args.schema).resolve()
-        if script_dir_schema_path.exists():
-             schema_path = script_dir_schema_path
+        # If not found relative to CWD, try relative to script dir
+        script_dir = Path(__file__).parent
+        schema_path_rel_script = (script_dir / schema_path_arg).resolve()
+        if schema_path_rel_script.exists():
+            schema_path = schema_path_rel_script
         else:
-             logger.error(f"Schema file not found at {schema_path} or {script_dir_schema_path}")
-             return 1
-
+            # If neither works, report error using the CWD-resolved path as primary
+            print(f"❌ Schema file not found at '{schema_path}' (or relative to script at '{schema_path_rel_script}')")
+            return 1
 
     # Read the schema file
     try:
         with open(schema_path, "r", encoding="utf-8") as f:
             schema_text = f.read()
     except Exception as e:
-        logger.error(f"Failed to read schema file: {str(e)}")
+        print(f"❌ Failed to read schema file: {str(e)}") # Replaced logger
         return 1
 
-    # Push the schema to Dgraph
-    logger.info(f"Pushing schema from {schema_path} to {args.endpoint}")
-    success = push_schema_to_dgraph(schema_text, args.endpoint)
+    # Push the schema using the internal function
+    print(f"Pushing schema from {schema_path} to {args.endpoint}") # Replaced logger
+    success = _push_schema_http(schema_text, args.endpoint)
 
     if not success:
-        logger.error("❌ Failed to push schema")
+        # Error already printed by _push_schema_http
         return 1
 
     # Verify the schema was loaded if not disabled
     if not args.no_verify:
-        logger.info("Verifying schema was loaded...")
+        print("Verifying schema was loaded...") # Replaced logger
         if verify_schema_loaded():
-            logger.info("✅ Schema verified successfully")
+            print("✅ Schema verified successfully") # Replaced logger
         else:
-            logger.error("❌ Schema verification failed")
+            print("❌ Schema verification failed") # Replaced logger
             return 1
 
-    logger.info("✅ Schema pushed successfully")
+    print("✅ Schema push process completed successfully.") # Replaced logger
     return 0
 
 if __name__ == "__main__":

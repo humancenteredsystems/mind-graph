@@ -9,7 +9,7 @@ This toolkit provides simple utilities for managing and interacting with the gra
 - `push_schema.py`: Push your schema.graphql to the Dgraph admin endpoint
 - `seed_graph.py`: Add test data via GraphQL mutations
 - `query_graph.py`: Run simple queries to test connections
-- `dump_graph.py`: Export current graph to JSON for debugging or backup
+- `export_graph.py`: Export current graph to JSON for debugging or backup
 - `visualize_mermaid.html`: Visualize graph data in a browser using Mermaid diagrams
 
 All tools use the Dgraph GraphQL API and are designed to work with a local Dgraph instance running in Docker.
