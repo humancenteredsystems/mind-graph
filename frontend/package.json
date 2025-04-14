@@ -10,6 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/cytoscape": "^3.21.9",
+    "axios": "^1.8.4",
+    "cytoscape": "^3.31.2",
+    "cytoscape-klay": "^3.1.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
