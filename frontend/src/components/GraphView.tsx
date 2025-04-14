@@ -37,20 +37,48 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
     if (cyContainerRef.current && !cyInstance) {
       const cy = cytoscape({
         container: cyContainerRef.current,
-        style: [ // Basic default styles
+        wheelSensitivity: 0.2, // Adjust zoom sensitivity (lower is less sensitive)
+        style: [ // Updated styles
           {
-            selector: 'node',
+            selector: 'node', // Default node style
             style: {
-              'background-color': '#666',
-              'label': 'data(label)', // Display the 'label' property
-              'width': '20px',
-              'height': '20px',
-              'font-size': '10px',
-              'color': '#fff',
+              'background-color': '#888', // Default color
+              'label': 'data(label)',
+              'width': '40px', // Slightly larger nodes
+              'height': '40px',
+              'font-size': '8px', // Smaller font size
+              'color': '#333', // Darker text color
               'text-valign': 'center',
               'text-halign': 'center',
+              'text-wrap': 'wrap', // Enable text wrapping
+              'text-max-width': '50px', // Max width before wrapping
+              'border-width': 1,
+              'border-color': '#555'
             }
           },
+          // Type-specific styles
+          {
+            selector: "node[type='concept']",
+            style: {
+              'background-color': '#3498db', // Blue for concepts
+              'border-color': '#2980b9'
+            }
+          },
+          {
+            selector: "node[type='example']",
+            style: {
+              'background-color': '#2ecc71', // Green for examples
+              'border-color': '#27ae60'
+            }
+          },
+           {
+            selector: "node[type='question']",
+            style: {
+              'background-color': '#f1c40f', // Yellow for questions
+              'border-color': '#f39c12'
+            }
+          },
+          // Add more type selectors as needed
           {
             selector: 'edge',
             style: {
@@ -124,8 +152,9 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
   const defaultStyle: React.CSSProperties = {
     width: '100%',
     height: '600px', // Default height, can be overridden by props
-    border: '1px solid #ccc',
-    display: 'block'
+    border: '1px solid #999', // Slightly darker border
+    display: 'block',
+    backgroundColor: '#f0f0f0' // Add a light background color to visualize container bounds
   };
 
   return <div ref={cyContainerRef} style={{ ...defaultStyle, ...style }} />;
