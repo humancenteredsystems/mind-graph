@@ -72,7 +72,8 @@ describe('API Endpoints (GraphQL-centric)', () => {
         .send({ query: mockQuery });
 
       expect(response.statusCode).toBe(400);
-      expect(response.body).toHaveProperty('error', `GraphQL error: ${errorMessage}`);
+      // Expect the error message *without* the "GraphQL query failed: " prefix
+      expect(response.body).toHaveProperty('error', `GraphQL error: ${errorMessage.replace('GraphQL query failed: ', '')}`);
       expect(executeGraphQL).toHaveBeenCalledWith(mockQuery, {});
     });
 
@@ -118,7 +119,34 @@ describe('API Endpoints (GraphQL-centric)', () => {
       expect(executeGraphQL).not.toHaveBeenCalled();
     });
 
-    // Add tests for 400 (GraphQL error) and 500 (Server error) similar to /api/query
+    it('responds with 400 when the GraphQL mutation execution results in an error', async () => {
+      const mockMutation = 'mutation { invalidMutation }';
+      const errorMessage = 'GraphQL query failed: Cannot mutate field "invalidMutation"';
+      executeGraphQL.mockRejectedValue(new Error(errorMessage)); // Mock GraphQL error
+
+      const response = await request(app)
+        .post('/api/mutate')
+        .send({ mutation: mockMutation });
+
+      expect(response.statusCode).toBe(400);
+      // Expect the error message *without* the "GraphQL query failed: " prefix
+      expect(response.body).toHaveProperty('error', `GraphQL error: ${errorMessage.replace('GraphQL query failed: ', '')}`);
+      expect(executeGraphQL).toHaveBeenCalledWith(mockMutation, {});
+    });
+
+    it('responds with 500 when a non-GraphQL server error occurs during mutation execution', async () => {
+      const mockMutation = 'mutation { addNode(...) { ... } }';
+      const errorMessage = 'Failed to communicate with Dgraph.';
+      executeGraphQL.mockRejectedValue(new Error(errorMessage)); // Mock connection error
+
+      const response = await request(app)
+        .post('/api/mutate')
+        .send({ mutation: mockMutation });
+
+      expect(response.statusCode).toBe(500);
+      expect(response.body).toHaveProperty('error', 'Server error executing mutation.');
+      expect(executeGraphQL).toHaveBeenCalledWith(mockMutation, {});
+    });
   });
 
   // --- Test /api/traverse ---
@@ -168,7 +196,60 @@ describe('API Endpoints (GraphQL-centric)', () => {
        expect(response.statusCode).toBe(400);
        expect(response.body).toHaveProperty('error', 'Missing required field: rootId');
     });
-     // Add tests for invalid depth, invalid fields, GraphQL errors, server errors
+
+    it('responds with 400 for invalid depth parameter (negative)', async () => {
+      const response = await request(app)
+        .post('/api/traverse')
+        .send({ rootId: 'node1', depth: -1 });
+      expect(response.statusCode).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid depth parameter. Must be a non-negative number.');
+    });
+
+    it('responds with 400 for invalid depth parameter (non-number)', async () => {
+      const response = await request(app)
+        .post('/api/traverse')
+        .send({ rootId: 'node1', depth: 'abc' });
+      expect(response.statusCode).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid depth parameter. Must be a non-negative number.');
+    });
+
+    it('responds with 400 for invalid fields parameter (empty array)', async () => {
+      const response = await request(app)
+        .post('/api/traverse')
+        .send({ rootId: 'node1', fields: [] });
+      expect(response.statusCode).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid fields parameter. Must be a non-empty array of strings.');
+    });
+
+     it('responds with 400 for invalid fields parameter (invalid characters)', async () => {
+      const response = await request(app)
+        .post('/api/traverse')
+        .send({ rootId: 'node1', fields: ['id', 'label; DROP TABLES;'] });
+      expect(response.statusCode).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid characters in fields parameter.');
+    });
+
+    it('responds with 400 when GraphQL error occurs during traversal', async () => {
+      const rootId = 'node1';
+      const errorMessage = 'GraphQL query failed: Unknown field "nonExistent"';
+      executeGraphQL.mockRejectedValue(new Error(errorMessage));
+      const response = await request(app)
+        .post('/api/traverse')
+        .send({ rootId });
+      expect(response.statusCode).toBe(400);
+      expect(response.body).toHaveProperty('error', `GraphQL error during traversal: ${errorMessage}`);
+    });
+
+    it('responds with 500 when server error occurs during traversal', async () => {
+      const rootId = 'node1';
+      const errorMessage = 'Failed to communicate with Dgraph.';
+      executeGraphQL.mockRejectedValue(new Error(errorMessage));
+      const response = await request(app)
+        .post('/api/traverse')
+        .send({ rootId });
+      expect(response.statusCode).toBe(500);
+      expect(response.body).toHaveProperty('error', 'Server error during traversal.');
+    });
   });
 
   // --- Test /api/search ---
@@ -202,7 +283,36 @@ describe('API Endpoints (GraphQL-centric)', () => {
        expect(response.statusCode).toBe(400);
        expect(response.body).toHaveProperty('error', 'Missing required query parameter: term');
     });
-    // Add tests for invalid field, GraphQL errors, server errors
+
+    it("responds with 400 when the 'field' query parameter is invalid", async () => {
+      const response = await request(app)
+        .get('/api/search')
+        .query({ term: 'test', field: 'invalidField' });
+      expect(response.statusCode).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid search field: invalidField. Allowed fields: label');
+    });
+
+    it('responds with 400 when GraphQL error occurs during search', async () => {
+      const term = 'test';
+      const errorMessage = 'GraphQL query failed: Index not available for field "label"';
+      executeGraphQL.mockRejectedValue(new Error(errorMessage));
+      const response = await request(app)
+        .get('/api/search')
+        .query({ term });
+      expect(response.statusCode).toBe(400);
+      expect(response.body).toHaveProperty('error', `GraphQL error during search: ${errorMessage}`);
+    });
+
+    it('responds with 500 when server error occurs during search', async () => {
+      const term = 'test';
+      const errorMessage = 'Failed to communicate with Dgraph.';
+      executeGraphQL.mockRejectedValue(new Error(errorMessage));
+      const response = await request(app)
+        .get('/api/search')
+        .query({ term });
+      expect(response.statusCode).toBe(500);
+      expect(response.body).toHaveProperty('error', 'Server error during search.');
+    });
   });
 
   // --- Test /api/schema ---
