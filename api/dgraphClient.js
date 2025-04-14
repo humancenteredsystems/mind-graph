@@ -1,6 +1,9 @@
+require('dotenv').config(); // Load environment variables from .env file
 const axios = require('axios');
 
-const DGRAPH_ENDPOINT = 'http://localhost:8080/graphql'; // Dgraph Alpha endpoint
+// Construct Dgraph GraphQL endpoint URL from environment variable or default
+const DGRAPH_HOST_PORT = process.env.DGRAPH_URL || 'localhost:8080';
+const DGRAPH_ENDPOINT = `http://${DGRAPH_HOST_PORT}/graphql`;
 
 /**
  * Executes a GraphQL query or mutation against the Dgraph endpoint.
