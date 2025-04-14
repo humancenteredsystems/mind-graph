@@ -34,43 +34,82 @@ This repository currently contains the core Dgraph database setup using Docker C
     # pip install requests
     ```
 
-## Getting Started / Common Workflow
+## Getting Started / Development Environment
 
-1.  **Start Dgraph Services:**
-    Open a terminal in the project root directory (`/home/gb/coding/mims-graph`) and run:
+The easiest way to start the full development environment (Dgraph database, backend API server, and frontend development server) is to use the root-level npm script:
+
+1.  **Ensure Prerequisites:** Make sure you have Docker, Docker Compose, Node.js (which includes npm), and Python installed.
+2.  **Install Root Dependencies:** If you haven't already, run `npm install` in the project root directory (`/home/gb/coding/mims-graph`) to install `concurrently`.
+3.  **Start Everything:** In the project root directory, run:
+    ```bash
+    npm run start-dev-env
+    ```
+    This command will:
+    *   Start the Dgraph Docker containers (`docker-compose up -d`).
+    *   Start the backend API server (`cd api && npm run dev`).
+    *   Start the frontend development server (`cd frontend && npm run dev`).
+    You will see combined output from the API and frontend servers in your terminal.
+4.  **Access Frontend:** Open your web browser and navigate to the URL provided by the Vite frontend server (usually `http://localhost:5173`). You should see the React application displaying the graph.
+5.  **Stopping:** Press `Ctrl+C` in the terminal where `npm run start-dev-env` is running. This will stop both the API and frontend servers. To stop the Dgraph database containers, run:
+    ```bash
+    npm run stop-dgraph
+    # or directly: docker-compose down
+    ```
+
+## Manual Component Startup / Common Workflow (Alternative)
+
+1.  **Start Dgraph Services (if not using `start-dev-env`):**
+    In the project root:
     ```bash
     docker-compose up -d
+    # or: npm run start-dgraph
     ```
-    This will start the Dgraph Zero, Alpha, and Ratel containers in the background.
 
-2.  **Push the Schema:**
+2.  **Push the Schema (Required on first run or after schema changes):**
     Apply the GraphQL schema to the running Dgraph instance:
     ```bash
     python tools/push_schema.py
     ```
     *(This uses the default `schema.graphql` file in the project root).*
 
-3.  **Seed with Sample Data (Optional):**
+3.  **Start API Server (if not using `start-dev-env`):**
+    In a separate terminal:
+    ```bash
+    cd api
+    npm install # If first time
+    npm run dev
+    ```
+
+4.  **Start Frontend Server (if not using `start-dev-env`):**
+    In another separate terminal:
+    ```bash
+    cd frontend
+    npm install # If first time
+    npm run dev
+    ```
+    Then open `http://localhost:5173` (or the port shown) in your browser.
+
+5.  **Seed with Sample Data (Optional):**
     Add some initial data to the graph:
     ```bash
     python tools/seed_data.py
     ```
 
-4.  **Query the Graph:**
+6.  **Query the Graph (Using Python tool):**
     Run a sample query to verify data:
     ```bash
     python tools/query_graph.py --query all_nodes
     ```
     *(See `tools/README.md` for more query options).*
 
-5.  **Export Graph Data:**
+7.  **Export Graph Data (Using Python tool):**
     Export the current graph state to JSON:
     ```bash
     python tools/export_graph.py
     ```
     *(This creates a timestamped file in `exports/` and updates `exports/latest_json_graph.json`).*
 
-6.  **Visualize the Graph:**
+8.  **Visualize the Graph (Using Mermaid tool):**
     Open the visualizer tool in your browser:
     ```bash
     # On Linux (like Ubuntu)
@@ -80,13 +119,14 @@ This repository currently contains the core Dgraph database setup using Docker C
     ```
     The page will automatically load and display the data from `exports/latest_json_graph.json`. You can use the file input on the page to load older timestamped exports if needed.
 
-7.  **Access Dgraph Ratel UI (Optional):**
+9.  **Access Dgraph Ratel UI (Optional):**
     You can explore the graph data directly using Dgraph's Ratel UI by navigating to `http://localhost:8000` in your browser.
 
-8.  **Stop Dgraph Services:**
+10. **Stop Dgraph Services (if started manually):**
     When finished, stop the Docker containers:
     ```bash
     docker-compose down
+    # or: npm run stop-dgraph
     ```
 
 ## Project Structure

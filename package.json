@@ -1,0 +1,32 @@
+{
+  "name": "mims-graph",
+  "version": "1.0.0",
+  "description": "> A modular, open-source platform for collaboratively building a living, visual knowledge graph.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start-dgraph": "docker-compose up -d",
+    "stop-dgraph": "docker-compose down",
+    "dev:api": "cd api && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm:dev:api\" \"npm:dev:frontend\"",
+    "start-dev-env": "npm run start-dgraph && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/heythisisgordon/mims-graph.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/heythisisgordon/mims-graph/issues"
+  },
+  "homepage": "https://github.com/heythisisgordon/mims-graph#readme"
+}

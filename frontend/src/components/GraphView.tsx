@@ -82,11 +82,12 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
   useEffect(() => {
     if (cyInstance) {
       // Format nodes and edges for Cytoscape
-      const cyNodes: ElementDefinition[] = nodes.map(node => ({
-        data: { id: node.id, label: node.label || node.id, ...node } // Use label or ID if label is missing
+      // Separate the core properties (id, source, target) from the rest
+      const cyNodes: ElementDefinition[] = nodes.map(({ id, label, ...rest }) => ({
+        data: { id, label: label || id, ...rest } // Use label or ID if label is missing
       }));
-      const cyEdges: ElementDefinition[] = edges.map(edge => ({
-        data: { source: edge.source, target: edge.target, ...edge }
+      const cyEdges: ElementDefinition[] = edges.map(({ source, target, ...rest }) => ({
+        data: { source, target, ...rest } // Avoid duplicating source/target
       }));
 
       // Combine nodes and edges

@@ -1,4 +1,21 @@
 require('dotenv').config(); // Load environment variables from .env file
+
+// --- Global Error Handlers ---
+process.on('uncaughtException', (err, origin) => {
+  console.error('[GLOBAL] Uncaught Exception:', err);
+  console.error('[GLOBAL] Origin:', origin);
+  // Optionally exit gracefully, but for debugging, just log for now
+  // process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[GLOBAL] Unhandled Rejection at:', promise);
+  console.error('[GLOBAL] Reason:', reason);
+  // Optionally exit gracefully
+  // process.exit(1);
+});
+// --- End Global Error Handlers ---
+
 const express = require('express');
 const { executeGraphQL } = require('./dgraphClient'); // Import the client
 const { v4: uuidv4 } = require('uuid'); // Import UUID generator
@@ -94,12 +111,13 @@ app.post('/api/traverse', async (req, res) => {
   }
   const fieldsString = fields.join('\n          '); // Format for GraphQL query
 
-  // Construct the recursive query
+  // Construct the query (Note: @recurse is DQL, not standard GraphQL)
+  // We will fetch the root node and its immediate outgoing connections.
   const query = `
-    query TraverseGraph($rootId: String!, $depth: Int!) {
-      queryNode(filter: { id: [$rootId] }) @recurse(depth: $depth) {
+    query TraverseGraph($rootId: String!) {
+      queryNode(filter: { id: { eq: $rootId } }) { # Use standard 'eq' filter for ID
           ${fieldsString}
-          # Always include outgoing to allow traversal, even if not in requested fields initially
+          # Include outgoing to get immediate neighbors
           outgoing {
             type
             to {
@@ -110,14 +128,22 @@ app.post('/api/traverse', async (req, res) => {
       }
     }
   `;
-  const variables = { rootId, depth };
+  // Remove depth variable as @recurse is removed
+  const variables = { rootId };
 
   try {
+    // Update log message to reflect lack of depth parameter
+    console.log(`[TRAVERSE] Attempting query for rootId: ${rootId}`);
+    console.log(`[TRAVERSE] Query:\n${query}`);
+    console.log(`[TRAVERSE] Variables:`, variables);
     const result = await executeGraphQL(query, variables);
+    console.log(`[TRAVERSE] Query successful for rootId: ${rootId}`);
     res.json(result);
   } catch (error) {
-    console.error(`Error in /api/traverse endpoint: ${error.message}`);
-    if (error.message.startsWith('GraphQL query failed:')) {
+    // Log the full error object for more details
+    console.error(`[TRAVERSE] Error occurred for rootId: ${rootId}:`, error);
+    // Keep existing response logic
+    if (error.message?.startsWith('GraphQL query failed:')) {
        res.status(400).json({ error: `GraphQL error during traversal: ${error.message}` });
     } else {
        res.status(500).json({ error: 'Server error during traversal.' });
