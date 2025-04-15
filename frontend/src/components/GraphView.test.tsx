@@ -1,6 +1,7 @@
 // Test file for GraphView.tsx
 import { describe, it, expect, vi, beforeEach, beforeAll, Mock } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+// Import screen and act for better testing practices
+import { render, waitFor, screen, act } from '@testing-library/react';
 import GraphView from './GraphView';
 import cytoscape from 'cytoscape'; // Import the actual library
 
@@ -16,6 +17,7 @@ const mockCyInstance = {
   resize: vi.fn(),
   fit: vi.fn(),
   batch: vi.fn((fn) => fn()), // Mock batch to execute the passed function
+  destroyed: vi.fn().mockReturnValue(false), // Mock destroyed as a function
 };
 
 // Mock the cytoscape library *before* describe block
@@ -59,8 +61,8 @@ describe('GraphView Component', () => {
 
   it('should render container div', () => {
     render(<GraphView nodes={[]} edges={[]} />);
-    // Check if the container div is rendered (using its default style for identification)
-    const container = document.querySelector('div[style*="background-color: rgb(240, 240, 240)"]');
+    // Use the data-testid for reliable selection
+    const container = screen.getByTestId('graph-container');
     expect(container).toBeInTheDocument();
   });
 
@@ -103,6 +105,11 @@ describe('GraphView Component', () => {
       expect(mockCyInstance.add).toHaveBeenCalled();
       expect(mockCyInstance.layout).toHaveBeenCalled();
       expect(mockCyInstance.run).toHaveBeenCalled();
+      // resize and fit are called after a delay, so wait for them specifically
+    });
+
+    // Wait specifically for resize and fit due to setTimeout and requestAnimationFrame
+    await waitFor(() => {
       expect(mockCyInstance.resize).toHaveBeenCalled();
       expect(mockCyInstance.fit).toHaveBeenCalled();
     });

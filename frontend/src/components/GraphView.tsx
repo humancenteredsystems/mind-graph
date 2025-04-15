@@ -176,7 +176,8 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
     flexGrow: 1 // Allow GraphView to take available space in flex container (.App)
   };
 
-  return <div ref={cyContainerRef} style={{ ...defaultStyle, ...style }} />;
+  // Add data-testid for easier testing selection
+  return <div data-testid="graph-container" ref={cyContainerRef} style={{ ...defaultStyle, ...style }} />;
 };
 
 export default GraphView;
