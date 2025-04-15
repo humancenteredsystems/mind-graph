@@ -8,8 +8,8 @@
   justify-content: center;
   align-items: flex-start; /* Align items to the top */
   overflow: hidden; /* Prevent scrollbars on root */
-  border: 1px dashed orange; /* Keep Debug border for now */
-  background-color: #fff8dc; /* Keep Debug background for now */
+  /* border: 1px dashed orange; /* Debug border - REMOVED */
+  /* background-color: #fff8dc; /* Debug background - REMOVED */
 }
 
 /* Pin the width of .App */
@@ -20,8 +20,8 @@
   height: 100%; /* Make App fill the root height */
   overflow: hidden; /* Prevent internal scrolling/expansion */
   box-sizing: border-box; /* Include padding/border in width/height */
-  border: 1px dotted blue; /* Keep Debug border for now */
-  background-color: #e0f0ff; /* Keep Debug background for now */
+  /* border: 1px dotted blue; /* Debug border - REMOVED */
+  /* background-color: #e0f0ff; /* Debug background - REMOVED */
   padding: 1rem; /* Keep padding for visual separation */
   display: flex; /* Use flexbox to manage children */
   flex-direction: column; /* Stack children vertically */

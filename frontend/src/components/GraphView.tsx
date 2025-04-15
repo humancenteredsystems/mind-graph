@@ -92,8 +92,8 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
           }
         ],
         layout: {
-          name: 'grid' // Use grid layout for testing
-          // Add grid options here if needed
+          name: 'klay' // Use klay layout by default
+          // Add klay options here if needed
         }
       });
     }
@@ -131,16 +131,16 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
 
       // Run layout after adding elements
       const layout = cyInstance.layout({
-          name: 'grid', // Use grid layout for testing
-          // Grid layout options (adjust as needed)
-          /* klay: { // Keep klay options commented out for now
+          name: 'klay', // Restore klay layout
+          // Klay layout options (adjust as needed)
+          klay: {
               spacing: 40, // Adjust spacing between nodes
               nodePlacement: 'LINEAR_SEGMENTS', // Placement strategy
               layoutHierarchy: true // Try to arrange hierarchically
-          }, */
-          animate: false, // Disable animation for grid testing
-          // animationDuration: 300
-      }); // Remove 'as any' if not needed for grid
+          },
+          animate: true, // Optional animation
+          animationDuration: 300
+      } as any); // Use 'as any' if type definitions clash
 
       layout.run();
 
@@ -168,11 +168,11 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
     width: '100%',
     // height: '600px', // Default height, can be overridden by props - REMOVED, use 100%
     height: '100%', // Make container fill parent height
-    border: '2px solid red', // Keep Debug border for now
+    // border: '2px solid red', // Debug border - REMOVED
     // display: 'block', // REMOVED - let flexbox handle display
     overflow: 'hidden', // Prevent scrollbars on the container itself
     position: 'relative', // Helps with internal positioning if needed
-    backgroundColor: '#f0f0f0', // Keep light background color
+    // backgroundColor: '#f0f0f0', // Debug background - REMOVED (or set to desired final background)
     flexGrow: 1 // Allow GraphView to take available space in flex container (.App)
   };
 

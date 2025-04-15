@@ -11,8 +11,8 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  border: 1px dashed orange; /* Debug border */
-  background-color: #fff8dc; /* Keep Debug background for now */
+  /* border: 1px dashed orange; /* Debug border - REMOVED */
+  /* background-color: #fff8dc; /* Keep Debug background for now - REMOVED */
 }
 
 a {
