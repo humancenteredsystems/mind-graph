@@ -29,13 +29,14 @@ interface GraphViewProps {
 
 const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
   const cyContainerRef = useRef<HTMLDivElement>(null);
-  // Use state to hold the Cytoscape instance, ensuring it's stable across renders
-  const [cyInstance, setCyInstance] = useState<Core | null>(null);
+  // Use a ref to hold the Cytoscape instance - persists across renders without causing re-renders
+  const cyInstanceRef = useRef<Core | null>(null);
 
   // Effect to initialize Cytoscape instance on mount
   useEffect(() => {
-    if (cyContainerRef.current && !cyInstance) {
-      const cy = cytoscape({
+    // Only initialize if the ref is null and the container exists
+    if (cyContainerRef.current && !cyInstanceRef.current) {
+      cyInstanceRef.current = cytoscape({ // Store instance in ref
         container: cyContainerRef.current,
         wheelSensitivity: 0.2, // Adjust zoom sensitivity (lower is less sensitive)
         style: [ // Updated styles
@@ -91,23 +92,24 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
           }
         ],
         layout: {
-          name: 'klay' // Use klay layout by default
-          // Add klay options here if needed
+          name: 'grid' // Use grid layout for testing
+          // Add grid options here if needed
         }
       });
-      setCyInstance(cy);
     }
 
+    // Store the current ref value in a variable for the cleanup function
+    const cyInstance = cyInstanceRef.current;
     // Cleanup function to destroy instance on unmount
     return () => {
-      cyInstance?.destroy();
-      setCyInstance(null);
+      cyInstance?.destroy(); // Use the captured instance from the ref
+      cyInstanceRef.current = null; // Clear the ref on unmount
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
   // Effect to update graph elements when nodes or edges change
   useEffect(() => {
+    const cyInstance = cyInstanceRef.current; // Get instance from ref
     if (cyInstance) {
       // Format nodes and edges for Cytoscape
       // Separate the core properties (id, source, target) from the rest
@@ -129,32 +131,49 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
 
       // Run layout after adding elements
       const layout = cyInstance.layout({
-          name: 'klay',
-          // Klay layout options (adjust as needed)
-          klay: {
+          name: 'grid', // Use grid layout for testing
+          // Grid layout options (adjust as needed)
+          /* klay: { // Keep klay options commented out for now
               spacing: 40, // Adjust spacing between nodes
               nodePlacement: 'LINEAR_SEGMENTS', // Placement strategy
               layoutHierarchy: true // Try to arrange hierarchically
-          },
-          animate: true, // Optional animation
-          animationDuration: 300
-      } as any); // Use 'as any' if type definitions clash
+          }, */
+          animate: false, // Disable animation for grid testing
+          // animationDuration: 300
+      }); // Remove 'as any' if not needed for grid
 
       layout.run();
 
-      // Optional: Fit the graph to the viewport after layout
-      // cyInstance.fit();
+      // Delay resize/fit and use requestAnimationFrame
+      const timer = setTimeout(() => {
+        if (cyInstance && !cyInstance.destroyed()) { // Check if instance still exists
+          requestAnimationFrame(() => { // Wrap in requestAnimationFrame
+            if (cyInstance && !cyInstance.destroyed()) { // Double-check instance
+               cyInstance.resize();
+               cyInstance.fit();
+            }
+          });
+        }
+      }, 500); // Increased delay to 500ms
+
+      // Cleanup timeout on effect cleanup or re-run
+      return () => clearTimeout(timer);
 
     }
-  }, [nodes, edges, cyInstance]); // Re-run when data or instance changes
+    // Dependency array only includes nodes and edges, as cyInstanceRef doesn't change
+  }, [nodes, edges]);
 
-  // Default style for the container div
+  // Default style for the container div - updated for full height and clipping prevention
   const defaultStyle: React.CSSProperties = {
     width: '100%',
-    height: '600px', // Default height, can be overridden by props
-    border: '1px solid #999', // Slightly darker border
-    display: 'block',
-    backgroundColor: '#f0f0f0' // Add a light background color to visualize container bounds
+    // height: '600px', // Default height, can be overridden by props - REMOVED, use 100%
+    height: '100%', // Make container fill parent height
+    border: '2px solid red', // Keep Debug border for now
+    // display: 'block', // REMOVED - let flexbox handle display
+    overflow: 'hidden', // Prevent scrollbars on the container itself
+    position: 'relative', // Helps with internal positioning if needed
+    backgroundColor: '#f0f0f0', // Keep light background color
+    flexGrow: 1 // Allow GraphView to take available space in flex container (.App)
   };
 
   return <div ref={cyContainerRef} style={{ ...defaultStyle, ...style }} />;

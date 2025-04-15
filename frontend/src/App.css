@@ -1,16 +1,30 @@
-/* Keep basic root styling or adjust as needed */
+/* Adjust #root to be more layout-friendly */
 #root {
-  max-width: 1280px; /* Or 100% for full width */
-  margin: 0 auto;
-  padding: 1rem; /* Reduced padding */
-  text-align: center;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0; /* Remove padding */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* Align items to the top */
+  overflow: hidden; /* Prevent scrollbars on root */
+  border: 1px dashed orange; /* Keep Debug border for now */
+  background-color: #fff8dc; /* Keep Debug background for now */
 }
 
-/* Basic App container styling */
+/* Pin the width of .App */
 .App {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  max-width: 100%;
+  width: 100%; /* prevent horizontal expansion */
+  /* Consider adding height: 100% if App should fill root vertically */
+  height: 100%; /* Make App fill the root height */
+  overflow: hidden; /* Prevent internal scrolling/expansion */
+  box-sizing: border-box; /* Include padding/border in width/height */
+  border: 1px dotted blue; /* Keep Debug border for now */
+  background-color: #e0f0ff; /* Keep Debug background for now */
+  padding: 1rem; /* Keep padding for visual separation */
+  display: flex; /* Use flexbox to manage children */
+  flex-direction: column; /* Stack children vertically */
 }
 
 /* Ensure GraphView component takes up space */

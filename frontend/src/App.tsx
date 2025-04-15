@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import './App.css'; // Keep or modify default styles
 import GraphView from './components/GraphView';
 import { fetchTraversalData } from './services/ApiService';
+import { transformTraversalData, NodeData, EdgeData } from './utils/graphUtils'; // Import from utils
 
-// Define interfaces matching GraphView's expected props
+// Remove local interface definitions and helper function
+/*
 interface NodeData {
   id: string;
   label?: string;
@@ -74,9 +76,7 @@ const transformTraversalData = (data: any): { nodes: NodeData[], edges: EdgeData
     processNodes(data.queryNode);
   }
 
-  return { nodes, edges };
-};
-
+*/
 
 function App() {
   const [nodes, setNodes] = useState<NodeData[]>([]);
