@@ -1,5 +1,5 @@
 // Import Vitest's expect and extend it with jest-dom matchers
-import { expect } from 'vitest';
+
 import '@testing-library/jest-dom/vitest';
 
 // You can add other global test setup here if needed

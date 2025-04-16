@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import cytoscape, { Core, ElementDefinition, Layouts } from 'cytoscape';
+import React, { useEffect, useRef } from 'react';
+import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import klay from 'cytoscape-klay';
 
 // Register the Klay layout algorithm
@@ -10,6 +10,7 @@ interface NodeData {
   id: string;
   label?: string;
   type?: string;
+  level?: number; // Add level field
   // Add other properties needed for styling or data
 }
 
@@ -25,9 +26,10 @@ interface GraphViewProps {
   nodes: NodeData[];
   edges: EdgeData[];
   style?: React.CSSProperties; // Allow passing custom styles
+  onNodeExpand?: (nodeId: string) => void; // Add prop for expand handler
 }
 
-const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
+const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand }) => {
   const cyContainerRef = useRef<HTMLDivElement>(null);
   // Use a ref to hold the Cytoscape instance - persists across renders without causing re-renders
   const cyInstanceRef = useRef<Core | null>(null);
@@ -96,16 +98,31 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style }) => {
           // Add klay options here if needed
         }
       });
+
+      // --- Add Right-Click Handler ---
+      if (onNodeExpand) {
+        cyInstanceRef.current.on('cxttap', 'node', (event) => {
+          event.preventDefault(); // Prevent default browser context menu
+          const nodeId = event.target.id();
+          console.log(`Right-clicked node: ${nodeId}. Triggering expand.`); // Log action
+          onNodeExpand(nodeId); // Call the handler passed from App
+        });
+      }
+      // --- End Right-Click Handler ---
     }
 
     // Store the current ref value in a variable for the cleanup function
     const cyInstance = cyInstanceRef.current;
-    // Cleanup function to destroy instance on unmount
+    // Cleanup function to destroy instance and remove listeners on unmount
     return () => {
+      // Remove listener if it was added
+      if (cyInstance && onNodeExpand) {
+        cyInstance.removeListener('cxttap', 'node');
+      }
       cyInstance?.destroy(); // Use the captured instance from the ref
       cyInstanceRef.current = null; // Clear the ref on unmount
     };
-  }, []); // Run only once on mount
+  }, [onNodeExpand]); // Add onNodeExpand to dependency array
 
   // Effect to update graph elements when nodes or edges change
   useEffect(() => {

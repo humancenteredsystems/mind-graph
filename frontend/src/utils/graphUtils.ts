@@ -4,6 +4,7 @@ export interface NodeData {
   id: string;
   label?: string;
   type?: string;
+  level?: number; // Add level field
   // Add other properties if needed
 }
 
@@ -42,6 +43,7 @@ export const transformTraversalData = (data: any): { nodes: NodeData[], edges: E
         id: node.id,
         label: node.label || node.id, // Use label or ID
         type: node.type,
+        level: node.level, // Extract level
         // Add other relevant properties from node
       });
 

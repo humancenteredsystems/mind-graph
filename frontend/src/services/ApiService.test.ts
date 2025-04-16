@@ -19,11 +19,13 @@ describe('ApiService', () => {
 
       const rootId = 'testId';
       const depth = 2;
-      const fields = ['id', 'label'];
+      const fields = ['id', 'label']; // Fields passed in
+      const expectedFields = ['id', 'label', 'level']; // Fields actually sent by the function
 
       await fetchTraversalData(rootId, depth, fields);
 
-      expect(axios.post).toHaveBeenCalledWith('/api/traverse', { rootId, depth, fields });
+      // Expect the function to add 'level' to the fields sent
+      expect(axios.post).toHaveBeenCalledWith('/api/traverse', { rootId, depth, fields: expectedFields });
     });
 
      it('should return data on successful traverse call', async () => {

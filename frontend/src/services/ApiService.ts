@@ -11,16 +11,11 @@ interface GraphNode {
   id: string;
   label?: string;
   type?: string;
+  level?: number; // Add level field
   // Add other potential node properties
 }
 
-interface GraphEdge {
-  id?: string; // Edges might not always have IDs from Dgraph directly
-  type?: string;
-  from: { id: string }; // Assuming 'from'/'to' are nested objects with id
-  to: { id: string };
-  // Add other potential edge properties
-}
+// Removed unused GraphEdge interface
 
 interface TraversalResponse {
   queryNode: GraphNode[]; // Assuming traverse returns nodes matching GraphNode structure
@@ -50,15 +45,18 @@ interface HealthStatus {
  * Fetches graph data using the traversal endpoint.
  * @param rootId - The ID of the node to start traversal from.
  * @param depth - The depth of the traversal.
- * @param fields - The node fields to retrieve.
+ * @param fields - The node fields to retrieve. Defaults include 'level'.
  * @returns Promise resolving to the graph data.
  */
-export const fetchTraversalData = async (rootId: string, depth: number = 3, fields: string[] = ['id', 'label', 'type']): Promise<TraversalResponse> => {
+export const fetchTraversalData = async (rootId: string, depth: number = 3, fields: string[] = ['id', 'label', 'type', 'level']): Promise<TraversalResponse> => {
   try {
+    // Ensure 'level' is always requested if using default or if not present in custom fields
+    const fieldsToRequest = fields.includes('level') ? fields : [...fields, 'level'];
+
     const response = await axios.post<TraversalResponse>(`${API_BASE_URL}/traverse`, {
       rootId,
-      depth,
-      fields,
+      depth, // Note: API currently ignores depth
+      fields: fieldsToRequest, // Send updated fields list
     });
     // TODO: Add data transformation here if needed to flatten edges or structure data for Cytoscape
     return response.data;

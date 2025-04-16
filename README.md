@@ -8,39 +8,110 @@ MakeItMakeSense.io aims to be an interactive knowledge map platform. It allows u
 
 ## Current Status
 
-This repository currently contains the core Dgraph database setup using Docker Compose and a suite of Python tools for managing and interacting with the graph data. Frontend (React) and Backend API (Node.js/Python) components described in the architecture document are planned for future development.
+This repository contains the core components for the MakeItMakeSense.io platform:
+*   **Dgraph Backend:** A graph database configured via Docker Compose.
+*   **Backend API:** A Node.js/Express server providing a GraphQL interface and other endpoints to interact with Dgraph.
+*   **Frontend:** A React/Vite application using Cytoscape.js for interactive graph visualization.
+*   **Utility Tools:** Python scripts for database management (schema push, seeding, querying, exporting) and a simple HTML/Mermaid.js visualizer for exported data.
 
-## Features (Current)
+## Tech Stack
 
-*   **Dgraph Backend:** Configured via `docker-compose.yml` to run Dgraph Zero, Alpha, and Ratel services.
-*   **GraphQL Schema:** Defined in `schema.graphql`.
-*   **Database Tools (`tools/` directory):**
-    *   `push_schema.py`: Pushes the GraphQL schema to the Dgraph Alpha admin endpoint.
-    *   `seed_data.py`: Populates the database with sample data (uses built-in data or a specified JSON file).
-    *   `query_graph.py`: Executes predefined or custom GraphQL queries against the database.
-    *   `export_graph.py`: Exports graph data (full graph or specific nodes) to JSON files in the `exports/` directory. Creates both a timestamped file and overwrites `exports/latest_json_graph.json`.
-    *   `visualize_mermaid.html`: A browser-based tool to visualize exported graph data using Mermaid.js. Automatically loads `exports/latest_json_graph.json` on startup and allows manual loading of other export files.
-*   **Documentation (`docs/` directory):** Includes system architecture (`architecture.md`) and schema notes (`schema_notes.md`).
+*   **Database:** Dgraph (via Docker)
+*   **Backend API:** Node.js, Express.js
+*   **Frontend:** React, Vite, TypeScript, Cytoscape.js, Axios
+*   **Utility Tools:** Python, requests, Mermaid.js
+*   **Development:** Docker Compose, Nodemon, Concurrently, Vitest, Jest
+
+## Project Structure
+
+```
+.
+├── .gitignore          # Specifies intentionally untracked files (like /exports/)
+├── docker-compose.yml  # Defines Dgraph services (Zero, Alpha, Ratel)
+├── package.json        # Root package file with helper scripts
+├── package-lock.json
+├── README.md           # This file
+├── schema.graphql      # The GraphQL schema for the Dgraph database
+├── setup_schema.py     # (DEPRECATED - Use tools/push_schema.py instead)
+├── api/                # Backend API (Node.js/Express)
+│   ├── .env            # Environment variables (e.g., DGRAPH_ENDPOINT, PORT) - Not committed
+│   ├── .gitignore
+│   ├── dgraphClient.js # Dgraph client logic
+│   ├── endpoints.test.js # API endpoint tests
+│   ├── jest.config.js  # Jest configuration
+│   ├── package.json
+│   ├── package-lock.json
+│   └── server.js       # Express server entry point
+├── docs/               # Project documentation
+│   ├── architecture.md # High-level system design
+│   └── schema_notes.md # Notes related to the Dgraph schema
+├── exports/            # Default directory for graph JSON exports (ignored by Git)
+├── frontend/           # Frontend application (React/Vite)
+│   ├── .gitignore
+│   ├── index.html      # Vite entry HTML
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── README.md       # (Default Vite README)
+│   ├── tsconfig.app.json
+│   ├── tsconfig.json
+│   ├── tsconfig.node.json
+│   ├── vite.config.ts  # Vite configuration (includes proxy setup)
+│   ├── public/         # Static assets
+│   └── src/            # Frontend source code
+│       ├── App.tsx         # Main application component
+│       ├── main.tsx        # React entry point
+│       ├── setupTests.ts   # Vitest setup
+│       ├── vite-env.d.ts   # Vite TypeScript environment types
+│       ├── assets/
+│       ├── components/
+│       │   └── GraphView.tsx # Cytoscape graph rendering component
+│       ├── services/
+│       │   └── ApiService.ts # Functions for calling the backend API
+│       └── utils/
+│           └── graphUtils.ts # Helper functions for graph data transformation
+└── tools/              # Utility scripts and visualization tool
+    ├── export_graph.py
+    ├── push_schema.py  # Preferred script for pushing schema
+    ├── query_graph.py
+    ├── README.md       # README specific to the tools directory
+    ├── seed_data.py
+    └── visualize_mermaid.html # HTML/Mermaid visualizer for exports
+```
+*(Note: `setup_schema.py` in the root is redundant; use `tools/push_schema.py`.)*
 
 ## Prerequisites
 
 *   **Docker & Docker Compose:** To run the Dgraph database services.
-*   **Python:** Version 3.6+ is recommended. (Note: This project uses a conda environment named 'pointcloud').
-*   **Python `requests` library:** Install using pip:
+*   **Node.js & npm:** Version 18+ recommended (includes npm).
+*   **Python:** Version 3.6+ recommended.
+*   **Conda (Recommended):** This project uses a conda environment named 'pointcloud' for Python dependencies.
+*   **Python `requests` library:** Install via pip (preferably within the conda environment):
     ```bash
-    pip install requests
-    # or if using the conda environment:
+    # Activate conda environment (if using)
     # conda activate pointcloud
-    # pip install requests
+
+    pip install requests
     ```
 
 ## Getting Started / Development Environment
 
 The easiest way to start the full development environment (Dgraph database, backend API server, and frontend development server) is to use the root-level npm script:
 
-1.  **Ensure Prerequisites:** Make sure you have Docker, Docker Compose, Node.js (which includes npm), and Python installed.
-2.  **Install Root Dependencies:** If you haven't already, run `npm install` in the project root directory (`/home/gb/coding/mims-graph`) to install `concurrently`.
-3.  **Start Everything:** In the project root directory, run:
+1.  **Clone the Repository:**
+    ```bash
+    git clone <repository_url>
+    cd mims-graph
+    ```
+2.  **Install Root Dependencies:** Run `npm install` in the project root directory (`/home/gb/coding/mims-graph`) to install `concurrently`.
+    ```bash
+    npm install
+    ```
+3.  **Install API & Frontend Dependencies:** The `start-dev-env` script *does not* automatically install dependencies in the sub-directories. You need to do this manually the first time:
+    ```bash
+    cd api && npm install && cd ..
+    cd frontend && npm install && cd ..
+    ```
+4.  **Start Everything:** In the project root directory, run:
     ```bash
     npm run start-dev-env
     ```
@@ -49,113 +120,84 @@ The easiest way to start the full development environment (Dgraph database, back
     *   Start the backend API server (`cd api && npm run dev`).
     *   Start the frontend development server (`cd frontend && npm run dev`).
     You will see combined output from the API and frontend servers in your terminal.
-4.  **Access Frontend:** Open your web browser and navigate to the URL provided by the Vite frontend server (usually `http://localhost:5173`). You should see the React application displaying the graph.
-5.  **Stopping:** Press `Ctrl+C` in the terminal where `npm run start-dev-env` is running. This will stop both the API and frontend servers. To stop the Dgraph database containers, run:
+5.  **Access Services:**
+    *   **Frontend Application:** Open your web browser to `http://localhost:5173` (or the port shown by Vite).
+    *   **Dgraph Ratel UI:** Open `http://localhost:8000` to explore the graph data directly.
+    *   **API Base:** The API server runs on `http://localhost:3000` (or the `PORT` in `api/.env`). The frontend proxy handles requests to `/api`.
+6.  **Push Schema (Required on first run or after schema changes):**
+    In a separate terminal, while Dgraph is running:
     ```bash
-    npm run stop-dgraph
-    # or directly: docker-compose down
-    ```
-
-## Manual Component Startup / Common Workflow (Alternative)
-
-1.  **Start Dgraph Services (if not using `start-dev-env`):**
-    In the project root:
-    ```bash
-    docker-compose up -d
-    # or: npm run start-dgraph
-    ```
-
-2.  **Push the Schema (Required on first run or after schema changes):**
-    Apply the GraphQL schema to the running Dgraph instance:
-    ```bash
+    # Ensure conda environment is active if needed
+    # conda activate pointcloud
     python tools/push_schema.py
     ```
-    *(This uses the default `schema.graphql` file in the project root).*
-
-3.  **Start API Server (if not using `start-dev-env`):**
+7.  **Seed Data (Optional):**
     In a separate terminal:
     ```bash
-    cd api
-    npm install # If first time
-    npm run dev
-    ```
-
-4.  **Start Frontend Server (if not using `start-dev-env`):**
-    In another separate terminal:
-    ```bash
-    cd frontend
-    npm install # If first time
-    npm run dev
-    ```
-    Then open `http://localhost:5173` (or the port shown) in your browser.
-
-5.  **Seed with Sample Data (Optional):**
-    Add some initial data to the graph:
-    ```bash
+    # Ensure conda environment is active if needed
+    # conda activate pointcloud
     python tools/seed_data.py
     ```
+8.  **Stopping:**
+    *   Press `Ctrl+C` in the terminal where `npm run start-dev-env` is running to stop the API and frontend servers.
+    *   To stop the Dgraph database containers, run:
+        ```bash
+        npm run stop-dgraph
+        # or directly: docker-compose down
+        ```
 
-6.  **Query the Graph (Using Python tool):**
-    Run a sample query to verify data:
+## Running Tests
+
+*   **API Tests:**
     ```bash
-    python tools/query_graph.py --query all_nodes
+    cd api
+    npm test
     ```
-    *(See `tools/README.md` for more query options).*
-
-7.  **Export Graph Data (Using Python tool):**
-    Export the current graph state to JSON:
+*   **Frontend Tests:**
     ```bash
-    python tools/export_graph.py
-    ```
-    *(This creates a timestamped file in `exports/` and updates `exports/latest_json_graph.json`).*
-
-8.  **Visualize the Graph (Using Mermaid tool):**
-    Open the visualizer tool in your browser:
-    ```bash
-    # On Linux (like Ubuntu)
-    xdg-open tools/visualize_mermaid.html
-    # On macOS
-    # open tools/visualize_mermaid.html
-    ```
-    The page will automatically load and display the data from `exports/latest_json_graph.json`. You can use the file input on the page to load older timestamped exports if needed.
-
-9.  **Access Dgraph Ratel UI (Optional):**
-    You can explore the graph data directly using Dgraph's Ratel UI by navigating to `http://localhost:8000` in your browser.
-
-10. **Stop Dgraph Services (if started manually):**
-    When finished, stop the Docker containers:
-    ```bash
-    docker-compose down
-    # or: npm run stop-dgraph
+    cd frontend
+    npm test
+    # Or for UI mode:
+    # npm run test:ui
     ```
 
-## Project Structure
+## API Endpoints
 
-```
-.
-├── .gitignore          # Specifies intentionally untracked files (like /exports/)
-├── docker-compose.yml  # Defines Dgraph services (Zero, Alpha, Ratel)
-├── schema.graphql      # The GraphQL schema for the Dgraph database
-├── setup_schema.py     # (Purpose might need clarification - seems related to schema setup)
-├── docs/               # Project documentation
-│   ├── architecture.md # High-level system design
-│   └── schema_notes.md # Notes related to the schema
-├── exports/            # Default directory for graph JSON exports (ignored by Git)
-└── tools/              # Utility scripts and visualization tool
-    ├── export_graph.py
-    ├── push_schema.py
-    ├── query_graph.py
-    ├── README.md       # README specific to the tools directory
-    ├── seed_data.py
-    └── visualize_mermaid.html
-```
+The backend API provides several endpoints under `/api`:
+*   `POST /api/query`: Execute GraphQL queries.
+*   `POST /api/mutate`: Execute GraphQL mutations.
+*   `POST /api/traverse`: Fetch a node and its immediate neighbors.
+*   `GET /api/search`: Search nodes by label.
+*   `GET /api/schema`: Retrieve the current GraphQL schema text.
+*   `GET /api/health`: Check API and Dgraph connectivity.
+
+*(See `/docs/api_endpoints.md` for detailed descriptions - **This file needs to be created**).*
+
+## Utility Tools (`tools/` directory)
+
+This directory contains Python scripts for interacting with the Dgraph database and visualizing data:
+*   `push_schema.py`: Pushes `schema.graphql` to Dgraph.
+*   `seed_data.py`: Populates the database with sample data.
+*   `query_graph.py`: Executes GraphQL queries.
+*   `export_graph.py`: Exports graph data to JSON.
+*   `visualize_mermaid.html`: Browser-based tool to view exported JSON using Mermaid.js.
+
+*(See `tools/README.md` for detailed usage of these tools).*
+
+## Documentation
+
+*   `/docs/architecture.md`: High-level system design.
+*   `/docs/schema_notes.md`: Notes related to the Dgraph schema.
+*   *(Recommended additions: `/docs/api_endpoints.md`, `/docs/deployment_guide.md`)*
 
 ## Future Work
 
-As outlined in `docs/architecture.md`, future development includes:
-*   A React-based frontend for interactive graph visualization and editing.
-*   A backend API (Node.js or Python) to handle graph operations, branching, and merging.
-*   User authentication and contribution workflows.
+*   Implement remaining features outlined in `docs/architecture.md` (e.g., branching, merging, user auth).
+*   Expand API functionality (e.g., more complex traversals, advanced search).
+*   Enhance frontend UI/UX (e.g., editing nodes/edges, better layout controls).
+*   Improve test coverage.
+*   Create detailed documentation (`api_endpoints.md`, `deployment_guide.md`).
+*   Remove redundant `setup_schema.py`.
 
 ## Contributing
 
