@@ -1,9 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import cytoscape, { Core, ElementDefinition } from 'cytoscape';
+import cytoscape, { Core, ElementDefinition, NodeSingular } from 'cytoscape'; // Import NodeSingular
 import klay from 'cytoscape-klay';
+import contextMenus from 'cytoscape-context-menus';
+import 'cytoscape-context-menus/cytoscape-context-menus.css'; // Import the CSS
 
-// Register the Klay layout algorithm
+// Register extensions
 cytoscape.use(klay);
+cytoscape.use(contextMenus);
 
 // Basic interfaces for node and edge data (can be expanded)
 interface NodeData {
@@ -99,30 +102,46 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
         }
       });
 
-      // --- Add Right-Click Handler ---
-      if (onNodeExpand) {
-        cyInstanceRef.current.on('cxttap', 'node', (event) => {
-          event.preventDefault(); // Prevent default browser context menu
-          const nodeId = event.target.id();
-          console.log(`Right-clicked node: ${nodeId}. Triggering expand.`); // Log action
-          onNodeExpand(nodeId); // Call the handler passed from App
-        });
-      }
-      // --- End Right-Click Handler ---
-    }
+      // --- Initialize Context Menu ---
+      // Type assertion needed as the extension might not be perfectly typed
+      const cmInstance = (cyInstanceRef.current as any).contextMenus({
+        menuItems: [
+          {
+            id: 'expand',
+            content: 'Expand',
+            tooltipText: 'Show children',
+            selector: 'node', // Show only for nodes
+            onClickFunction: (event: any) => {
+              const targetNode: NodeSingular = event.target || event.cyTarget;
+              const nodeId = targetNode.id();
+              console.log(`Context menu: Expand clicked on node ${nodeId}`);
+              if (onNodeExpand) {
+                onNodeExpand(nodeId);
+              }
+            },
+            // enabled: true // Default is true
+          },
+          // Add more menu items here if needed (e.g., Collapse, Details)
+        ],
+        // Other options like menuRadius, menuItemClasses, etc.
+      });
+      // --- End Context Menu ---
+
+    } // End of if (!cyInstanceRef.current)
 
     // Store the current ref value in a variable for the cleanup function
     const cyInstance = cyInstanceRef.current;
-    // Cleanup function to destroy instance and remove listeners on unmount
+    // Cleanup function to destroy instance and context menu on unmount
     return () => {
-      // Remove listener if it was added
-      if (cyInstance && onNodeExpand) {
-        cyInstance.removeListener('cxttap', 'node');
-      }
-      cyInstance?.destroy(); // Use the captured instance from the ref
+      // Destroy context menu instance if it exists
+      // Accessing the internal API, might be fragile
+      const cmApi = (cyInstance as any)?.contextMenus?.('get');
+      cmApi?.destroy();
+
+      cyInstance?.destroy(); // Destroy Cytoscape instance
       cyInstanceRef.current = null; // Clear the ref on unmount
     };
-  }, [onNodeExpand]); // Add onNodeExpand to dependency array
+  }, [onNodeExpand]); // Dependency array includes onNodeExpand
 
   // Effect to update graph elements when nodes or edges change
   useEffect(() => {
@@ -138,16 +157,32 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
       }));
 
       // Combine nodes and edges
-      const elements = [...cyNodes, ...cyEdges];
+      // --- Optimized Element Update ---
+      // Get IDs of elements currently in Cytoscape
+      const existingCyNodeIds = new Set(cyInstance.nodes().map(n => n.id()));
+      const existingCyEdgeIds = new Set(cyInstance.edges().map(e => `${e.source().id()}-${e.target().id()}-${e.data('type') ?? ''}`)); // Match App.tsx logic
+ 
+       // Filter incoming elements to find only the new ones
+       // Add explicit check for n.data.id to satisfy TS compiler
+       const newCyNodes = cyNodes.filter(n => n.data.id && !existingCyNodeIds.has(n.data.id));
+       const newCyEdges = cyEdges.filter(e => !existingCyEdgeIds.has(`${e.data.source}-${e.data.target}-${e.data.type ?? ''}`));
+ 
+       let layoutNeeded = false; // Flag to track if layout needs to run
 
-      // Update elements and run layout
-      cyInstance.batch(() => { // Use batch for performance
-        cyInstance.elements().remove(); // Clear existing elements
-        cyInstance.add(elements);     // Add new elements
-      });
+      // Add only new elements
+      if (newCyNodes.length > 0 || newCyEdges.length > 0) {
+        console.log(`[GraphView] Adding ${newCyNodes.length} new nodes and ${newCyEdges.length} new edges.`);
+        cyInstance.add([...newCyNodes, ...newCyEdges]);
+        layoutNeeded = true;
+      } else {
+        console.log("[GraphView] No new elements to add.");
+      }
 
-      // Run layout after adding elements
-      const layout = cyInstance.layout({
+      // TODO: Implement removal of elements if nodes/edges props can shrink
+
+      // Run layout only if new elements were added
+      if (layoutNeeded) {
+        const layout = cyInstance.layout({
           name: 'klay', // Restore klay layout
           // Klay layout options (adjust as needed)
           klay: {
@@ -159,26 +194,30 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
           animationDuration: 300
       } as any); // Use 'as any' if type definitions clash
 
-      layout.run();
+        layout.run();
 
-      // Delay resize/fit and use requestAnimationFrame
-      const timer = setTimeout(() => {
-        if (cyInstance && !cyInstance.destroyed()) { // Check if instance still exists
-          requestAnimationFrame(() => { // Wrap in requestAnimationFrame
-            if (cyInstance && !cyInstance.destroyed()) { // Double-check instance
-               cyInstance.resize();
-               cyInstance.fit();
-            }
-          });
-        }
-      }, 500); // Increased delay to 500ms
+        // Delay resize/fit only when layout runs
+        const timer = setTimeout(() => {
+          if (cyInstance && !cyInstance.destroyed()) { // Check if instance still exists
+            requestAnimationFrame(() => { // Wrap in requestAnimationFrame
+              if (cyInstance && !cyInstance.destroyed()) { // Double-check instance
+                 cyInstance.resize();
+                 cyInstance.fit(); // Fit view to the updated graph
+              }
+            });
+          }
+        }, 500); // Keep delay
 
-      // Cleanup timeout on effect cleanup or re-run
-      return () => clearTimeout(timer);
+        // Cleanup timeout on effect cleanup or re-run
+        return () => clearTimeout(timer);
+      } else {
+        // If no layout ran, return an empty cleanup function
+        return () => {};
+      }
+      // --- End Optimized Element Update ---
 
-    }
-    // Dependency array only includes nodes and edges, as cyInstanceRef doesn't change
-  }, [nodes, edges]);
+    } // End if (cyInstance)
+  }, [nodes, edges]); // Dependency array remains the same
 
   // Default style for the container div - updated for full height and clipping prevention
   const defaultStyle: React.CSSProperties = {

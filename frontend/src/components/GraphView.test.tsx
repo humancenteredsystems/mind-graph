@@ -1,9 +1,8 @@
 // Test file for GraphView.tsx
 import { describe, it, expect, vi, beforeEach, beforeAll, Mock } from 'vitest';
 // Import screen and act for better testing practices
-import { render, waitFor, screen, act } from '@testing-library/react';
+import { render, waitFor, screen } from '@testing-library/react';
 import GraphView from './GraphView';
-import cytoscape from 'cytoscape'; // Import the actual library
 
 // --- Mock Cytoscape ---
 // Define the mock instance structure first

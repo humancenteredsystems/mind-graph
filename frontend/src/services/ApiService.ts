@@ -44,20 +44,28 @@ interface HealthStatus {
 /**
  * Fetches graph data using the traversal endpoint.
  * @param rootId - The ID of the node to start traversal from.
- * @param depth - The depth of the traversal.
+ * @param currentLevel - Optional: The level of the rootId node, used to fetch only children at level+1.
  * @param fields - The node fields to retrieve. Defaults include 'level'.
  * @returns Promise resolving to the graph data.
  */
-export const fetchTraversalData = async (rootId: string, depth: number = 3, fields: string[] = ['id', 'label', 'type', 'level']): Promise<TraversalResponse> => {
+// Update signature: remove depth, add optional currentLevel
+export const fetchTraversalData = async (rootId: string, currentLevel?: number, fields: string[] = ['id', 'label', 'type', 'level']): Promise<TraversalResponse> => {
   try {
     // Ensure 'level' is always requested if using default or if not present in custom fields
     const fieldsToRequest = fields.includes('level') ? fields : [...fields, 'level'];
 
-    const response = await axios.post<TraversalResponse>(`${API_BASE_URL}/traverse`, {
+    // Construct payload, including currentLevel if provided
+    const payload: { rootId: string; currentLevel?: number; fields: string[] } = {
       rootId,
-      depth, // Note: API currently ignores depth
-      fields: fieldsToRequest, // Send updated fields list
-    });
+      fields: fieldsToRequest,
+    };
+    if (currentLevel !== undefined) {
+      payload.currentLevel = currentLevel;
+    }
+
+    console.log(`[ApiService] Fetching traversal data for rootId: ${rootId}, currentLevel: ${currentLevel ?? 'N/A'}`); // Log update
+    const response = await axios.post<TraversalResponse>(`${API_BASE_URL}/traverse`, payload); // Send updated payload
+    console.log(`[ApiService] Received traversal data for rootId: ${rootId}`); // Log update
     // TODO: Add data transformation here if needed to flatten edges or structure data for Cytoscape
     return response.data;
   } catch (error) {

@@ -1,15 +1,15 @@
 type Node {
-  id: String! @id # Changed from ID! to String!
+  id: String! @id
   label: String! @search(by: [term])
   type: String!
-  level: Int
+  level: Int @search
   status: String
   branch: String
-  outgoing: [Edge] @hasInverse(field: "from") # Restored @hasInverse
+  outgoing: [Edge] @hasInverse(field: "from")
 }
 
 type Edge {
-  from: Node! @hasInverse(field: "outgoing") # Restored @hasInverse
-  to: Node!
+  from: Node! @hasInverse(field: "outgoing")
+  to: Node
   type: String!
 }

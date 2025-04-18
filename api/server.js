@@ -18,6 +18,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const express = require('express');
 const { executeGraphQL } = require('./dgraphClient'); // Import the client
+
 const { v4: uuidv4 } = require('uuid'); // Import UUID generator
 const axios = require('axios'); // Import axios for /api/schema
 const app = express();
@@ -90,61 +91,77 @@ app.post('/api/mutate', async (req, res) => {
   } // End catch block
 }); // End app.post('/api/mutate')
 
-// Endpoint for graph traversal using @recurse
+// Stable version using string concatenation
 app.post('/api/traverse', async (req, res) => {
-  const { rootId, depth = 3, fields = ['id', 'label', 'type'] } = req.body;
+  const { rootId, currentLevel, fields } = req.body;
 
   if (!rootId) {
     return res.status(400).json({ error: 'Missing required field: rootId' });
   }
-  if (typeof depth !== 'number' || depth < 0) {
-      return res.status(400).json({ error: 'Invalid depth parameter. Must be a non-negative number.' });
-  }
-  if (!Array.isArray(fields) || fields.length === 0) {
-      return res.status(400).json({ error: 'Invalid fields parameter. Must be a non-empty array of strings.' });
+
+  // Validate fields
+  const allowedFields = ['id', 'label', 'type', 'level', 'description']; // Add only whitelisted fields
+  const safeFields = Array.isArray(fields) && fields.length > 0
+    ? fields.filter(f => allowedFields.includes(f))
+    : allowedFields; // Default to allowed fields if none provided or invalid
+
+  // Ensure 'level' is included if currentLevel is used for filtering
+  if (currentLevel !== undefined && !safeFields.includes('level')) {
+    safeFields.push('level');
   }
 
-  // Basic field validation (prevent injecting complex structures)
-  const allowedChars = /^[a-zA-Z0-9_]+$/;
-  if (!fields.every(field => allowedChars.test(field))) {
-      return res.status(400).json({ error: 'Invalid characters in fields parameter.' });
+  if (safeFields.length === 0) {
+    // This case should ideally not happen if default is allowedFields, but good to check
+    return res.status(400).json({ error: 'Invalid fields array. No allowed fields provided.' });
   }
-  const fieldsString = fields.join('\n          '); // Format for GraphQL query
 
-  // Construct the query (Note: @recurse is DQL, not standard GraphQL)
-  // We will fetch the root node and its immediate outgoing connections.
-  const query = `
-    query TraverseGraph($rootId: String!) {
-      queryNode(filter: { id: { eq: $rootId } }) { # Use standard 'eq' filter for ID
-          ${fieldsString}
-          # Include outgoing to get immediate neighbors
-          outgoing {
-            type
-            to {
-              # Include fields needed for next level of recursion
-              ${fieldsString}
-            }
-          }
-      }
-    }
-  `;
-  // Remove depth variable as @recurse is removed
+  const fieldBlock = safeFields.join('\n    '); // Indent fields correctly
+  const targetLevel = currentLevel !== undefined ? currentLevel + 1 : null;
+
+  // Construct the 'to' block conditionally
+  const toBlock = targetLevel !== null
+    ? `to (filter: { level: { eq: ${targetLevel} } }) {\n      ${fieldBlock}\n    }` // Note indentation
+    : `to {\n      ${fieldBlock}\n    }`; // Note indentation
+
+  // Construct the full query using array join for clarity and safety
+  const query = [
+    'query TraverseGraph($rootId: String!) {',
+    '  queryNode(filter: { id: { eq: $rootId } }) {',
+    `    ${fieldBlock}`, // Fields for the root node
+    '    outgoing {',
+    '      type',
+    `      ${toBlock}`, // The conditionally constructed 'to' block
+    '    }',
+    '  }',
+    '}'
+  ].join('\n');
+
   const variables = { rootId };
 
   try {
-    // Update log message to reflect lack of depth parameter
-    console.log(`[TRAVERSE] Attempting query for rootId: ${rootId}`);
+    console.log(`[TRAVERSE] Attempting query for rootId: ${rootId}, targetLevel: ${targetLevel ?? 'N/A'}`);
     console.log(`[TRAVERSE] Query:\n${query}`);
     console.log(`[TRAVERSE] Variables:`, variables);
     const result = await executeGraphQL(query, variables);
+
+    // Filter out null 'to' nodes if the level filter resulted in no matches for an edge
+    // Important: executeGraphQL now returns the 'data' part directly
+    if (result && result.queryNode && result.queryNode.length > 0) {
+        result.queryNode.forEach(node => {
+            if (node.outgoing) {
+                node.outgoing = node.outgoing.filter(edge => edge.to !== null);
+            }
+        });
+    }
+
     console.log(`[TRAVERSE] Query successful for rootId: ${rootId}`);
-    res.json(result);
-  } catch (error) {
+    res.json({ data: result }); // Wrap result in 'data' key to match expected frontend structure if needed
+  } catch (err) {
     // Log the full error object for more details
-    console.error(`[TRAVERSE] Error occurred for rootId: ${rootId}:`, error);
+    console.error(`[TRAVERSE] Error occurred for rootId: ${rootId}:`, err);
     // Keep existing response logic
-    if (error.message?.startsWith('GraphQL query failed:')) {
-       res.status(400).json({ error: `GraphQL error during traversal: ${error.message}` });
+    if (err.message?.startsWith('GraphQL query failed:')) {
+       res.status(400).json({ error: `GraphQL error during traversal: ${err.message}` });
     } else {
        res.status(500).json({ error: 'Server error during traversal.' });
     }
@@ -234,8 +251,9 @@ app.get('/api/health', async (req, res) => {
 // Export the app instance for testing purposes
 module.exports = app;
 
-// Start the server only if this file is run directly (not required by a test runner)
-if (require.main === module) {
+// Start the server only if this file is run directly (e.g. node server.js or via nodemon)
+// Use !module.parent which is more reliable than require.main === module in some scenarios
+if (!module.parent) {
   app.listen(PORT, () => {
     console.log(`API server listening on port ${PORT}`);
   });

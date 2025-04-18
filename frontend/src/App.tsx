@@ -52,20 +52,24 @@ function App() {
       return;
     }
 
-    // Find the node in the current state to check its level (optional, but good practice)
+    // Find the node in the current state to get its level
     const clickedNode = nodes.find(n => n.id === nodeId);
-    if (!clickedNode) {
-      console.warn(`Node ${nodeId} not found in current state.`);
-      // Optionally proceed anyway or show an error
+    if (!clickedNode || clickedNode.level === undefined) {
+      console.warn(`Node ${nodeId} not found in current state or missing level information. Cannot expand.`);
+      // Optionally show an error to the user
+      setError(`Cannot expand node ${nodeId}: Missing level information.`);
+      return; // Stop expansion if level is unknown
     }
-    console.log(`Attempting to expand node ${nodeId} (Level: ${clickedNode?.level ?? 'unknown'})`);
+    const currentLevel = clickedNode.level; // Get the level
+    console.log(`Attempting to expand node ${nodeId} (Level: ${currentLevel})`);
 
     setIsExpanding(true); // Set loading state for expansion
     setError(null); // Clear previous errors
 
     try {
-      // Fetch data starting from the clicked node (API ignores depth, fetches level + 1)
-      const rawData = await fetchTraversalData(nodeId, 1); // Depth 1 is conceptual
+      // Fetch data starting from the clicked node, passing its level
+      // API will use this to fetch only nodes at currentLevel + 1
+      const rawData = await fetchTraversalData(nodeId, currentLevel); // Pass currentLevel
       console.log(`[handleNodeExpand ${nodeId}] Raw data from API:`, JSON.stringify(rawData, null, 2)); // DIAGNOSTIC LOG
 
       // Transform the new data
