@@ -6,4 +6,4 @@ RUN chmod +x /usr/local/bin/dgraph-entrypoint.sh
 COPY schema.graphql /schema.graphql
 
 # Run both Zero and Alpha via the entrypoint
-ENTRYPOINT ["dgraph-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/dgraph-entrypoint.sh"]
