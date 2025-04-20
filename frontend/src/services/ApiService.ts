@@ -1,7 +1,8 @@
 import axios from 'axios';
 
  // Base URL for API endpoint loaded from Vite environment or fallback
- const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string ?? '/api';
+ const raw = (import.meta.env.VITE_API_BASE_URL as string) ?? '/api';
+ const API_BASE_URL = raw.trim().replace(/\/$/, '');
 
 import { NodeData } from '../types/graph'; // Import from centralized types
 

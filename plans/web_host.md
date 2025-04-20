@@ -45,8 +45,7 @@ Outline steps to deploy the MakeItMakeSense.io frontend, backend API, and Dgraph
    - **Build Command**: `npm install`
    - **Start Command**: `npm run start`
    - **Environment Variables**:
-     - `DGRAPH_ENDPOINT` = URL of the Render Dgraph private service (e.g., `http://<dgraph-service>.onrender.com:8080`)
-     - `PORT` (optional): port for Express (Render defaults to `10000`).
+     - `DGRAPH_ENDPOINT` = URL of the Render Dgraph private service (mims-graph-dgraph:8080)
 3. Enable “Auto Deploy” on GitHub branch pushes.
 
 ## 6. Frontend Static Site Deployment
@@ -64,10 +63,10 @@ Outline steps to deploy the MakeItMakeSense.io frontend, backend API, and Dgraph
    - **Build Command**: `npm install && npm run build`
    - **Publish Directory**: `dist`
    - **Environment Variables**:
-  - VITE_API_BASE_URL=`https://mims-graph.onrender.com/api` (point to your Render API service URL)
+  - VITE_API_BASE_URL=`https://mims-graph.onrender.com` (point to your Render API service URL)
 
 ## 7. DNS & Custom Domain (Optional)
-- In Render → Domains, add your custom domain (e.g., `app.makeitmakesense.io`).
+- In Render → Domains, add your custom domain (e.g., `makeitmakesense.io`).
 - Update DNS records (CNAME or ALIAS) per Render instructions.
 
 ## 8. Continuous Deployment
