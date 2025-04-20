@@ -1,9 +1,7 @@
 import axios from 'axios';
 
-// Define the base URL for the API.
-// During development, Vite's proxy will handle forwarding '/api' requests.
-// For production, this might need to be an absolute URL.
-const API_BASE_URL = '/api'; // Use relative path for proxy
+ // Base URL for API endpoint loaded from Vite environment or fallback
+ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string ?? '/api';
 
 import { NodeData } from '../types/graph'; // Import from centralized types
 

@@ -71,6 +71,12 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
       }
     },
     {
+      selector: 'node[level = 2]',
+      css: {
+        'shape': 'round-rectangle'
+      }
+    },
+    {
       selector: 'edge',
       css: {
         'width': 1,
