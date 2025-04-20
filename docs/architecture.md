@@ -16,7 +16,7 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 [User Browser]
     │
     ▼
-[Static Frontend (React/Vite + Cytoscape.js)] ───▶ [Backend API (Node.js/Express)]
+[Static Frontend (React/Vite + react-cytoscapejs)] ───▶ [Backend API (Node.js/Express)]
                                                   │
                                                   ▼
                                         [Dgraph Graph Database]
@@ -31,14 +31,14 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 ### Tech Stack (Current Implementation)
 - React (with Vite)
 - TypeScript
-- Cytoscape.js (with `cytoscape-klay` layout) for graph rendering
+- react-cytoscapejs (with `cytoscape-klay` layout plugin) for graph rendering
 - Axios for API calls
 - **Target Hosting:** Static site (e.g., Render)
 
 ### Features (Current Implementation)
-- Interactive graph visualization via Cytoscape.js.
+- Interactive graph visualization via react-cytoscapejs.
 - Fetches initial graph data from the backend API (`/api/traverse`).
-- Basic pan and zoom provided by Cytoscape.js.
+- Basic pan and zoom provided via react-cytoscapejs (Cytoscape.js plugin).
 - Styling for different node types (`concept`, `example`, `question`).
 - Uses Klay layout algorithm.
 
@@ -115,6 +115,7 @@ type Edge {
   type: String!
 }
 ```
+
 *(See `docs/schema_notes.md` regarding `@id` type requirements).*
 
 ### Capabilities
@@ -148,7 +149,7 @@ type Edge {
 
 | Component     | Service Type    | Description                                  |
 |---------------|-----------------|----------------------------------------------|
-| Frontend      | Static Site     | React/Vite/Cytoscape.js graph viewer         |
+| Frontend      | Static Site     | React/Vite/react-cytoscapejs graph viewer    |
 | API Gateway   | Web Service     | Node.js/Express API                          |
 | Dgraph Engine | Private Service | Graph DB container (Docker) with volume      |
 | Storage       | Persistent Disk | Long-term data store for Dgraph (persistent) |
@@ -158,11 +159,11 @@ type Edge {
 ## 🚀 Example Workflow (Current Implementation)
 
 1. User visits the frontend application in their browser.
-2. Frontend (`App.tsx`) calls the backend API (`POST /api/traverse`) with a root node ID.
+2. Frontend (`App.tsx` + `graphUtils.ts`) calls the backend API (`POST /api/traverse`) with a root node ID.
 3. Backend API queries Dgraph for the root node and its immediate neighbors.
 4. Backend API returns the data to the frontend.
-5. Frontend (`App.tsx` + `graphUtils.ts`) transforms the data.
-6. Frontend (`GraphView.tsx`) renders the nodes and edges using Cytoscape.js.
+5. Frontend transforms the data.
+6. Frontend renders the nodes and edges via react-cytoscapejs.
 
 ## 🚀 Example Workflow (Future Goal - Branching/Merging)
 
@@ -170,9 +171,9 @@ type Edge {
 2. User creates a new node or link locally (changes tracked in frontend state).
 3. User submits their changes → Frontend calls a (future) `/api/submit-branch` endpoint.
 4. Backend saves the changes to Dgraph, associated with a user branch and marked as `pending`.
-5. Admin/Curator uses (future) Admin Tools to view the diff between the branch and the main graph.
-6. Admin merges or rejects the branch via API calls (`/api/merge` or `/api/reject`).
-7. Merged data becomes part of the public graph (e.g., status updated to `approved`).
+5. Admin/Curator uses Admin Tools to view diffs.
+6. Admin merges or rejects the branch.
+7. Approved data becomes part of the public graph.
 
 ---
 

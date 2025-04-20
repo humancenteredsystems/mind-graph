@@ -79,11 +79,10 @@ test('Handles API error on node expansion', async ({ page }) => {
     }
   });
 
-  // Trigger context menu and expand node1
+  // Trigger context menu on node1
   await triggerContextMenu(page, 'node1');
-  // Add a small delay before clicking
-  await page.waitForTimeout(50);
-  // Use ID selector for the menu item and force the click
+  // The triggerContextMenu function now waits for the menu item to be visible
+  // So we can directly click the expand menu item
   await page.locator('#expand').click({ force: true });
 
   // Check for the expansion error message from App.tsx

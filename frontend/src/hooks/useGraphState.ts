@@ -40,8 +40,8 @@ export const useGraphState = (): UseGraphState => {
       setNodes(initialNodes);
       setEdges(initialEdges);
 
-      // Mark initial nodes as expanded
-      initialNodes.forEach(node => expandedNodeIds.current.add(node.id));
+      // Do not mark initial nodes as expanded automatically.
+      // Nodes are marked as expanded only when the user explicitly expands them.
 
     } catch (err) {
       log("useGraphState", "ERROR: Failed to load initial graph data:", err); // Use log

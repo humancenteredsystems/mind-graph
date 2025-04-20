@@ -24,7 +24,10 @@ function App() {
         <GraphView
           nodes={nodes}
           edges={edges}
-          onNodeExpand={expandNode} // Pass the expandNode function from the hook
+          onNodeExpand={(nodeId) => { // Add logging here
+            log("App", `Expand node requested for: ${nodeId}`);
+            expandNode(nodeId);
+          }}
         />
       )}
       {/* Add UI elements for other API calls later */}
