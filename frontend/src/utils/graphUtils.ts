@@ -57,12 +57,15 @@ export const transformTraversalData = (data: any): { nodes: NodeData[], edges: E
   }
 
   // Start processing from the root nodes returned by the query
-  // Access the nested data.data.queryNode structure
-  if (data && data.data && data.data.queryNode) {
-    processNodes(data.data.queryNode);
+  // Support both nested and un-nested queryNode structures
+  const rootNodes = data?.data?.queryNode ?? data?.queryNode;
+  if (Array.isArray(rootNodes)) {
+    processNodes(rootNodes);
   } else {
-    // Log a warning if the expected structure isn't found
-    console.warn("transformTraversalData: Expected 'data.data.queryNode' not found in the input:", data);
+    console.warn(
+      "transformTraversalData: Expected 'data.data.queryNode' or 'data.queryNode' not found in the input:",
+      data
+    );
   }
 
   return { nodes, edges };

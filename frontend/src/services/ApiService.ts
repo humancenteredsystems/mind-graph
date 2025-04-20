@@ -47,13 +47,13 @@ export const fetchTraversalData = async (rootId: string, currentLevel?: number, 
     // Ensure 'level' is always requested if using default or if not present in custom fields
     const fieldsToRequest = fields.includes('level') ? fields : [...fields, 'level'];
 
-    // Construct payload, including currentLevel if provided
-    const payload: { rootId: string; currentLevel?: number; fields: string[] } = {
+    // Construct payload, including depth if provided
+    const payload: { rootId: string; depth?: number; fields: string[] } = {
       rootId,
       fields: fieldsToRequest,
     };
     if (currentLevel !== undefined) {
-      payload.currentLevel = currentLevel;
+      payload.depth = currentLevel;
     }
 
     console.log(`[ApiService] Fetching traversal data for rootId: ${rootId}, currentLevel: ${currentLevel ?? 'N/A'}`); // Log update

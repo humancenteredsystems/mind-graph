@@ -87,20 +87,22 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
     const cy = cyRef.current;
     if (!cy) return;
 
-    (cy as any).contextMenus({
-      menuItems: [
-        {
-          id: 'expand',
-          content: 'Expand',
-          tooltipText: 'Show children',
-          selector: 'node',
-          onClickFunction: (event: any) => {
-            const nodeId = event.target.id();
-            if (onNodeExpand) onNodeExpand(nodeId);
+    if (typeof (cy as any).contextMenus === 'function') {
+      (cy as any).contextMenus({
+        menuItems: [
+          {
+            id: 'expand',
+            content: 'Expand',
+            tooltipText: 'Show children',
+            selector: 'node',
+            onClickFunction: (event: any) => {
+              const nodeId = event.target.id();
+              if (onNodeExpand) onNodeExpand(nodeId);
+            }
           }
-        }
-      ]
-    });
+        ]
+      });
+    }
 
     if (import.meta.env.DEV) {
       (window as any).cyInstance = cy;
