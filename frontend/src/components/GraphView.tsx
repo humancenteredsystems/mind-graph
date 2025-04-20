@@ -3,27 +3,13 @@ import cytoscape, { Core, ElementDefinition, NodeSingular } from 'cytoscape'; //
 import klay from 'cytoscape-klay';
 import contextMenus from 'cytoscape-context-menus';
 import 'cytoscape-context-menus/cytoscape-context-menus.css'; // Import the CSS
+import { NodeData, EdgeData } from '../types/graph'; // Import from centralized types
+import { log } from '../utils/logger'; // Import the logger utility
+// import { Timeout } from 'timers'; // Import Timeout type - Temporarily removed due to type errors
 
 // Register extensions
 cytoscape.use(klay);
 cytoscape.use(contextMenus);
-
-// Basic interfaces for node and edge data (can be expanded)
-interface NodeData {
-  id: string;
-  label?: string;
-  type?: string;
-  level?: number; // Add level field
-  // Add other properties needed for styling or data
-}
-
-interface EdgeData {
-  id?: string; // Optional edge ID
-  source: string; // Source node ID
-  target: string; // Target node ID
-  type?: string;
-  // Add other properties
-}
 
 interface GraphViewProps {
   nodes: NodeData[];
@@ -114,7 +100,7 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
             onClickFunction: (event: any) => {
               const targetNode: NodeSingular = event.target || event.cyTarget;
               const nodeId = targetNode.id();
-              console.log(`Context menu: Expand clicked on node ${nodeId}`);
+              log("GraphView", `Context menu: Expand clicked on node ${nodeId}`); // Use log
               if (onNodeExpand) {
                 onNodeExpand(nodeId);
               }
@@ -125,7 +111,13 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
         ],
         // Other options like menuRadius, menuItemClasses, etc.
       });
-      // --- End Context Menu ---
+        // --- End Context Menu ---
+
+        // Expose instance for testing purposes in DEV mode
+        if (import.meta.env.DEV) {
+          (window as any).cyInstance = cyInstanceRef.current;
+          log("GraphView", '[GraphView] Cytoscape instance exposed on window.cyInstance for testing.'); // Use log
+        }
 
     } // End of if (!cyInstanceRef.current)
 
@@ -143,10 +135,25 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
     };
   }, [onNodeExpand]); // Dependency array includes onNodeExpand
 
+  // Add a ref for the fit timer
+  const fitTimerRef = useRef<any | null>(null); // <-- Add this ref, typed as any temporarily
+
   // Effect to update graph elements when nodes or edges change
   useEffect(() => {
     const cyInstance = cyInstanceRef.current; // Get instance from ref
-    if (cyInstance) {
+    if (!cyInstance) {
+      log("GraphView", '[GraphView] Cytoscape instance not initialized.'); // Use log
+      return;
+    }
+
+    // Add guard for empty data
+    if (nodes.length === 0 && edges.length === 0) {
+      log("GraphView", '[GraphView] Empty graph data received - skipping update.'); // Use log
+      // Optionally clear existing elements if needed, but for now, just skip
+      // cyInstance.elements().remove();
+      return;
+    }
+
       // Format nodes and edges for Cytoscape
       // Separate the core properties (id, source, target) from the rest
       const cyNodes: ElementDefinition[] = nodes.map(({ id, label, ...rest }) => ({
@@ -171,18 +178,13 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
 
       // Add only new elements
       if (newCyNodes.length > 0 || newCyEdges.length > 0) {
-        console.log(`[GraphView] Adding ${newCyNodes.length} new nodes and ${newCyEdges.length} new edges.`);
-        cyInstance.add([...newCyNodes, ...newCyEdges]);
+        log("GraphView", `[GraphView] Adding ${newCyNodes.length} new nodes and ${newCyEdges.length} new edges.`); // Use log
+        // Capture the added elements
+        const addedElements = cyInstance.add([...newCyNodes, ...newCyEdges]);
         layoutNeeded = true;
-      } else {
-        console.log("[GraphView] No new elements to add.");
-      }
 
-      // TODO: Implement removal of elements if nodes/edges props can shrink
-
-      // Run layout only if new elements were added
-      if (layoutNeeded) {
-        const layout = cyInstance.layout({
+        // Run layout only on the added elements
+        const layout = addedElements.layout({ // <-- Change here
           name: 'klay', // Restore klay layout
           // Klay layout options (adjust as needed)
           klay: {
@@ -192,31 +194,41 @@ const GraphView: React.FC<GraphViewProps> = ({ nodes, edges, style, onNodeExpand
           },
           animate: true, // Optional animation
           animationDuration: 300
-      } as any); // Use 'as any' if type definitions clash
+        } as any); // Use 'as any' if type definitions clash
 
         layout.run();
 
-        // Delay resize/fit only when layout runs
-        const timer = setTimeout(() => {
+        // Clear any existing timer before setting a new one
+        if (fitTimerRef.current) { // <-- Clear existing timer
+          clearTimeout(fitTimerRef.current);
+        }
+
+        // Set a new timer for resize and fit
+        fitTimerRef.current = setTimeout(() => { // <-- Use the ref
           if (cyInstance && !cyInstance.destroyed()) { // Check if instance still exists
             requestAnimationFrame(() => { // Wrap in requestAnimationFrame
               if (cyInstance && !cyInstance.destroyed()) { // Double-check instance
                  cyInstance.resize();
-                 cyInstance.fit(); // Fit view to the updated graph
+                 cyInstance.fit(addedElements, 50); // Fit view to the updated graph
               }
             });
           }
+          fitTimerRef.current = null; // Clear the ref after execution
         }, 500); // Keep delay
 
         // Cleanup timeout on effect cleanup or re-run
-        return () => clearTimeout(timer);
+        return () => { // <-- Return cleanup function
+          if (fitTimerRef.current) {
+            clearTimeout(fitTimerRef.current);
+            fitTimerRef.current = null;
+          }
+        };
       } else {
+        log("GraphView", "[GraphView] No new elements to add."); // Use log
         // If no layout ran, return an empty cleanup function
         return () => {};
       }
-      // --- End Optimized Element Update ---
-
-    } // End if (cyInstance)
+      // End if (cyInstance)
   }, [nodes, edges]); // Dependency array remains the same
 
   // Default style for the container div - updated for full height and clipping prevention

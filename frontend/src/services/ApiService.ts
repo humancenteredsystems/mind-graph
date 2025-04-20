@@ -5,32 +5,25 @@ import axios from 'axios';
 // For production, this might need to be an absolute URL.
 const API_BASE_URL = '/api'; // Use relative path for proxy
 
+import { NodeData } from '../types/graph'; // Import from centralized types
+
 // Define interfaces for expected data structures (optional but good practice)
 // These should ideally match the structure returned by your Dgraph schema/API
-interface GraphNode {
-  id: string;
-  label?: string;
-  type?: string;
-  level?: number; // Add level field
-  // Add other potential node properties
-}
-
-// Removed unused GraphEdge interface
 
 interface TraversalResponse {
-  queryNode: GraphNode[]; // Assuming traverse returns nodes matching GraphNode structure
+  queryNode: NodeData[]; // Assuming traverse returns nodes matching NodeData structure
   // The actual structure might be more nested depending on the query
 }
 
 interface QueryResponse {
   // Define based on your specific queries
-  queryNode?: GraphNode[];
+  queryNode?: NodeData[];
   // Add other possible query results
 }
 
 interface MutateResponse {
   // Define based on your specific mutations
-  addNode?: { node: GraphNode[] }; // Example
+  addNode?: { node: NodeData[] }; // Example
   // Add other possible mutation results
 }
 

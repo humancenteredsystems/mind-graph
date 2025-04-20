@@ -160,6 +160,16 @@ The easiest way to start the full development environment (Dgraph database, back
     # Or for UI mode:
     # npm run test:ui
     ```
+*   **E2E Tests (Frontend):** Requires the dev environment (`npm run start-dev-env`) to be running.
+    ```bash
+    cd frontend
+    # Run all E2E tests headlessly
+    npm run test:e2e
+    # Run tests with interactive UI mode
+    npm run test:e2e:ui
+    # View the last HTML report
+    npm run test:e2e:report
+    ```
 
 ## API Endpoints
 

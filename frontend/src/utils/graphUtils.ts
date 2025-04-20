@@ -1,20 +1,4 @@
-// Define interfaces matching GraphView's expected props
-// (Duplicated here for utility function use, consider a shared types file later)
-export interface NodeData {
-  id: string;
-  label?: string;
-  type?: string;
-  level?: number; // Add level field
-  // Add other properties if needed
-}
-
-export interface EdgeData {
-  id?: string;
-  source: string;
-  target: string;
-  type?: string;
-  // Add other properties
-}
+import { NodeData, EdgeData } from '../types/graph'; // Import from centralized types
 
 /**
  * Helper function to extract nodes and edges from traversal data.
