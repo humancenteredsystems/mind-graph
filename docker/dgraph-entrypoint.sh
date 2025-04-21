@@ -7,13 +7,8 @@ dgraph zero --my=localhost:5080 &
 # Wait briefly for Zero to initialize
 sleep 5
 
-# Start Dgraph Alpha in the background, explicitly joining Zero and binding ports
-dgraph alpha \
-  --my=localhost:7080 \
-  --zero=localhost:5080 \
-  --graphql_port=8080 \
-  --http "0.0.0.0:8080" \
-  --grpc "0.0.0.0:9080" &
+# Start Dgraph Alpha in the background, explicitly joining Zero
+dgraph alpha --my=localhost:7080 --zero=localhost:5080 --security whitelist=0.0.0.0/0 &
 
 # Wait for GraphQL admin API to be healthy
 echo "Waiting for GraphQL admin API…"
