@@ -248,6 +248,41 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Diagnostic endpoint for Dgraph connectivity
+const dns = require('dns').promises;
+app.get('/api/debug/dgraph', async (req, res) => {
+  const raw = process.env.DGRAPH_URL || 'http://localhost:8080';
+  let base = raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const host = base.split(':')[0];
+  try {
+    const dnsStart = Date.now();
+    const { address } = await dns.lookup(host);
+    const lookupMs = Date.now() - dnsStart;
+
+    // Test HTTP admin API reachability
+    await axios.head(`${raw}/admin/schema`);
+
+    // Test GraphQL introspection
+    const gqlRes = await axios.post(
+      `${raw}/graphql`,
+      { query: '{ __schema { queryType { name } } }' },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    res.json({
+      dns: { host: address, lookupMs },
+      httpAdmin: 'reachable',
+      graphql: gqlRes.data
+    });
+  } catch (err) {
+    res.status(500).json({
+      dnsError: err.code || null,
+      httpError: err.response?.status || err.message,
+      graphqlError: err.response?.data?.errors || null
+    });
+  }
+});
+
 // Export the app instance for testing purposes
 module.exports = app;
 
