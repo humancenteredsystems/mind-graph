@@ -1,4 +1,7 @@
 #!/bin/sh
+echo "[INFO] Wiping old Dgraph state (TEMPORARY)..."
+rm -rf /dgraph/p /dgraph/w /dgraph/zw
+
 set -e
 
 echo "Starting Dgraph Zero..."
