@@ -1,33 +1,28 @@
 #!/bin/sh
 set -e
 
-# Start Dgraph Zero in the background
+echo "Starting Dgraph Zero..."
 dgraph zero --my=localhost:5080 &
 
-# Wait briefly for Zero to initialize
-sleep 5
+# Give Zero some time to come up
+sleep 3
 
-# Start Dgraph Alpha in the background, explicitly joining Zero
+echo "Starting Dgraph Alpha..."
 dgraph alpha --my=localhost:7080 --zero=localhost:5080 --security whitelist=0.0.0.0/0 &
 
-# Wait for GraphQL admin API to be healthy
-echo "Waiting for GraphQL admin API…"
+# Wait for the GraphQL admin API to become available
+echo "Waiting for GraphQL admin API..."
 until curl -sf -o /dev/null http://localhost:8080/admin/schema; do
-  echo "GraphQL admin not ready, sleeping 5s…"
-  sleep 5
+  echo "GraphQL admin not ready, sleeping..."
+  sleep 2
 done
 
-# Apply the GraphQL schema
-echo "Applying GraphQL schema…"
+echo "GraphQL admin ready. Applying schema..."
 curl -sf -X POST http://localhost:8080/admin/schema \
   -H "Content-Type: application/graphql" \
   --data-binary @/schema.graphql
 
-# Keep the container running by waiting on background processes
-  fi
-  echo "Schema applied."
-  break
-done
+echo "✅ Schema applied. Dgraph is fully initialized."
 
-# Keep container running by waiting on background processes
+# Keep the container running
 wait
