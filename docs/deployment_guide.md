@@ -13,12 +13,27 @@ This document outlines the intended deployment strategy for the MakeItMakeSense.
 ## Build Steps
 
 *   **Frontend:** `cd frontend && npm run build`
-*   **Backend:** No explicit build step needed for Node.js, but dependencies must be installed (`npm install` in `/api`).
+*   **Backend (Local Dev):** No explicit build step needed; install dependencies:
+    ```bash
+    cd api && npm install
+    ```
+*   **Backend (Docker Deploy):** Build and run Docker image:
+    ```bash
+    cd api
+    docker build -f Dockerfile -t mims-graph-api .
+    docker run -d -p 3000:3000 \
+      -e DGRAPH_URL=http://mims-graph-dgraph.onrender.internal:8080 \
+      -e PORT=3000 \
+      -e CORS_ORIGIN=https://makeitmakesense.io \
+      mims-graph-api
+    ```
 
 ## Environment Variables
 
 The backend API requires the following environment variables:
-*   `DGRAPH_ENDPOINT`: The URL of the Dgraph Alpha gRPC endpoint (e.g., `http://dgraph-alpha:9080`).
+*   `DGRAPH_URL`: The HTTP endpoint for your Dgraph service. For example:
+    - Local development: `http://localhost:8080`
+    - On Render (cross-service): `http://mims-graph-dgraph.onrender.internal:8080`
 *   `PORT`: The port the API server should listen on (e.g., `3000`).
 *   `CORS_ORIGIN`: The allowed origin for CORS requests (e.g., the URL of the deployed frontend, or `*` for development).
 
