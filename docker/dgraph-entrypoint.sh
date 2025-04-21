@@ -1,35 +1,34 @@
 #!/bin/sh
 set -e
 
-# Start Dgraph Zero
+# Start Dgraph Zero in the background
 dgraph zero --my=localhost:5080 &
-echo "127.0.0.1 zero" >> /etc/hosts
 
-# Wait for Zero to be ready
+# Wait briefly for Zero to initialize
 sleep 5
 
-# Start Dgraph Alpha in the background
-dgraph alpha --my=alpha:7080 --zero=localhost:5080 --security whitelist=0.0.0.0/0 &
+# Start Dgraph Alpha in the background, explicitly joining Zero and binding ports
+dgraph alpha \
+  --my=localhost:7080 \
+  --zero=localhost:5080 \
+  --graphql_port=8080 \
+  --http "0.0.0.0:8080" \
+  --grpc "0.0.0.0:9080" &
 
-# Wait until GraphQL admin API truly returns 2xx
-echo "Waiting for GraphQL admin API..."
+# Wait for GraphQL admin API to be healthy
+echo "Waiting for GraphQL admin API…"
 until curl -sf -o /dev/null http://localhost:8080/admin/schema; do
-  echo "GraphQL admin not ready (HTTP >=400), sleeping..."
+  echo "GraphQL admin not ready, sleeping 5s…"
   sleep 5
 done
 
-echo "Applying GraphQL schema..."
-max_tries=5
-for i in $(seq 1 $max_tries); do
-  echo "Attempt $i to load schema..."
-  response=$(curl -s -X POST http://localhost:8080/admin/schema \
-    -H "Content-Type: application/graphql" \
-    --data-binary @/schema.graphql)
-  if echo "$response" | grep -q '"errors"'; then
-    echo "Schema push returned errors: $response"
-    echo "Retrying in 5 seconds..."
-    sleep 5
-    continue
+# Apply the GraphQL schema
+echo "Applying GraphQL schema…"
+curl -sf -X POST http://localhost:8080/admin/schema \
+  -H "Content-Type: application/graphql" \
+  --data-binary @/schema.graphql
+
+# Keep the container running by waiting on background processes
   fi
   echo "Schema applied."
   break
