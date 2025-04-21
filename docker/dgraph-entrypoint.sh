@@ -3,6 +3,7 @@ set -e
 
 # Start Dgraph Zero
 dgraph zero --my=localhost:5080 &
+echo "127.0.0.1 zero" >> /etc/hosts
 
 # Wait for Zero to be ready
 sleep 5
