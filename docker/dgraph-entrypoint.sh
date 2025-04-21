@@ -10,10 +10,10 @@ sleep 5
 # Start Dgraph Alpha in the background
 dgraph alpha --my=alpha:7080 --zero=localhost:5080 --security whitelist=0.0.0.0/0 &
 
-# Wait until GraphQL admin API is ready
+# Wait until GraphQL admin API truly returns 2xx
 echo "Waiting for GraphQL admin API..."
-until curl -s -o /dev/null http://localhost:8080/admin/schema; do
-  echo "GraphQL admin not ready, sleeping..."
+until curl -sf -o /dev/null http://localhost:8080/admin/schema; do
+  echo "GraphQL admin not ready (HTTP >=400), sleeping..."
   sleep 5
 done
 
