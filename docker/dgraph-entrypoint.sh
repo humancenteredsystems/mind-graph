@@ -13,13 +13,6 @@ sleep 5
 echo "[INFO] Starting Dgraph Alpha..."
 dgraph alpha --my=127.0.0.1:7080 --zero=127.0.0.1:5080 --security whitelist=0.0.0.0/0 &
 
-# Wait for GraphQL Admin API to be ready
-echo "[INFO] Waiting for GraphQL admin API..."
-until curl -sf -o /dev/null http://127.0.0.1:8080/admin/schema; do
-  echo "[INFO] GraphQL admin not ready, sleeping 5s..."
-  sleep 5
-done
-
 # Verify schema file exists
 if [ ! -f /schema.graphql ]; then
   echo "[ERROR] schema.graphql not found in container at /schema.graphql"
@@ -27,13 +20,17 @@ if [ ! -f /schema.graphql ]; then
   exit 1
 fi
 
-echo "[INFO] Applying GraphQL schema..."
-curl -sf -X POST http://127.0.0.1:8080/admin/schema \
+# Try applying schema until successful
+echo "[INFO] Waiting for GraphQL admin API to accept schema..."
+until curl -s -X POST http://127.0.0.1:8080/admin/schema \
   -H "Content-Type: application/graphql" \
-  --data-binary @/schema.graphql || {
-    echo "[ERROR] Failed to apply schema"
-    exit 1
-}
+  --data-binary @/schema.graphql | grep -q '"code":"Success"'; do
+  echo "[INFO] Admin API not ready for schema, sleeping 5s..."
+  sleep 5
+done
+
+echo "[INFO] GraphQL schema applied successfully."
+
 
 echo "[INFO] Schema applied. Waiting for background processes..."
 wait
