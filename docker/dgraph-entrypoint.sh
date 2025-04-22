@@ -1,36 +1,27 @@
 #!/bin/sh
-
 set -e
 
-echo "[INFO] Wiping old Dgraph state (TEMPORARY)..."
-rm -rf /dgraph/p /dgraph/w /dgraph/zw
+# Start Dgraph Zero in the background
+dgraph zero --my=localhost:5080 &
 
-echo "[INFO] Starting Dgraph Zero..."
-dgraph zero --my=127.0.0.1:5080 --replicas 1 &
-
+# Wait briefly for Zero to initialize
 sleep 5
 
-echo "[INFO] Starting Dgraph Alpha..."
-dgraph alpha --my=127.0.0.1:7080 --zero=127.0.0.1:5080 --security whitelist=0.0.0.0/0 &
+# Start Dgraph Alpha in the background explicitly joining Zero
+dgraph alpha --my=localhost:7080 --zero=localhost:5080 --security whitelist=0.0.0.0/0 &
 
-# Verify schema file exists
-if [ ! -f /schema.graphql ]; then
-  echo "[ERROR] schema.graphql not found in container at /schema.graphql"
-  ls -l /  # List root contents to help debugging
-  exit 1
-fi
-
-# Try applying schema until successful
-echo "[INFO] Waiting for GraphQL admin API to accept schema..."
-until curl -s -X POST http://127.0.0.1:8080/admin/schema \
-  -H "Content-Type: application/graphql" \
-  --data-binary @/schema.graphql | grep -q '"code":"Success"'; do
-  echo "[INFO] Admin API not ready for schema, sleeping 5s..."
+# Wait for the GraphQL admin endpoint to be available
+echo "Waiting for GraphQL admin API…"
+until curl -sf -o /dev/null http://localhost:8080/admin/schema; do
+  echo "GraphQL admin not ready, retrying in 5s…"
   sleep 5
 done
 
-echo "[INFO] GraphQL schema applied successfully."
+# Apply the GraphQL schema
+echo "Applying GraphQL schema…"
+curl -sf -X POST http://localhost:8080/admin/schema \
+  -H "Content-Type: application/graphql" \
+  --data-binary @/schema.graphql && echo "Schema applied."
 
-
-echo "[INFO] Schema applied. Waiting for background processes..."
+# Keep the container running by waiting on background processes
 wait
