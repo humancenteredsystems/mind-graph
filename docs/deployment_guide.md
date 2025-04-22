@@ -1,47 +1,111 @@
 # Deployment Guide
 
-This document outlines the intended deployment strategy for the MakeItMakeSense.io components.
+This guide describes how to run the full stack locally for development and how to deploy to Render in production.
 
-*(Note: This is currently a placeholder. The deployment strategy needs to be fully defined and documented based on the chosen hosting provider, e.g., Render, and specific configurations.)*
+---
 
-## Components
+## Local Development
 
-*   **Dgraph Database:** Intended to run as a Docker container, potentially on a service like Render Private Service with a persistent disk attached.
-*   **Backend API (Node.js/Express):** Intended to run as a web service (e.g., Render Web Service). Requires environment variables for Dgraph connection (`DGRAPH_ENDPOINT`) and port (`PORT`).
-*   **Frontend (React/Vite):** Intended to be built as a static site and served via a static site hosting service (e.g., Render Static Site). The build process (`npm run build` in `/frontend`) generates the necessary static files in `/frontend/dist`.
+1. Clone the repository:
+   ```
+   git clone <repository_url>
+   cd mims-graph
+   ```
+2. Install dependencies:
+   - Root: `npm install`
+   - API: `cd api && npm install && cd ..`
+   - Frontend: `cd frontend && npm install && cd ..`
+3. Ensure Docker and Docker Compose are installed on your machine.
+4. Start the development environment:
+   ```bash
+   npm run start-dev-env
+   ```
+   This will:
+   - Launch Dgraph (Zero, Alpha, Ratel) via Docker Compose.
+   - Start the API server on port 3000.
+   - Start the frontend dev server on port 5173.
+5. Push your GraphQL schema:
+   ```bash
+   python tools/push_schema.py
+   ```
+6. (Optional) Seed sample data:
+   ```bash
+   python tools/seed_data.py
+   ```
+7. Access services:
+   - Frontend: http://localhost:5173  
+   - API health check: http://localhost:3000/api/health  
+   - Dgraph Ratel UI: http://localhost:8000  
 
-## Build Steps
+---
 
-*   **Frontend:** `cd frontend && npm run build`
-*   **Backend (Local Dev):** No explicit build step needed; install dependencies:
-    ```bash
-    cd api && npm install
-    ```
-*   **Backend (Docker Deploy):** Build and run Docker image:
-    ```bash
-    cd api
-    docker build -f Dockerfile -t mims-graph-api .
-    docker run -d -p 3000:3000 \
-      -e DGRAPH_URL=http://mims-graph-dgraph.onrender.internal:8080 \
-      -e PORT=3000 \
-      -e CORS_ORIGIN=https://makeitmakesense.io \
-      mims-graph-api
-    ```
+## Production Deployment on Render
 
-## Environment Variables
+We deploy three separate services on Render:
 
-The backend API requires the following environment variables:
-*   `DGRAPH_URL`: The HTTP endpoint for your Dgraph service. For example:
-    - Local development: `http://localhost:8080`
-    - On Render (cross-service): `http://mims-graph-dgraph.onrender.internal:8080`
-*   `PORT`: The port the API server should listen on (e.g., `3000`).
-*   `CORS_ORIGIN`: The allowed origin for CORS requests (e.g., the URL of the deployed frontend, or `*` for development).
+### 1. Dgraph (Private Service)
 
-## Deployment Considerations (To Be Detailed)
+- **Service Type:** Docker  
+- **Dockerfile Path:** `Dockerfile.dgraph`  
+- **Build Context:** Repository root  
+- **Entrypoint:** Uses `docker/dgraph-entrypoint.sh` to launch Zero and Alpha, wait for GraphQL admin, and apply `schema.graphql`.  
+- **Persistent Volume:** Attach SSD to `/dgraph` for data persistence.  
+- **Auto-Deploy:** Enable on pushes to `main`.
 
-*   Network configuration between services (e.g., ensuring API can reach Dgraph).
-*   Persistent volume setup for Dgraph data.
-*   Environment variable management in the hosting provider.
-*   Build and deployment automation (CI/CD).
-*   Domain name configuration.
-*   HTTPS setup.
+### 2. Backend API (Web Service)
+
+- **Root Directory:** `/api`  
+- **Build Command:**  
+  ```
+  npm install
+  ```
+- **Start Command:**  
+  ```
+  npm run start
+  ```
+- **Environment Variables:**  
+  - `PORT` (e.g., 3000)  
+  - `DGRAPH_URL=http://mims-graph-dgraph:8080/graphql`  
+  - `CORS_ORIGIN=https://makeitmakesense.io`  
+- **Auto-Deploy:** Enable on pushes to `main`.
+
+### 3. Frontend (Static Site)
+
+- **Root Directory:** `/frontend`  
+- **Build Command:**  
+  ```
+  npm install && npm run build
+  ```
+- **Publish Directory:** `dist`  
+- **Environment Variables:**  
+  - `VITE_API_BASE_URL=https://mims-graph.onrender.com/api`  
+- **Auto-Deploy:** Enable on pushes to `main`.
+
+---
+
+## DNS & Custom Domain
+
+1. In the Render dashboard, add your custom domain (`makeitmakesense.io`) to the Static Site service.  
+2. Update your DNS records (CNAME) to point to Render’s provided alias.  
+3. Enable HTTPS in Render for your domain.
+
+---
+
+## Verification & Monitoring
+
+- **API Health:**  
+  ```
+  curl https://mims-graph.onrender.com/api/health
+  ```
+  Expect:
+  ```json
+  { "apiStatus": "OK", "dgraphStatus": "OK" }
+  ```
+- **Frontend Graph Load:**  
+  Open https://makeitmakesense.io and confirm the graph renders without errors.  
+- **Dgraph Ratel UI:**  
+  Access the private service (if network rules allow) or run a one‑off port-forward locally to inspect schema and data.  
+- **Logs & Alerts:**  
+  Review Render logs for errors. Optionally integrate Sentry or another monitoring service.
+
+---

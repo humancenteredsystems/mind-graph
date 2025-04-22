@@ -1,229 +1,178 @@
-# API Endpoints
+# API Endpoints Reference
 
-This document details the endpoints provided by the backend API server (`api/server.js`).
-
-**Base URL:** `/api` (Handled by frontend proxy during development, points to the API server, e.g., `http://localhost:3000/api` if running locally)
+This document describes each backend API endpoint, including paths, methods, request parameters, and example responses. All endpoints are prefixed with `/api` except the root health check.
 
 ---
 
-## 1. Health Check
+## GET /
 
-*   **Path:** `/api/health`
-*   **Method:** `GET`
-*   **Description:** Checks the status of the API server and its connection to the Dgraph database.
-*   **Request Body:** None
-*   **Success Response (200 OK):**
-    ```json
-    {
-      "apiStatus": "OK",
-      "dgraphStatus": "OK"
-    }
-    ```
-*   **Error Response (500 Internal Server Error):**
-    ```json
-    {
-      "apiStatus": "OK",
-      "dgraphStatus": "Error",
-      "error": "Detailed error message from Dgraph connection attempt"
-    }
-    ```
+**Path:** `/`  
+**Description:** API root. Verifies that the Express server is running.  
+**Response:**  
+```
+MakeItMakeSense.io API is running!
+```
 
 ---
 
-## 2. Get GraphQL Schema
+## GET /api/health
 
-*   **Path:** `/api/schema`
-*   **Method:** `GET`
-*   **Description:** Retrieves the current GraphQL schema directly from the Dgraph admin endpoint.
-*   **Request Body:** None
-*   **Success Response (200 OK):**
-    *   **Content-Type:** `text/plain`
-    *   **Body:** The raw GraphQL schema definition as a string.
-    ```graphql
-    # Example Schema Text
-    type Node {
-      id: String! @id
-      label: String @search(by: [term])
-      type: String @search
-      # ... other fields
-    }
-    # ... other types and definitions
-    ```
-*   **Error Response (500 Internal Server Error):**
-    ```json
-    {
-      "error": "Failed to fetch schema from Dgraph."
-    }
-    ```
+**Path:** `/api/health`  
+**Description:** Checks connectivity between the API and Dgraph.  
+**Response (200 OK):**  
+```json
+{
+  "apiStatus": "OK",
+  "dgraphStatus": "OK"
+}
+```
+**Response (500 Internal Server Error):**  
+```json
+{
+  "apiStatus": "OK",
+  "dgraphStatus": "Error",
+  "error": "Error message"
+}
+```
 
 ---
 
-## 3. Execute GraphQL Query
+## GET /api/schema
 
-*   **Path:** `/api/query`
-*   **Method:** `POST`
-*   **Description:** Executes an arbitrary GraphQL query against the Dgraph database.
-*   **Request Body:**
-    ```json
-    {
-      "query": "GraphQL query string",
-      "variables": { // Optional
-        "varName": "value"
-      }
-    }
-    ```
-*   **Success Response (200 OK):**
-    *   The standard GraphQL JSON response structure containing `data` or `errors`.
-    ```json
-    {
-      "data": {
-        "queryNode": [ /* ... results ... */ ]
-      }
-    }
-    ```
-*   **Error Response:**
-    *   **400 Bad Request:** If `query` field is missing in the request body, or if the GraphQL query itself is invalid.
-        ```json
-        { "error": "Missing required field: query" }
-        // or
-        { "error": "GraphQL error: [Specific Dgraph error message]" }
-        ```
-    *   **500 Internal Server Error:** For unexpected server issues during query execution.
-        ```json
-        { "error": "Server error executing query." }
-        ```
+**Path:** `/api/schema`  
+**Description:** Retrieves the current GraphQL schema from Dgraph’s admin API as plain text.  
+**Response (200 OK):**  
+```
+type Node {
+  id: String! @id
+  label: String! @search(by: [term])
+  …
+}
+```
+**Response (500 Internal Server Error):**  
+```json
+{ "error": "Failed to fetch schema from Dgraph." }
+```
 
 ---
 
-## 4. Execute GraphQL Mutation
+## POST /api/query
 
-*   **Path:** `/api/mutate`
-*   **Method:** `POST`
-*   **Description:** Executes an arbitrary GraphQL mutation against the Dgraph database.
-*   **Request Body:**
-    ```json
-    {
-      "mutation": "GraphQL mutation string",
-      "variables": { // Optional
-        "varName": "value"
-      }
-    }
-    ```
-*   **Success Response (200 OK):**
-    *   The standard GraphQL JSON response structure containing `data` or `errors`.
-    ```json
-    {
-      "data": {
-        "addNode": { /* ... mutation result ... */ }
-      }
-    }
-    ```
-*   **Error Response:**
-    *   **400 Bad Request:** If `mutation` field is missing, or if the GraphQL mutation is invalid.
-        ```json
-        { "error": "Missing required field: mutation" }
-        // or
-        { "error": "GraphQL error: [Specific Dgraph error message]" }
-        ```
-    *   **500 Internal Server Error:** For unexpected server issues during mutation execution.
-        ```json
-        { "error": "Server error executing mutation." }
-        ```
+**Path:** `/api/query`  
+**Description:** Executes an arbitrary GraphQL query against Dgraph.  
+**Request Body:**  
+```json
+{
+  "query": "query { queryNode(limit:1) { id label } }",
+  "variables": { /* optional */ }
+}
+```
+**Response (200 OK):**  
+```json
+{ "queryNode": [ { "id": "node1", "label": "Example" } ] }
+```
+**Error Responses:**  
+- 400 Bad Request if `query` field is missing.  
+- 400 GraphQL error if Dgraph returns errors.  
+- 500 Server error on unexpected failures.
 
 ---
 
-## 5. Graph Traversal (Basic)
+## POST /api/mutate
 
-*   **Path:** `/api/traverse`
-*   **Method:** `POST`
-*   **Description:** Fetches a specific node (`rootId`) and its immediate outgoing connections and neighbors. *Note: Currently ignores the `depth` parameter and only fetches one level.*
-*   **Request Body:**
-    ```json
-    {
-      "rootId": "string", // ID of the starting node (Required)
-      "depth": "number", // Currently ignored by the API implementation (Optional, defaults to 3)
-      "fields": ["string"] // Array of node fields to retrieve (Optional, defaults to ['id', 'label', 'type'])
-    }
-    ```
-*   **Success Response (200 OK):**
-    *   GraphQL response containing the root node and its immediate `outgoing` edges and connected `to` nodes, including the requested fields.
-    ```json
-    {
-      "data": {
-        "queryNode": [
-          {
-            "id": "node1",
-            "label": "Root Node",
-            "type": "concept",
-            "outgoing": [
-              {
-                "type": "connects_to",
-                "to": {
-                  "id": "node2",
-                  "label": "Neighbor Node",
-                  "type": "example"
-                }
-              }
-              // ... other outgoing edges
-            ]
-          }
+**Path:** `/api/mutate`  
+**Description:** Executes an arbitrary GraphQL mutation.  
+**Request Body:**  
+```json
+{
+  "mutation": "mutation { addNode(input: { label: \"New\" }) { node { id } } }",
+  "variables": { /* optional */ }
+}
+```
+**Response (200 OK):**  
+```json
+{ "addNode": { "node": [ { "id": "newId" } ] } }
+```
+**Error Responses:**  
+- 400 Bad Request if `mutation` field is missing.  
+- 400 GraphQL error if Dgraph returns errors.  
+- 500 Server error on unexpected failures.
+
+---
+
+## POST /api/traverse
+
+**Path:** `/api/traverse`  
+**Description:** Fetches a node and its immediate neighbors.  
+**Request Body:**  
+```json
+{
+  "rootId": "node1",
+  "currentLevel": 0,          // optional
+  "fields": ["id","label"]    // optional
+}
+```
+**Response (200 OK):**  
+```json
+{
+  "data": {
+    "queryNode": [
+      {
+        "id": "node1",
+        "label": "Root",
+        "outgoing": [
+          { "type": "child", "to": { "id": "node2", "label": "Child" } }
         ]
       }
-    }
-    ```
-*   **Error Response:**
-    *   **400 Bad Request:** If `rootId` is missing, or if `depth` or `fields` are invalid types. Also for GraphQL errors during execution.
-        ```json
-        { "error": "Missing required field: rootId" }
-        // or
-        { "error": "Invalid depth parameter..." }
-        // or
-        { "error": "GraphQL error during traversal: [Specific Dgraph error message]" }
-        ```
-    *   **500 Internal Server Error:** For unexpected server issues.
-        ```json
-        { "error": "Server error during traversal." }
-        ```
+    ]
+  }
+}
+```
+**Error Responses:**  
+- 400 Bad Request if `rootId` is missing or invalid parameters supplied.  
+- 400 GraphQL error if Dgraph returns errors.  
+- 500 Server error on unexpected failures.
 
 ---
 
-## 6. Node Search
+## GET /api/search
 
-*   **Path:** `/api/search`
-*   **Method:** `GET`
-*   **Description:** Searches for nodes based on a term. Currently searches only the `label` field using `allofterms`.
-*   **Query Parameters:**
-    *   `term`: The search term (Required).
-    *   `field`: The field to search on (Optional, defaults to `label`, currently only `label` is supported).
-*   **Example Request:** `GET /api/search?term=example&field=label`
-*   **Success Response (200 OK):**
-    *   GraphQL response containing nodes matching the search term.
-    ```json
-    {
-      "data": {
-        "queryNode": [
-          {
-            "id": "node5",
-            "label": "Example Node",
-            "type": "example"
-          }
-          // ... other matching nodes
-        ]
-      }
-    }
-    ```
-*   **Error Response:**
-    *   **400 Bad Request:** If `term` query parameter is missing, if `field` is invalid, or for GraphQL errors.
-        ```json
-        { "error": "Missing required query parameter: term" }
-        // or
-        { "error": "Invalid search field: ..." }
-        // or
-        { "error": "GraphQL error during search: [Specific Dgraph error message]" }
-        ```
-    *   **500 Internal Server Error:** For unexpected server issues.
-        ```json
-        { "error": "Server error during search." }
-        ```
+**Path:** `/api/search?term={term}&field={field}`  
+**Description:** Searches nodes by text term on an indexed field.  
+**Query Parameters:**  
+- `term` (required): search string  
+- `field` (optional, default `label`): field to search  
+**Response (200 OK):**  
+```json
+{ "queryNode": [ { "id": "node1", "label": "Match", "type": "concept" } ] }
+```
+**Error Responses:**  
+- 400 Bad Request if `term` is missing or `field` is invalid.  
+- 500 Server error on unexpected failures.
 
 ---
+
+## GET /api/debug/dgraph
+
+**Path:** `/api/debug/dgraph`  
+**Description:** Diagnostic endpoint to test DNS resolution, HTTP admin reachability, and GraphQL introspection on Dgraph.  
+**Response (200 OK):**  
+```json
+{
+  "dns": { "host": "10.0.1.5", "lookupMs": 12 },
+  "httpAdmin": "reachable",
+  "graphql": { "__schema": { "queryType": { "name": "Query" } } }
+}
+```
+**Error Response (500 Internal Server Error):**  
+```json
+{
+  "dnsError": "ENOTFOUND",
+  "httpError": 503,
+  "graphqlError": null
+}
+```
+
+---
+
+*This reference ensures you can integrate with the backend in both local and production environments.*

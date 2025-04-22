@@ -1,8 +1,13 @@
 require('dotenv').config(); // Load environment variables from .env file
 const axios = require('axios');
 
- // Construct Dgraph GraphQL endpoint URL from environment variable or default
- const DGRAPH_ENDPOINT = process.env.DGRAPH_URL || 'http://mims-graph-dgraph:8080/graphql';
+ // Normalize and construct Dgraph GraphQL endpoint URL from environment variable or default
+ const rawDgraphUrl = process.env.DGRAPH_URL;
+ const DGRAPH_ENDPOINT = rawDgraphUrl
+   ? rawDgraphUrl.match(/^https?:\/\//)
+     ? rawDgraphUrl
+     : `http://${rawDgraphUrl}`
+   : 'http://localhost:8080/graphql';
 
 /**
  * Executes a GraphQL query or mutation against the Dgraph endpoint.
