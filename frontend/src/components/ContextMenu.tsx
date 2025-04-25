@@ -25,7 +25,7 @@ const ContextMenu: React.FC = () => {
       ref={menuRef}
       role="menu"
       style={{
-        position: 'absolute',
+        position: 'fixed',
         top: position.y,
         left: position.x,
         listStyle: 'none',

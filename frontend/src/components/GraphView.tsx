@@ -88,13 +88,15 @@ const GraphView: React.FC<GraphViewProps> = ({
     },
   ];
 
-  // Context menu handling via new ContextMenuContext
+  // Context menu handling with accurate cursor positioning
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
     const handler = (event: any) => {
       const target = event.target;
-      const position = event.position || event.renderedPosition;
+      // Compute position from mouse event
+      const origEvent = event.originalEvent as MouseEvent;
+      const position = { x: origEvent.clientX, y: origEvent.clientY };
       if (target === cy) {
         openMenu('background', position, { onAddNode });
       } else if (target.isNode) {
@@ -103,11 +105,11 @@ const GraphView: React.FC<GraphViewProps> = ({
         openMenu(menuType, position, {
           nodeId: target.id(),
           nodeIds: selectedIds,
-          position,
           onAddNode,
           onNodeExpand,
         });
       }
+      event.originalEvent.preventDefault();
     };
     cy.on('cxttap', handler);
     return () => {
