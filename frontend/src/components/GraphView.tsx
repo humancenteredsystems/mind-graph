@@ -3,6 +3,7 @@ import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, StylesheetCSS, ElementDefinition } from 'cytoscape';
 import klay from 'cytoscape-klay';
 import { NodeData, EdgeData } from '../types/graph';
+import { useContextMenu } from '../context/ContextMenuContext';
 import { log } from '../utils/logger';
 
 // Register Klay layout extension
@@ -24,6 +25,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   onAddNode,
 }) => {
   const cyRef = useRef<Core | null>(null);
+  const { openMenu } = useContextMenu();
 
   const elements = useMemo<ElementDefinition[]>(() => {
     const nodeElements = nodes.map(({ id, label, ...rest }) => ({
@@ -86,23 +88,32 @@ const GraphView: React.FC<GraphViewProps> = ({
     },
   ];
 
-  // Listen for context tap within Cytoscape
+  // Context menu handling via new ContextMenuContext
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-
-    cy.on('cxttap', (event: any) => {
+    const handler = (event: any) => {
       const target = event.target;
       const position = event.position || event.renderedPosition;
       if (target === cy) {
-        // Background right-click: add node
-        if (onAddNode) onAddNode(undefined, position);
-      } else if (target.isNode && onNodeExpand) {
-        // Node right-click: expand
-        onNodeExpand(target.id());
+        openMenu('background', position, { onAddNode });
+      } else if (target.isNode) {
+        const selectedIds = cy.nodes(':selected').map((el) => el.id());
+        const menuType = selectedIds.length > 1 ? 'multi-node' : 'node';
+        openMenu(menuType, position, {
+          nodeId: target.id(),
+          nodeIds: selectedIds,
+          position,
+          onAddNode,
+          onNodeExpand,
+        });
       }
-    });
-  }, [onNodeExpand, onAddNode]);
+    };
+    cy.on('cxttap', handler);
+    return () => {
+      cy.removeListener('cxttap', handler);
+    };
+  }, [onAddNode, onNodeExpand, openMenu]);
 
   // Run layout on elements update
   useEffect(() => {

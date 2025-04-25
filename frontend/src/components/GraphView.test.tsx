@@ -2,6 +2,15 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import GraphView from './GraphView';
+vi.mock('../context/ContextMenuContext', () => ({
+  useContextMenu: () => ({
+    open: false,
+    position: { x: 0, y: 0 },
+    items: [],
+    openMenu: () => {},
+    closeMenu: () => {},
+  }),
+}));
 
 const mockNodes = [{ id: 'n1', label: 'Node 1' }];
 const mockEdges = [{ source: 'n1', target: 'n1', type: 'SELF' }];
