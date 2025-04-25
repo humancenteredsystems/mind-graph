@@ -25,7 +25,7 @@ describe('ApiService', () => {
       await fetchTraversalData(rootId, depth, fields);
 
       // Expect the function to add 'level' to the fields sent
-      expect(axios.post).toHaveBeenCalledWith('/api/traverse', { rootId, depth, fields: expectedFields });
+      expect(axios.post).toHaveBeenCalledWith('/api/traverse', { rootId, currentLevel: depth, fields: expectedFields });
     });
 
      it('should return data on successful traverse call', async () => {
@@ -51,7 +51,18 @@ describe('ApiService', () => {
       await executeQuery(query, variables);
       expect(axios.post).toHaveBeenCalledWith('/api/query', { query, variables });
     });
-    // Add success and error tests similar to fetchTraversalData
+    it('should return data on successful query call', async () => {
+      const mockData = { queryNode: [{ id: 'node1' }] };
+      (axios.post as any).mockResolvedValue({ data: mockData });
+      const result = await executeQuery('queryTest', { foo: 'bar' });
+      expect(result).toEqual(mockData);
+    });
+
+    it('should throw error on failed query call', async () => {
+      const errorMessage = 'Network Error';
+      (axios.post as any).mockRejectedValue(new Error(errorMessage));
+      await expect(executeQuery('queryErr', {})).rejects.toThrow(errorMessage);
+    });
   });
 
   describe('executeMutation', () => {
@@ -63,7 +74,19 @@ describe('ApiService', () => {
       await executeMutation(mutation, variables);
       expect(axios.post).toHaveBeenCalledWith('/api/mutate', { mutation, variables });
     });
-     // Add success and error tests similar to fetchTraversalData
+
+    it('should return data on successful mutation call', async () => {
+      const mockResult = { addNode: { node: [{ id: 'node1' }] } };
+      (axios.post as any).mockResolvedValue({ data: mockResult });
+      const result = await executeMutation('mutationTest', { foo: 'bar' });
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should throw error on failed mutation call', async () => {
+      const errorMessage = 'Network Error';
+      (axios.post as any).mockRejectedValue(new Error(errorMessage));
+      await expect(executeMutation('mutationErr', {})).rejects.toThrow(errorMessage);
+    });
   });
 
    describe('fetchSchema', () => {
@@ -73,7 +96,18 @@ describe('ApiService', () => {
       await fetchSchema();
       expect(axios.get).toHaveBeenCalledWith('/api/schema', { responseType: 'text' });
     });
-     // Add success and error tests similar to fetchTraversalData
+     it('should return schema text on successful schema call', async () => {
+      const mockSchema = 'schema text';
+      (axios.get as any).mockResolvedValue({ data: mockSchema });
+      const result = await fetchSchema();
+      expect(result).toBe(mockSchema);
+    });
+
+    it('should throw error on failed schema call', async () => {
+      const errorMessage = 'Network Error';
+      (axios.get as any).mockRejectedValue(new Error(errorMessage));
+      await expect(fetchSchema()).rejects.toThrow(errorMessage);
+    });
   });
 
    describe('fetchHealth', () => {
@@ -83,7 +117,18 @@ describe('ApiService', () => {
       await fetchHealth();
       expect(axios.get).toHaveBeenCalledWith('/api/health');
     });
-     // Add success and error tests similar to fetchTraversalData
+     it('should return health data on successful health call', async () => {
+      const mockHealth = { apiStatus: 'OK', dgraphStatus: 'OK' };
+      (axios.get as any).mockResolvedValue({ data: mockHealth });
+      const result = await fetchHealth();
+      expect(result).toEqual(mockHealth);
+    });
+
+    it('should throw error on failed health call', async () => {
+      const errorMessage = 'Network Error';
+      (axios.get as any).mockRejectedValue(new Error(errorMessage));
+      await expect(fetchHealth()).rejects.toThrow(errorMessage);
+    });
   });
 
 });

@@ -3,6 +3,8 @@ export interface NodeData {
   label?: string;
   type?: string;
   level?: number;
+  status?: string;
+  branch?: string;
 }
 
 export interface EdgeData {

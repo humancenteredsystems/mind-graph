@@ -12,7 +12,8 @@ const mockEdges = [{ source: 'n1', target: 'n1', type: 'SELF' }];
         default: ({ elements, cy }: { elements: any[]; cy: any }) => {
       // Simulate cytoscape instance and layout call
       const fakeCy = {
-        layout: vi.fn().mockReturnValue({ run: vi.fn() })
+        layout: vi.fn().mockReturnValue({ run: vi.fn() }),
+        on: vi.fn()
       };
       if (typeof cy === 'function') cy(fakeCy);
       return <div data-testid="cytoscape-component" data-elements={JSON.stringify(elements)} />;

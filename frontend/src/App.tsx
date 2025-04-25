@@ -1,36 +1,65 @@
-import './App.css'; // Keep or modify default styles
+import React, { useState, useEffect } from 'react';
+import './App.css';
 import GraphView from './components/GraphView';
-import { useGraphState } from './hooks/useGraphState'; // Import the custom hook
-import { log } from './utils/logger'; // Import the logger utility
+import { useGraphState } from './hooks/useGraphState';
+import { fetchAllNodeIds } from './services/ApiService';
+import { log } from './utils/logger';
 
 function App() {
-  // Consume the custom hook
+  const [rootId, setRootId] = useState<string>();
+  const [loadingRoot, setLoadingRoot] = useState<boolean>(true);
+
   const {
     nodes,
     edges,
     isLoading,
     isExpanding,
     error,
-    expandNode, // Use expandNode from the hook
+    expandNode,
+    addNode,
+    loadInitialGraph,
   } = useGraphState();
 
-  // --- Render Logic ---
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const ids = await fetchAllNodeIds();
+        if (ids.length > 0) {
+          const defaultId = import.meta.env.VITE_ROOT_NODE_ID ?? ids[0];
+          setRootId(defaultId);
+          loadInitialGraph(defaultId);
+        } else {
+          // No existing nodes; show empty graph and allow user to add first node via UI
+        }
+ 
+      } catch (err) {
+        console.error('Error fetching node IDs:', err);
+      } finally {
+        setLoadingRoot(false);
+      }
+    };
+    init();
+  }, [loadInitialGraph]);
+
   return (
     <div className="App">
       <h1>MakeItMakeSense.io Graph</h1>
-      {(isLoading || isExpanding) && <p>Loading graph data...</p>} {/* Show loading for initial and expansion */}
+      {(loadingRoot || isExpanding) && <p>Loading graph data...</p>}
       {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-      {!isLoading && ( // Render graph view once initial load is done, even if error occurred initially
+      {!loadingRoot && (
         <GraphView
           nodes={nodes}
           edges={edges}
-          onNodeExpand={(nodeId) => { // Add logging here
-            log("App", `Expand node requested for: ${nodeId}`);
+          onNodeExpand={(nodeId) => {
+            log('App', `Expand node requested for: ${nodeId}`);
             expandNode(nodeId);
+          }}
+          onAddNode={(parentId, position) => {
+            log('App', `Add node requested at position: ${JSON.stringify(position)}`);
+            addNode(parentId, position);
           }}
         />
       )}
-      {/* Add UI elements for other API calls later */}
     </div>
   );
 }

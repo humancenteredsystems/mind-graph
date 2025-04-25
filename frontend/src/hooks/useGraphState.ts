@@ -3,6 +3,8 @@ import { fetchTraversalData } from '../services/ApiService';
 import { transformTraversalData } from '../utils/graphUtils';
 import { NodeData, EdgeData } from '../types/graph';
 import { log } from '../utils/logger'; // Import the logger utility
+import { v4 as uuidv4 } from 'uuid';
+import { executeMutation } from '../services/ApiService';
 
 interface UseGraphState {
   nodes: NodeData[];
@@ -12,6 +14,7 @@ interface UseGraphState {
   error: string | null;
   loadInitialGraph: (rootId: string) => Promise<void>;
   expandNode: (nodeId: string) => Promise<void>;
+  addNode: (parentId?: string, position?: { x: number; y: number }) => Promise<void>;
   // Add resetGraph later if needed
 }
 
@@ -27,6 +30,10 @@ export const useGraphState = (): UseGraphState => {
 
   // Function to load the initial graph
   const loadInitialGraph = useCallback(async (rootId: string) => {
+    if (!rootId) {
+      log('useGraphState', 'loadInitialGraph skipped: no rootId provided.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -51,13 +58,7 @@ export const useGraphState = (): UseGraphState => {
     }
   }, []); // Dependencies for useCallback
 
-  // Effect to load initial data on mount
-  useEffect(() => {
-    // --- CONFIGURATION: Set your desired root node ID ---
-    const rootNodeId = "node1"; // Use an existing node ID from query results
-    // ---
-    loadInitialGraph(rootNodeId);
-  }, [loadInitialGraph]); // Dependency array includes loadInitialGraph
+  // Initial graph loading now handled by App component via loadInitialGraph
 
   // Function to expand a node
   const expandNode = useCallback(async (nodeId: string) => {
@@ -118,6 +119,53 @@ export const useGraphState = (): UseGraphState => {
     }
   }, [nodes, edges, isLoading, isExpanding]); // Dependencies for useCallback
 
+  // Function to add a new node
+  const addNode = useCallback(async (parentId?: string, position?: { x: number; y: number }) => {
+    // Generate unique ID
+    let newId = uuidv4();
+    const existingIds = new Set(nodes.map(n => n.id));
+    while (existingIds.has(newId)) {
+      newId = uuidv4();
+    }
+    // Prompt for label
+    const label = window.prompt('Enter node label:');
+    if (!label) {
+      log('useGraphState', 'Add node aborted: No label provided.');
+      return;
+    }
+    // Prompt for type
+    const typeInput = window.prompt('Enter node type (concept/example/question):', 'concept');
+    const validTypes = ['concept', 'example', 'question'];
+    const type = validTypes.includes(typeInput || '') ? typeInput! : 'concept';
+    // Compute level
+    let level = 1;
+    if (parentId) {
+      const parentNode = nodes.find(n => n.id === parentId);
+      if (parentNode && typeof parentNode.level === 'number') {
+        level = parentNode.level + 1;
+      }
+    }
+    // Default status and branch
+    const status = 'pending';
+    const branch = 'main';
+    // Construct mutation
+    const mutation = `mutation AddNode($input: [AddNodeInput!]!) {
+      addNode(input: $input) { node { id label type level status branch } }
+    }`;
+    const variables = { input: [{ id: newId, label, type, level, status, branch }] };
+    try {
+      log('useGraphState', `Adding node ${newId} with label ${label}`);
+      const result = await executeMutation(mutation, variables);
+      const added = result.addNode?.node ?? [];
+      if (added.length > 0) {
+        setNodes(prev => [...prev, added[0]]);
+      }
+    } catch (err) {
+      log('useGraphState', 'Error adding node:', err);
+      setError(`Failed to add node ${label}.`);
+    }
+  }, [nodes, executeMutation]);
+  
   // Add resetGraph function later if needed
 
   return {
@@ -128,5 +176,6 @@ export const useGraphState = (): UseGraphState => {
     error,
     loadInitialGraph,
     expandNode,
+    addNode,
   };
 };

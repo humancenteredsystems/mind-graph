@@ -2,12 +2,14 @@ require('dotenv').config(); // Load environment variables from .env file
 const axios = require('axios');
 
  // Normalize and construct Dgraph GraphQL endpoint URL from environment variable or default
- const rawDgraphUrl = process.env.DGRAPH_URL;
- const DGRAPH_ENDPOINT = rawDgraphUrl
-   ? rawDgraphUrl.match(/^https?:\/\//)
-     ? rawDgraphUrl
-     : `http://${rawDgraphUrl}`
-   : 'http://localhost:8080/graphql';
+ // Determine Dgraph GraphQL endpoint from environment or default port
+ const rawDgraphUrl = process.env.DGRAPH_URL || 'http://localhost:8080';
+ const baseUrl = rawDgraphUrl.match(/^https?:\/\//)
+   ? rawDgraphUrl.replace(/\/$/, '')
+   : `http://${rawDgraphUrl}`;
+ const DGRAPH_ENDPOINT = baseUrl.endsWith('/graphql')
+   ? baseUrl
+   : `${baseUrl}/graphql`;
 
 /**
  * Executes a GraphQL query or mutation against the Dgraph endpoint.
@@ -33,6 +35,8 @@ async function executeGraphQL(query, variables = {}) {
     }
 
     console.log('GraphQL query executed successfully.'); // Log success
+    console.log('[DGRAPH CLIENT] response.data:', response.data);
+    console.log('[DGRAPH CLIENT] returning data:', response.data.data);
     return response.data.data; // Return only the data part of the response
 
   } catch (error) {

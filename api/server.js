@@ -78,6 +78,7 @@ app.post('/api/mutate', async (req, res) => {
   try {
     // Note: Consider adding validation/sanitization here if needed
     const result = await executeGraphQL(mutation, variables || {});
+    console.log('[MUTATE] Dgraph result for addNode:', result);
     res.status(200).json(result); // Use 200 OK for mutations unless specifically creating (201)
   } catch (error) {
     // Log the detailed error

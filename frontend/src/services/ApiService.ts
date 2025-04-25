@@ -1,8 +1,9 @@
 import axios from 'axios';
 
  // Base URL for API endpoint loaded from Vite environment or fallback
- const raw = (import.meta.env.VITE_API_BASE_URL as string) ?? '/api';
- const API_BASE_URL = raw.trim().replace(/\/$/, '');
+ // Determine API base URL from environment or default to '/api'
+ const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
+ const API_BASE_URL = envUrl && envUrl.length > 0 ? envUrl.replace(/\/$/, '') : '/api';
 
 import { NodeData } from '../types/graph'; // Import from centralized types
 
@@ -42,18 +43,22 @@ interface HealthStatus {
  */
 // Update signature: remove depth, add optional currentLevel
 export const fetchTraversalData = async (rootId: string, currentLevel?: number, fields: string[] = ['id', 'label', 'type', 'level']): Promise<TraversalResponse> => {
+  if (!rootId) {
+    console.warn('[ApiService] fetchTraversalData skipped: missing rootId');
+    return { queryNode: [] };
+  }
   try {
     // Ensure 'level' is always requested if using default or if not present in custom fields
     const fieldsToRequest = fields.includes('level') ? fields : [...fields, 'level'];
 
-    // Construct payload, including depth if provided
-    const payload: { rootId: string; depth?: number; fields: string[] } = {
-      rootId,
-      fields: fieldsToRequest,
-    };
-    if (currentLevel !== undefined) {
-      payload.depth = currentLevel;
-    }
+  // Construct payload, include currentLevel if provided
+  const payload: { rootId: string; currentLevel?: number; fields: string[] } = {
+    rootId,
+    fields: fieldsToRequest,
+  };
+  if (currentLevel !== undefined) {
+    payload.currentLevel = currentLevel;
+  }
 
     console.log(`[ApiService] Fetching traversal data for rootId: ${rootId}, currentLevel: ${currentLevel ?? 'N/A'}`); // Log update
     const response = await axios.post<TraversalResponse>(`${API_BASE_URL}/traverse`, payload); // Send updated payload
@@ -97,7 +102,11 @@ export const executeMutation = async (mutation: string, variables?: Record<strin
       mutation,
       variables,
     });
-    return response.data;
+    const result = response.data;
+    if (result.addNode === undefined) {
+      throw new Error('Invalid mutation response: missing addNode field');
+    }
+    return result;
   } catch (error) {
     console.error('Error executing mutation:', error);
     throw error;
@@ -133,4 +142,19 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
   }
 };
 
-// Add other API functions as needed (e.g., search)
+ // Add other API functions as needed (e.g., search)
+
+/**
+ * Fetches all node IDs from the backend.
+ * @returns Promise resolving to an array of node IDs.
+ */
+export const fetchAllNodeIds = async (): Promise<string[]> => {
+  try {
+    const query = `query { queryNode { id } }`;
+    const result = await executeQuery(query);
+    return result.queryNode?.map(node => node.id) ?? [];
+  } catch (error) {
+    console.error('Error fetching all node IDs:', error);
+    throw error;
+  }
+};

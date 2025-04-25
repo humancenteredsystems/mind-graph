@@ -4,7 +4,7 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import App from './App';
 import * as ApiService from './services/ApiService';
 import * as GraphUtils from './utils/graphUtils';
-import { NodeData, EdgeData } from './utils/graphUtils'; // Import types
+import { NodeData, EdgeData } from './types/graph'; // Import types
 
 // Mock the ApiService and GraphUtils modules
 vi.mock('./services/ApiService');
@@ -66,16 +66,15 @@ describe('App Component', () => {
     expect(screen.getByText(/Loading graph data.../i)).toBeInTheDocument();
   });
 
-  it('should call fetchTraversalData and transformTraversalData on mount', async () => {
-    (ApiService.fetchTraversalData as Mock).mockResolvedValue(initialRawData);
-    (GraphUtils.transformTraversalData as Mock).mockReturnValue(initialTransformedData);
-
+  it('should call fetchAllNodeIds on mount', async () => {
+    // Mock node ID fetch
+    (ApiService.fetchAllNodeIds as Mock).mockResolvedValue(['node1']);
+    // loadInitialGraph is called by hook; no need to mock transform here
     render(<App />);
     await waitFor(() => expect(screen.queryByText(/Loading graph data.../i)).not.toBeInTheDocument());
 
-    expect(ApiService.fetchTraversalData).toHaveBeenCalledTimes(1);
-    expect(ApiService.fetchTraversalData).toHaveBeenCalledWith("node1", 1); // Check initial call args
-    expect(GraphUtils.transformTraversalData).toHaveBeenCalledWith(initialRawData);
+    expect(ApiService.fetchAllNodeIds).toHaveBeenCalledTimes(1);
+    expect(ApiService.fetchAllNodeIds).toHaveBeenCalledWith();
   });
 
   it('should render GraphView with initial data on successful fetch', async () => {
