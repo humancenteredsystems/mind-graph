@@ -17,6 +17,8 @@ interface UseGraphState {
   expandNode: (nodeId: string) => Promise<void>;
   addNode: (values: { label: string; type: string }, parentId?: string) => Promise<void>;
   editNode: (nodeId: string, values: { label: string; type: string; level: number }) => Promise<void>;
+  deleteNode: (nodeId: string) => Promise<void>;
+  deleteNodes: (nodeIds: string[]) => Promise<void>;
   // Add resetGraph later if needed
 }
 
@@ -237,6 +239,52 @@ export const useGraphState = (): UseGraphState => {
     }
   }, [executeMutation]);
 
+  // Function to delete a node
+  const deleteNode = useCallback(async (nodeId: string) => {
+    if (!nodeId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const mutation = `mutation DeleteNode($input: DeleteNodeInput!) {
+        deleteNode(input: $input) {
+          node { id }
+        }
+      }`;
+      const variables = { input: { filter: { id: { eq: nodeId } } } };
+      await executeMutation(mutation, variables);
+      setNodes(prev => prev.filter(n => n.id !== nodeId));
+      setEdges(prev => prev.filter(e => e.source !== nodeId && e.target !== nodeId));
+    } catch (err) {
+      log('useGraphState', `Error deleting node ${nodeId}:`, err);
+      setError(`Failed to delete node ${nodeId}.`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [executeMutation]);
+
+  // Function to delete multiple nodes
+  const deleteNodes = useCallback(async (nodeIds: string[]) => {
+    if (!nodeIds || nodeIds.length === 0) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const mutation = `mutation DeleteNode($input: DeleteNodeInput!) {
+        deleteNode(input: $input) {
+          node { id }
+        }
+      }`;
+      const variables = { input: { filter: { id: { in: nodeIds } } } };
+      await executeMutation(mutation, variables);
+      setNodes(prev => prev.filter(n => !nodeIds.includes(n.id)));
+      setEdges(prev => prev.filter(e => !nodeIds.includes(e.source) && !nodeIds.includes(e.target)));
+    } catch (err) {
+      log('useGraphState', `Error deleting nodes ${nodeIds.join(',')}:`, err);
+      setError(`Failed to delete nodes ${nodeIds.join(',')}.`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [executeMutation]);
+
   return {
     nodes,
     edges,
@@ -248,5 +296,7 @@ export const useGraphState = (): UseGraphState => {
     expandNode,
     addNode,
     editNode,
+    deleteNode,
+    deleteNodes,
   };
 };

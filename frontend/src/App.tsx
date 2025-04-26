@@ -23,6 +23,8 @@ function App() {
     loadInitialGraph,
     loadCompleteGraph,
     editNode,
+    deleteNode,
+    deleteNodes,
   } = useGraphState();
 
   useEffect(() => {
@@ -75,6 +77,14 @@ return (
             openAddModal(parentId);
           }}
           onLoadCompleteGraph={loadCompleteGraph}
+          onDeleteNode={(nodeId) => {
+            log('App', `Delete node requested for: ${nodeId}`);
+            deleteNode(nodeId);
+          }}
+          onDeleteNodes={(ids) => {
+            log('App', `Delete nodes requested for: ${ids}`);
+            deleteNodes(ids);
+          }}
         />
       )}
       <NodeFormModal

@@ -103,7 +103,10 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({
             label: 'Delete Node',
             icon: '🗑️',
             shortcut: 'Del',
-            action: () => showComingSoonAlert(),
+            action: () =>
+              payload.onDeleteNode
+                ? payload.onDeleteNode(node.id)
+                : console.log('Delete Node not available'),
           },
           {
             id: 'hide-node',
@@ -162,7 +165,10 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({
             label: 'Delete Nodes',
             icon: '🗑️',
             shortcut: 'Del',
-            action: () => showComingSoonAlert(),
+            action: () =>
+              payload.onDeleteNodes
+                ? payload.onDeleteNodes(ids)
+                : console.log('Delete Nodes not available'),
           },
           {
             id: 'hide-multi',

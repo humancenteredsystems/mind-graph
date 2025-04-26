@@ -17,6 +17,8 @@ interface GraphViewProps {
   onAddNode?: (parentId?: string, position?: { x: number; y: number }) => void;
   onEditNode?: (nodeId: string) => void;
   onLoadCompleteGraph?: () => void;
+  onDeleteNode?: (nodeId: string) => void;
+  onDeleteNodes?: (nodeIds: string[]) => void;
   }
 
 const GraphView: React.FC<GraphViewProps> = ({
@@ -27,6 +29,8 @@ const GraphView: React.FC<GraphViewProps> = ({
   onAddNode,
   onEditNode,
   onLoadCompleteGraph,
+  onDeleteNode,
+  onDeleteNodes,
 }) => {
   const cyRef = useRef<Core | null>(null);
   const { openMenu } = useContextMenu();
@@ -116,6 +120,8 @@ const GraphView: React.FC<GraphViewProps> = ({
             onAddNode,
             onNodeExpand,
             onEditNode,
+            onDeleteNode,
+            onDeleteNodes,
           });
       }
       event.originalEvent.preventDefault();
@@ -126,7 +132,7 @@ const GraphView: React.FC<GraphViewProps> = ({
         cy.removeListener('cxttap', handler);
       }
     };
-  }, [onAddNode, onNodeExpand, onLoadCompleteGraph, openMenu]);
+  }, [onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, openMenu]);
 
   // Run layout on elements update
   useEffect(() => {

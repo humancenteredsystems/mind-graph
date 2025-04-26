@@ -14,6 +14,8 @@ vi.mock('./utils/graphUtils');
 // Keep variable accessible to tests
 let capturedOnNodeExpand: ((nodeId: string) => void) | undefined;
 let capturedOnLoadCompleteGraph: (() => void) | undefined;
+let capturedOnDeleteNode: ((nodeId: string) => void) | undefined;
+let capturedOnDeleteNodes: ((nodeIds: string[]) => void) | undefined;
 
 // Define the mock *inside* the factory function
 vi.mock('./components/GraphView', () => {
@@ -22,14 +24,20 @@ vi.mock('./components/GraphView', () => {
     edges,
     onNodeExpand,
     onLoadCompleteGraph,
+    onDeleteNode,
+    onDeleteNodes,
   }: {
     nodes: NodeData[];
     edges: EdgeData[];
     onNodeExpand?: (id: string) => void;
     onLoadCompleteGraph?: () => void;
+    onDeleteNode?: (id: string) => void;
+    onDeleteNodes?: (ids: string[]) => void;
   }) => {
     capturedOnNodeExpand = onNodeExpand; // Capture the expand handler
     capturedOnLoadCompleteGraph = onLoadCompleteGraph; // Capture the load complete handler
+    capturedOnDeleteNode = onDeleteNode; // Capture delete handler
+    capturedOnDeleteNodes = onDeleteNodes; // Capture delete nodes handler
     return (
       <div data-testid="graph-view">
         <span data-testid="node-count">{nodes.length}</span>
@@ -186,5 +194,34 @@ describe('App Component', () => {
         expect(screen.getByTestId('edge-count').textContent).toBe('0');
       });
     });
+  });
+
+  it('should delete single node and update view', async () => {
+    await setupInitialLoad();
+    (ApiService.executeMutation as Mock).mockResolvedValueOnce({});
+    expect(capturedOnDeleteNode).toBeDefined();
+    await act(async () => capturedOnDeleteNode!(initialNode.id));
+    await waitFor(() => expect(screen.getByTestId('node-count').textContent).toBe('0'));
+  });
+
+  it('should delete multiple nodes and update view', async () => {
+    await setupInitialLoad();
+    // Prepare complete graph with two nodes
+    const node2: NodeData = { id: 'node2', label: 'Node 2', level: 1 };
+    (ApiService.fetchAllNodeIds as Mock).mockResolvedValueOnce([initialNode.id, node2.id]);
+    // First fetchTraversalData returns initialNode
+    (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce({ queryNode: [initialNode] });
+    (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce({ nodes: [initialNode], edges: [] });
+    // Second fetchTraversalData returns node2
+    (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce({ queryNode: [node2] });
+    (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce({ nodes: [node2], edges: [] });
+    await act(async () => capturedOnLoadCompleteGraph?.());
+    await waitFor(() => expect(screen.getByTestId('node-count').textContent).toBe('2'));
+
+    // Mock delete mutation and trigger batch delete
+    (ApiService.executeMutation as Mock).mockResolvedValueOnce({});
+    expect(capturedOnDeleteNodes).toBeDefined();
+    await act(async () => capturedOnDeleteNodes!([initialNode.id, node2.id]));
+    await waitFor(() => expect(screen.getByTestId('node-count').textContent).toBe('0'));
   });
 });
