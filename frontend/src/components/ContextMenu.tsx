@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { MenuType, MenuItem } from '../types/contextMenu';
 import { useContextMenu } from '../context/ContextMenuContext';
 
 const ContextMenu: React.FC = () => {

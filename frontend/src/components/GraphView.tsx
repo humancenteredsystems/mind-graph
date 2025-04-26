@@ -15,6 +15,7 @@ interface GraphViewProps {
   style?: React.CSSProperties;
   onNodeExpand?: (nodeId: string) => void;
   onAddNode?: (parentId?: string, position?: { x: number; y: number }) => void;
+  onEditNode?: (nodeId: string) => void;
 }
 
 const GraphView: React.FC<GraphViewProps> = ({
@@ -23,6 +24,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   style,
   onNodeExpand,
   onAddNode,
+  onEditNode,
 }) => {
   const cyRef = useRef<Core | null>(null);
   const { openMenu } = useContextMenu();
@@ -99,15 +101,16 @@ const GraphView: React.FC<GraphViewProps> = ({
       const position = { x: origEvent.clientX, y: origEvent.clientY };
       if (target === cy) {
         openMenu('background', position, { onAddNode });
-      } else if (target.isNode) {
-        const selectedIds = cy.nodes(':selected').map((el) => el.id());
-        const menuType = selectedIds.length > 1 ? 'multi-node' : 'node';
-        openMenu(menuType, position, {
-          nodeId: target.id(),
-          nodeIds: selectedIds,
-          onAddNode,
-          onNodeExpand,
-        });
+        } else if (target.isNode) {
+          const selectedIds = cy.nodes(':selected').map((el) => el.id());
+          const menuType = selectedIds.length > 1 ? 'multi-node' : 'node';
+          openMenu(menuType, position, {
+            nodeId: target.id(),
+            nodeIds: selectedIds,
+            onAddNode,
+            onNodeExpand,
+            onEditNode,
+          });
       }
       event.originalEvent.preventDefault();
     };

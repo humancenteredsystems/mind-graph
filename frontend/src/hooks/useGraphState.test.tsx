@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react';
 import { useGraphState } from './useGraphState';
 import * as ApiService from '../services/ApiService';
 import { vi } from 'vitest';
