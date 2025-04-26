@@ -104,8 +104,9 @@ const GraphView: React.FC<GraphViewProps> = ({
         } else if (target.isNode) {
           const selectedIds = cy.nodes(':selected').map((el) => el.id());
           const menuType = selectedIds.length > 1 ? 'multi-node' : 'node';
+          const nodeData = target.data() as NodeData;
           openMenu(menuType, position, {
-            nodeId: target.id(),
+            node: nodeData,
             nodeIds: selectedIds,
             onAddNode,
             onNodeExpand,
@@ -116,7 +117,9 @@ const GraphView: React.FC<GraphViewProps> = ({
     };
     cy.on('cxttap', handler);
     return () => {
-      cy.removeListener('cxttap', handler);
+      if (cy.removeListener) {
+        cy.removeListener('cxttap', handler);
+      }
     };
   }, [onAddNode, onNodeExpand, openMenu]);
 

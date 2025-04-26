@@ -5,7 +5,7 @@ import axios from 'axios';
  const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
  const API_BASE_URL = envUrl && envUrl.length > 0 ? envUrl.replace(/\/$/, '') : '/api';
 
-import { NodeData } from '../types/graph'; // Import from centralized types
+import { NodeData, EdgeData } from '../types/graph'; // Import from centralized types
 
 // Define interfaces for expected data structures (optional but good practice)
 // These should ideally match the structure returned by your Dgraph schema/API
@@ -22,9 +22,9 @@ interface QueryResponse {
 }
 
 interface MutateResponse {
-  // Define based on your specific mutations
-  addNode?: { node: NodeData[] }; // Example
-  // Add other possible mutation results
+  addNode?: { node: NodeData[] };
+  addEdge?: { edge: EdgeData[] };
+  updateNode?: { node: NodeData[] };
 }
 
 interface HealthStatus {
@@ -103,8 +103,8 @@ export const executeMutation = async (mutation: string, variables?: Record<strin
       variables,
     });
     const result = response.data;
-    if (result.addNode === undefined) {
-      throw new Error('Invalid mutation response: missing addNode field');
+    if (result.addNode === undefined && result.addEdge === undefined && result.updateNode === undefined) {
+      throw new Error('Invalid mutation response: missing addNode/addEdge/updateNode field');
     }
     return result;
   } catch (error) {

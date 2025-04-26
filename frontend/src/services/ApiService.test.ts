@@ -82,6 +82,13 @@ describe('ApiService', () => {
       expect(result).toEqual(mockResult);
     });
 
+    it('should return updateNode payload for update mutations', async () => {
+      const mockResult = { updateNode: { node: [{ id: 'node1', label: 'Updated', type: 'concept', level: 2 }] } };
+      (axios.post as any).mockResolvedValue({ data: mockResult });
+      const result = await executeMutation('updateMutation', { some: 'var' });
+      expect(result).toEqual(mockResult);
+    });
+
     it('should throw error on failed mutation call', async () => {
       const errorMessage = 'Network Error';
       (axios.post as any).mockRejectedValue(new Error(errorMessage));

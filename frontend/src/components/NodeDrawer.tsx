@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NodeData } from '../types/graph';
-import { NodeFormValues } from './NodeFormModal';
+
+type NodeEditValues = {
+  label: string;
+  type: string;
+  level: number;
+};
 
 interface NodeDrawerProps {
   open: boolean;
   node?: NodeData;
-  onSave: (values: NodeFormValues) => void;
+  onSave: (values: NodeEditValues) => void;
   onClose: () => void;
 }
 
@@ -14,9 +19,10 @@ type Tab = typeof TABS[number];
 
 const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<Tab>('Info');
-  const [formValues, setFormValues] = useState<NodeFormValues>({
+  const [formValues, setFormValues] = useState<NodeEditValues>({
     label: node?.label || '',
     type: node?.type || 'concept',
+    level: node?.level || 1,
   });
 
   React.useEffect(() => {
@@ -24,6 +30,7 @@ const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) 
       setFormValues({
         label: node.label || '',
         type: node.type || 'concept',
+        level: node.level || 1,
       });
       setActiveTab('Info');
     }
@@ -72,17 +79,51 @@ const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) 
       <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
         {activeTab === 'Info' && (
           <div>
+            <label style={{ display: 'block', marginBottom: 4 }}>ID</label>
+            <input
+              type="text"
+              value={node.id}
+              disabled
+              style={{ width: '100%', marginBottom: 12, padding: 4 }}
+            />
+            <label style={{ display: 'block', marginBottom: 4 }}>Status</label>
+            <input
+              type="text"
+              value={node.status || ''}
+              disabled
+              style={{ width: '100%', marginBottom: 12, padding: 4 }}
+            />
+            <label style={{ display: 'block', marginBottom: 4 }}>Branch</label>
+            <input
+              type="text"
+              value={node.branch || ''}
+              disabled
+              style={{ width: '100%', marginBottom: 12, padding: 4 }}
+            />
+            <label style={{ display: 'block', marginBottom: 4 }}>Level</label>
+            <input
+              type="number"
+              value={formValues.level}
+              onChange={(e) =>
+                setFormValues({ ...formValues, level: Number(e.target.value) })
+              }
+              style={{ width: '100%', marginBottom: 12, padding: 4 }}
+            />
             <label style={{ display: 'block', marginBottom: 4 }}>Label</label>
             <input
               type="text"
               value={formValues.label}
-              onChange={(e) => setFormValues({ ...formValues, label: e.target.value })}
+              onChange={(e) =>
+                setFormValues({ ...formValues, label: e.target.value })
+              }
               style={{ width: '100%', marginBottom: 12, padding: 4 }}
             />
             <label style={{ display: 'block', marginBottom: 4 }}>Type</label>
             <select
               value={formValues.type}
-              onChange={(e) => setFormValues({ ...formValues, type: e.target.value })}
+              onChange={(e) =>
+                setFormValues({ ...formValues, type: e.target.value })
+              }
               style={{ width: '100%', marginBottom: 12, padding: 4 }}
             >
               <option value="concept">concept</option>
@@ -90,7 +131,9 @@ const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) 
               <option value="question">question</option>
             </select>
             <div style={{ textAlign: 'right' }}>
-              <button onClick={onClose} style={{ marginRight: 8 }}>Cancel</button>
+              <button onClick={onClose} style={{ marginRight: 8 }}>
+                Cancel
+              </button>
               <button
                 onClick={() => onSave(formValues)}
                 disabled={!formValues.label.trim()}

@@ -4,6 +4,9 @@ import GraphView from './components/GraphView';
 import { useGraphState } from './hooks/useGraphState';
 import { fetchAllNodeIds } from './services/ApiService';
 import { log } from './utils/logger';
+import { useUIContext } from './context/UIContext';
+import NodeFormModal from './components/NodeFormModal';
+import NodeDrawer from './components/NodeDrawer';
 
 function App() {
   const [rootId, setRootId] = useState<string>();
@@ -18,6 +21,7 @@ function App() {
     expandNode,
     addNode,
     loadInitialGraph,
+    editNode,
   } = useGraphState();
 
   useEffect(() => {
@@ -41,7 +45,18 @@ function App() {
     init();
   }, [loadInitialGraph]);
 
-  return (
+  const {
+  addModalOpen,
+  addParentId,
+  openAddModal,
+  closeAddModal,
+  editDrawerOpen,
+  editNodeData,
+  openEditDrawer,
+  closeEditDrawer,
+} = useUIContext();
+
+return (
     <div className="App">
       <h1>MakeItMakeSense.io Graph</h1>
       {(loadingRoot || isExpanding) && <p>Loading graph data...</p>}
@@ -56,11 +71,33 @@ function App() {
           }}
           onAddNode={(parentId, position) => {
             log('App', `Add node requested at position: ${JSON.stringify(position)}`);
-            addNode(parentId, position);
+            openAddModal(parentId);
           }}
         />
       )}
-    </div>
+      <NodeFormModal
+        open={addModalOpen}
+        parentId={addParentId}
+        onSubmit={async (values) => {
+          log('App', `Node add requested: ${JSON.stringify(values)}`);
+          await addNode(values, addParentId);
+          closeAddModal();
+        }}
+        onCancel={closeAddModal}
+      />
+      <NodeDrawer
+        open={editDrawerOpen}
+        node={editNodeData}
+        onSave={async (values) => {
+          log('App', `Node edited: ${JSON.stringify(values)}`);
+          if (editNodeData) {
+            await editNode(editNodeData.id, values);
+          }
+          closeEditDrawer();
+        }}
+        onClose={closeEditDrawer}
+      />
+</div>
   );
 }
 

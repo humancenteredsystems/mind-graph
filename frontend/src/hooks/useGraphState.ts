@@ -14,7 +14,8 @@ interface UseGraphState {
   error: string | null;
   loadInitialGraph: (rootId: string) => Promise<void>;
   expandNode: (nodeId: string) => Promise<void>;
-  addNode: (parentId?: string, position?: { x: number; y: number }) => Promise<void>;
+  addNode: (values: { label: string; type: string }, parentId?: string) => Promise<void>;
+  editNode: (nodeId: string, values: { label: string; type: string; level: number }) => Promise<void>;
   // Add resetGraph later if needed
 }
 
@@ -119,54 +120,92 @@ export const useGraphState = (): UseGraphState => {
     }
   }, [nodes, edges, isLoading, isExpanding]); // Dependencies for useCallback
 
-  // Function to add a new node
-  const addNode = useCallback(async (parentId?: string, position?: { x: number; y: number }) => {
-    // Generate unique ID
-    let newId = uuidv4();
-    const existingIds = new Set(nodes.map(n => n.id));
-    while (existingIds.has(newId)) {
-      newId = uuidv4();
-    }
-    // Prompt for label
-    const label = window.prompt('Enter node label:');
-    if (!label) {
-      log('useGraphState', 'Add node aborted: No label provided.');
-      return;
-    }
-    // Prompt for type
-    const typeInput = window.prompt('Enter node type (concept/example/question):', 'concept');
-    const validTypes = ['concept', 'example', 'question'];
-    const type = validTypes.includes(typeInput || '') ? typeInput! : 'concept';
-    // Compute level
-    let level = 1;
-    if (parentId) {
-      const parentNode = nodes.find(n => n.id === parentId);
-      if (parentNode && typeof parentNode.level === 'number') {
-        level = parentNode.level + 1;
-      }
-    }
-    // Default status and branch
-    const status = 'pending';
-    const branch = 'main';
-    // Construct mutation
-    const mutation = `mutation AddNode($input: [AddNodeInput!]!) {
-      addNode(input: $input) { node { id label type level status branch } }
-    }`;
-    const variables = { input: [{ id: newId, label, type, level, status, branch }] };
-    try {
-      log('useGraphState', `Adding node ${newId} with label ${label}`);
-      const result = await executeMutation(mutation, variables);
-      const added = result.addNode?.node ?? [];
-      if (added.length > 0) {
-        setNodes(prev => [...prev, added[0]]);
-      }
-    } catch (err) {
-      log('useGraphState', 'Error adding node:', err);
-      setError(`Failed to add node ${label}.`);
-    }
-  }, [nodes, executeMutation]);
   
   // Add resetGraph function later if needed
+
+  // Function to add a new node via modal form
+  const addNode = useCallback(
+    async (values: { label: string; type: string }, parentId?: string) => {
+      // Generate unique ID
+      let newId = uuidv4();
+      const existingIds = new Set(nodes.map(n => n.id));
+      while (existingIds.has(newId)) {
+        newId = uuidv4();
+      }
+      const { label, type } = values;
+      // Compute level based on parent
+      let level = 1;
+      if (parentId) {
+        const parentNode = nodes.find(n => n.id === parentId);
+        if (parentNode && typeof parentNode.level === 'number') {
+          level = parentNode.level + 1;
+        }
+      }
+      // Default status and branch
+      const status = 'pending';
+      const branch = 'main';
+      // Construct GraphQL mutation for node
+      const mutation = `mutation AddNode($input: [AddNodeInput!]!) {
+        addNode(input: $input) { node { id label type level status branch } }
+      }`;
+      const variables = { input: [{ id: newId, label, type, level, status, branch }] };
+      try {
+        log('useGraphState', `Adding node ${newId} with values:`, values);
+        const result = await executeMutation(mutation, variables);
+        const addedNode = result.addNode?.node?.[0];
+        if (addedNode) {
+          setNodes(prev => [...prev, addedNode]);
+          // If a parentId was provided, create an edge connecting the new node to its parent
+          if (parentId) {
+            const edgeMutation = `mutation AddEdge($input: [AddEdgeInput!]!) {
+              addEdge(input: $input) { edge { from { id } to { id } type } }
+            }`;
+            const edgeVars = { input: [{ from: { id: parentId }, to: { id: addedNode.id }, type: "simple" }] };
+            try {
+              const edgeResult = await executeMutation(edgeMutation, edgeVars);
+              const addedEdge = edgeResult.addEdge?.edge?.[0];
+              if (addedEdge) {
+                setEdges(prev => [
+                  ...prev,
+                  { source: parentId, target: addedNode.id, type: addedEdge.type }
+                ]);
+              }
+            } catch (edgeErr) {
+              log('useGraphState', `Error adding edge for node ${newId}:`, edgeErr);
+              setError(`Failed to create edge for new node ${label}.`);
+            }
+          }
+        }
+      } catch (err) {
+        log('useGraphState', 'Error adding node:', err);
+        setError(`Failed to add node ${values.label}.`);
+      }
+    },
+    [nodes, executeMutation]
+  );
+
+  // Function to edit a node
+  const editNode = useCallback(async (nodeId: string, values: { label: string; type: string; level: number }) => {
+    const mutation = `mutation UpdateNode($input: UpdateNodeInput!) {
+      updateNode(input: $input) { node { id label type level status branch } }
+    }`;
+    const variables = {
+      input: {
+        filter: { id: { eq: nodeId } },
+        set: { label: values.label, type: values.type, level: values.level }
+      }
+    };
+    try {
+      const result = await executeMutation(mutation, variables);
+      const updated = result.updateNode?.node?.[0];
+      if (updated) {
+        setNodes(prev => prev.map(n => n.id === updated.id ? updated : n));
+      }
+    } catch (err) {
+      log('useGraphState', `Error editing node ${nodeId}:`, err);
+      setError(`Failed to update node ${nodeId}.`);
+    }
+  }, [executeMutation]);
 
   return {
     nodes,
@@ -177,5 +216,6 @@ export const useGraphState = (): UseGraphState => {
     loadInitialGraph,
     expandNode,
     addNode,
+    editNode,
   };
 };
