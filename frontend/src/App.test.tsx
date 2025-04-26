@@ -13,16 +13,29 @@ vi.mock('./utils/graphUtils');
 
 // Keep variable accessible to tests
 let capturedOnNodeExpand: ((nodeId: string) => void) | undefined;
+let capturedOnLoadCompleteGraph: (() => void) | undefined;
 
 // Define the mock *inside* the factory function
 vi.mock('./components/GraphView', () => {
-  const MockGraphViewComponent = vi.fn(({ nodes, edges, onNodeExpand }: { nodes: NodeData[]; edges: EdgeData[]; onNodeExpand?: (id: string) => void }) => {
-    capturedOnNodeExpand = onNodeExpand; // Capture the handler
+  const MockGraphViewComponent = vi.fn(({
+    nodes,
+    edges,
+    onNodeExpand,
+    onLoadCompleteGraph,
+  }: {
+    nodes: NodeData[];
+    edges: EdgeData[];
+    onNodeExpand?: (id: string) => void;
+    onLoadCompleteGraph?: () => void;
+  }) => {
+    capturedOnNodeExpand = onNodeExpand; // Capture the expand handler
+    capturedOnLoadCompleteGraph = onLoadCompleteGraph; // Capture the load complete handler
     return (
       <div data-testid="graph-view">
         <span data-testid="node-count">{nodes.length}</span>
         <span data-testid="edge-count">{edges.length}</span>
         <button data-testid="manual-expand-trigger" onClick={() => capturedOnNodeExpand?.('node-to-expand')} />
+        <button data-testid="manual-load-complete-trigger" onClick={() => capturedOnLoadCompleteGraph?.()} />
       </div>
     );
   });
@@ -152,6 +165,26 @@ describe('App Component', () => {
       act(() => capturedOnNodeExpand!(nodeToExpandId));
       expect(screen.getByText(/Loading graph data.../i)).toBeInTheDocument();
       await waitFor(() => expect(screen.queryByText(/Loading graph data.../i)).not.toBeInTheDocument());
+    });
+
+    it('should fetch and render complete graph on loadCompleteGraph', async () => {
+      await setupInitialLoad();
+      // Setup mocks for complete graph
+      const newNode: NodeData = { id: 'node2', label: 'Node 2', level: 1 };
+      const allNodeIds = ['node1', 'node2'];
+      (ApiService.fetchAllNodeIds as Mock).mockResolvedValueOnce(allNodeIds);
+      // First call for node1
+      (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce(initialRawData);
+      (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce(initialTransformedData);
+      // Second call for node2
+      (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce({ queryNode: [newNode] });
+      (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce({ nodes: [newNode], edges: [] });
+      // Trigger load complete graph
+      await act(async () => capturedOnLoadCompleteGraph?.());
+      await waitFor(() => {
+        expect(screen.getByTestId('node-count').textContent).toBe('2');
+        expect(screen.getByTestId('edge-count').textContent).toBe('0');
+      });
     });
   });
 });

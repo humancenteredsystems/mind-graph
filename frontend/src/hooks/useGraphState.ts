@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchTraversalData } from '../services/ApiService';
+import { fetchTraversalData, fetchAllNodeIds } from '../services/ApiService';
 import { transformTraversalData } from '../utils/graphUtils';
 import { NodeData, EdgeData } from '../types/graph';
 import { log } from '../utils/logger'; // Import the logger utility
@@ -13,6 +13,7 @@ interface UseGraphState {
   isExpanding: boolean;
   error: string | null;
   loadInitialGraph: (rootId: string) => Promise<void>;
+  loadCompleteGraph: () => Promise<void>;
   expandNode: (nodeId: string) => Promise<void>;
   addNode: (values: { label: string; type: string }, parentId?: string) => Promise<void>;
   editNode: (nodeId: string, values: { label: string; type: string; level: number }) => Promise<void>;
@@ -54,6 +55,35 @@ export const useGraphState = (): UseGraphState => {
     } catch (err) {
       log("useGraphState", "ERROR: Failed to load initial graph data:", err); // Use log
       setError("Failed to load initial graph data. Is the API server running?");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); // Dependencies for useCallback
+
+  // Function to load the complete graph
+  const loadCompleteGraph = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const allIds = await fetchAllNodeIds();
+      const nodeMap = new Map<string, NodeData>();
+      const edgeMap = new Map<string, EdgeData>();
+
+      for (const id of allIds) {
+        const rawData = await fetchTraversalData(id);
+        const { nodes: fetchedNodes, edges: fetchedEdges } = transformTraversalData(rawData);
+        fetchedNodes.forEach(n => nodeMap.set(n.id, n));
+        fetchedEdges.forEach(e => {
+          const key = `${e.source}-${e.target}-${e.type ?? ''}`;
+          edgeMap.set(key, e);
+        });
+      }
+
+      setNodes(Array.from(nodeMap.values()));
+      setEdges(Array.from(edgeMap.values()));
+    } catch (err) {
+      log('useGraphState', 'ERROR: Failed to load complete graph data:', err);
+      setError('Failed to load complete graph data. Is the API server running?');
     } finally {
       setIsLoading(false);
     }
@@ -214,6 +244,7 @@ export const useGraphState = (): UseGraphState => {
     isExpanding,
     error,
     loadInitialGraph,
+    loadCompleteGraph,
     expandNode,
     addNode,
     editNode,

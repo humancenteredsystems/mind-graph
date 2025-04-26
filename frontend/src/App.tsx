@@ -21,6 +21,7 @@ function App() {
     expandNode,
     addNode,
     loadInitialGraph,
+    loadCompleteGraph,
     editNode,
   } = useGraphState();
 
@@ -73,6 +74,7 @@ return (
             log('App', `Add node requested at position: ${JSON.stringify(position)}`);
             openAddModal(parentId);
           }}
+          onLoadCompleteGraph={loadCompleteGraph}
         />
       )}
       <NodeFormModal
