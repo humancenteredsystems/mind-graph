@@ -41,9 +41,10 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 - Basic pan and zoom provided via react-cytoscapejs (Cytoscape.js plugin).
 - Styling for different node types (`concept`, `example`, `question`).
 - Uses Klay layout algorithm.
+- Add Node and Add Connected Node via context menu and NodeFormModal.
+- Edit Node via context menu and NodeDrawer.
 
 ### Features (Future Goals)
-- Add/edit nodes and edges locally.
 - Submit changes as branches for review.
 - Advanced visualization controls (filtering, hierarchy depth, cross-links).
 - Search functionality integration.

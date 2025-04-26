@@ -89,9 +89,32 @@ type Node {
   "variables": { /* optional */ }
 }
 ```
-**Response (200 OK):**  
+**Response (200 OK):**
 ```json
 { "addNode": { "node": [ { "id": "newId" } ] } }
+```
+
+**Supported Mutations:**
+- `addNode`: Create a new node.
+- `addEdge`: Create a new edge connecting nodes.
+- `updateNode`: Update properties of an existing node.
+
+**Example: Create Edge**
+```graphql
+mutation {
+  addEdge(input: [{ from: { id: "parentId" }, to: { id: "childId" }, type: "simple" }]) {
+    edge { from { id } to { id } type }
+  }
+}
+```
+
+**Example: Update Node**
+```graphql
+mutation {
+  updateNode(input: { filter: { id: { eq: "nodeId" } }, set: { label: "New Label" } }) {
+    node { id label type level status branch }
+  }
+}
 ```
 **Error Responses:**  
 - 400 Bad Request if `mutation` field is missing.  

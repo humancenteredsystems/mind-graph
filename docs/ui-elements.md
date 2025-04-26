@@ -65,6 +65,7 @@ Component: `<NodeFormModal>` (in `/frontend/src/components/NodeFormModal.tsx`); 
 ### Props
 
 - `open: boolean`  
+- `parentId?: string` (optional; when provided, modal will create a connecting edge)  
 - `initialValues?` (unused for Add)  
 - `onSubmit(values: { label: string; type: string })`  
 - `onCancel()`
@@ -76,7 +77,7 @@ Component: `<NodeFormModal>` (in `/frontend/src/components/NodeFormModal.tsx`); 
 
 ### Actions
 
-- **Save** → validate & call `onSubmit`, close modal  
+- **Save** → validate & call `onSubmit` (creates a new node and, if `parentId` is provided, also creates a connecting edge), close modal  
 - **Cancel** → call `onCancel`, close modal
 
 ### Accessibility/UI

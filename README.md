@@ -198,16 +198,16 @@ This directory contains Python scripts for interacting with the Dgraph database 
 
 *   `/docs/architecture.md`: High-level system design.
 *   `/docs/schema_notes.md`: Notes related to the Dgraph schema.
-*   `/docs/api_endpoints.md`: API endpoint reference (to be completed)
+*   `/docs/api_endpoints.md`: API endpoint reference
 *   `/docs/deployment_guide.md`: Local and Render deployment instructions
 
 ## Future Work
 
 *   Implement remaining features outlined in `docs/architecture.md` (e.g., branching, merging, user auth).
 *   Expand API functionality (e.g., more complex traversals, advanced search).
-*   Enhance frontend UI/UX (e.g., editing nodes/edges, better layout controls).
+*   Enhance frontend UI/UX (e.g., better layout controls).
 *   Improve test coverage.
-*   Create detailed documentation (`api_endpoints.md`, `deployment_guide.md`).
+*   Maintain documentation (e.g., `deployment_guide.md` and API reference).
 *   Remove redundant `setup_schema.py`.
 
 ## Contributing
