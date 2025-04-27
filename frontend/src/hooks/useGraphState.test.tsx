@@ -1,6 +1,4 @@
- // @ts-nocheck
-import { renderHook } from '@testing-library/react';
-import { act } from 'react';
+import { renderHook, act } from '@testing-library/react';
 import { describe, it, beforeEach, vi, expect } from 'vitest';
 import * as ApiService from '../services/ApiService';
 import { useGraphState } from './useGraphState';
@@ -30,7 +28,13 @@ describe('useGraphState create and delete flow', () => {
     });
 
     // Mock deleteNodeCascade for deleteNode to return successful response
-    (ApiService.deleteNodeCascade as vi.Mock).mockResolvedValueOnce({});
+    // The updated deleteNodeCascade returns an object with deletedNodesCount
+    (ApiService.deleteNodeCascade as vi.Mock).mockResolvedValueOnce({
+      success: true,
+      deletedNodeId: newNode.id,
+      deletedEdgesCount: 0, // Assuming no edges initially
+      deletedNodesCount: 1,
+    });
 
     // Render the hook
     const { result } = renderHook(() => useGraphState());
