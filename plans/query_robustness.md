@@ -19,10 +19,10 @@ Ensure that if an edge points to a missing node (dangling edge), the system:
 
 # ✅ **Phase 1: Backend - Safe Traversal Output**
 
-**Target File**:  
+**Target File**:
 - `api/server.js`
 
-**Target Endpoint**:  
+**Target Endpoint**:
 - `/api/traverse`
 
 ---
@@ -32,6 +32,8 @@ Ensure that if an edge points to a missing node (dangling edge), the system:
 After retrieving traversal data from Dgraph, **filter the outgoing edges**:
 - Only keep edges where `to` is fully populated (`to.id` and `to.label` exist).
 - Log or silently skip bad edges.
+
+*Note: A basic filter (`edge => edge.to !== null`) is currently present in `api/server.js`, but the implementation below is more robust.*
 
 ---
 
@@ -45,8 +47,8 @@ After retrieving traversal data from Dgraph, **filter the outgoing edges**:
 ```javascript
 function filterValidOutgoingEdges(node) {
   if (!node.outgoing) return node;
-  
-  const validOutgoing = node.outgoing.filter(edge => 
+
+  const validOutgoing = node.outgoing.filter(edge =>
     edge.to && edge.to.id && edge.to.label
   );
 
@@ -58,12 +60,12 @@ function filterValidOutgoingEdges(node) {
 }
 ```
 
-3. Apply this function to all nodes in traversal results.
+3. Apply this function to all nodes in traversal results, replacing the existing basic filter.
 
 **Example Update in `/api/traverse` Endpoint**:
 
 ```javascript
-const rawTraversalData = result.data.queryNode;
+const rawTraversalData = result.queryNode; // Assuming executeGraphQL returns the data directly
 const safeTraversalData = rawTraversalData.map(filterValidOutgoingEdges);
 
 // Respond to frontend
@@ -82,7 +84,7 @@ res.json({ data: { queryNode: safeTraversalData } });
 
 # ✅ **Phase 2: Frontend - Safe Edge Rendering**
 
-**Target File**:  
+**Target File**:
 - `frontend/src/components/GraphView.tsx` (or wherever Cytoscape elements are prepared)
 
 ---
@@ -90,35 +92,71 @@ res.json({ data: { queryNode: safeTraversalData } });
 ### 🎯 Task:
 
 Before adding edges to Cytoscape, **filter out** any invalid ones:
-- Only edges where `source` and `target` node IDs are both defined and exist.
+- Only edges where `source` and `target` node IDs are both defined and exist within the set of nodes received from the backend.
 
 ---
 
 ### 🛠️ Implementation Steps:
 
-1. Locate the code where Cytoscape elements (`nodes` and `edges`) are created.
+1. Locate the code where Cytoscape elements (`nodes` and `edges`) are created (likely in the `useMemo` hook).
 2. Introduce a `filterValidEdges` utility function.
 
 **New Utility Function Example**:
 
 ```typescript
-function filterValidEdges(edges: CytoscapeEdgeData[], validNodeIds: Set<string>): CytoscapeEdgeData[] {
-  return edges.filter(edge => 
-    validNodeIds.has(edge.data.source) && validNodeIds.has(edge.data.target)
+import { EdgeData, NodeData } from '../types/graph'; // Ensure correct import
+
+function filterValidEdges(edges: EdgeData[], validNodeIds: Set<string>): EdgeData[] {
+  return edges.filter(edge =>
+    validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
   );
 }
 ```
 
-*(Assume `CytoscapeEdgeData` has `data.source` and `data.target` fields.)*
+*(Assume `EdgeData` has `source` and `target` fields corresponding to node IDs.)*
 
 3. Apply this function **before** passing edges to Cytoscape:
 
 ```typescript
-const validNodeIds = new Set(nodes.map(node => node.data.id));
+const validNodeIds = new Set(nodes.map(node => node.id)); // Use node.id from NodeData
 const safeEdges = filterValidEdges(edges, validNodeIds);
 
-cy.add([...nodes, ...safeEdges]);
+// Update the elements useMemo to use safeEdges
+const elements = useMemo<ElementDefinition[]>(() => {
+    const nodeElements = nodes.map(({ id, label, ...rest }) => ({
+      data: { id, label: label ?? id, ...rest },
+    }));
+    // Use safeEdges here
+    const edgeElements = safeEdges.map(({ source, target, ...rest }) => ({
+      data: { source, target, ...rest },
+    }));
+    return [...nodeElements, ...edgeElements];
+  }, [nodes, edges]); // Note: Dependency array should likely include safeEdges or the inputs that derive it
 ```
+*Correction: The `useMemo` dependency array should depend on `nodes` and `edges` as these are the inputs to the filtering logic. The filtering should happen inside or just before the `useMemo`.*
+
+Let's refine the `useMemo` update:
+
+```typescript
+  const elements = useMemo<ElementDefinition[]>(() => {
+    const nodeElements = nodes.map(({ id, label, ...rest }) => ({
+      data: { id, label: label ?? id, ...rest },
+    }));
+
+    // Filter edges here within the useMemo or ensure edges prop is already filtered
+    const validNodeIds = new Set(nodes.map(node => node.id));
+    const safeEdges = edges.filter(edge =>
+        validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
+    );
+
+    const edgeElements = safeEdges.map(({ source, target, ...rest }) => ({
+      data: { source, target, ...rest },
+    }));
+
+    return [...nodeElements, ...edgeElements];
+  }, [nodes, edges]); // Dependencies are the original props
+```
+
 
 ---
 
@@ -138,7 +176,7 @@ cy.add([...nodes, ...safeEdges]);
 **Frontend (GraphView.tsx)**:
 - (Optional) log a warning in console when skipping invalid edges.
 
-Example:
+Example (within the `useMemo` after filtering):
 
 ```typescript
 if (edges.length !== safeEdges.length) {
@@ -163,8 +201,8 @@ if (edges.length !== safeEdges.length) {
 
 # 📋 **Final Checklist for LLM**
 
-| Task                                              | Status  |
-|---------------------------------------------------|---------|
+| Task                                              | Status      |
+|---------------------------------------------------|-------------|
 | Implement `filterValidOutgoingEdges` in server.js | ⬜️ Pending |
 | Apply filtering to `/api/traverse` response       | ⬜️ Pending |
 | Implement `filterValidEdges` in GraphView.tsx     | ⬜️ Pending |
