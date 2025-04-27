@@ -114,6 +114,11 @@ app.post('/api/traverse', async (req, res) => {
     return res.status(400).json({ error: 'Missing required field: rootId' });
   }
 
+  // Validate currentLevel
+  if (currentLevel !== undefined && (typeof currentLevel !== 'number' || currentLevel < 0)) {
+    return res.status(400).json({ error: 'Invalid depth parameter. Must be a non-negative number.' });
+  }
+
   // Validate fields
   const allowedFields = ['id', 'label', 'type', 'level', 'description']; // Add only whitelisted fields
   const safeFields = Array.isArray(fields) && fields.length > 0

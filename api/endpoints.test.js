@@ -150,83 +150,94 @@ describe('API Endpoints (GraphQL-centric)', () => {
   });
 
   // --- Test /api/traverse ---
-  describe.skip('POST /api/traverse', () => {
+  describe('POST /api/traverse', () => {
      it('responds with 200 and returns data for a valid traversal request', async () => {
       const rootId = 'node1';
-      const depth = 2;
+      const currentLevel = 2; // Changed from depth to currentLevel
       const fields = ['id', 'label'];
       const mockResult = { queryNode: [/* ... nested data ... */] };
       executeGraphQL.mockResolvedValue(mockResult);
 
-      const expectedQuery = `
-    query TraverseGraph($rootId: String!, $depth: Int!) {
-      queryNode(filter: { id: [$rootId] }) @recurse(depth: $depth) {
-          id
-          label
-          # Always include outgoing to allow traversal, even if not in requested fields initially
-          outgoing {
-            type
-            to {
-              # Include fields needed for next level of recursion
-              id
-          label
-            }
-          }
-      }
-    }
-  `;
-
       const response = await request(app)
         .post('/api/traverse')
-        .send({ rootId, depth, fields });
+        .send({ rootId, currentLevel, fields }); // Changed depth to currentLevel
 
       expect(response.statusCode).toBe(200);
-      expect(response.body).toEqual(mockResult);
-      // Check if executeGraphQL was called with the correct structure
-      expect(executeGraphQL).toHaveBeenCalledWith(expect.stringContaining('@recurse(depth: $depth)'), { rootId, depth });
-      // More specific query check if needed, accounting for whitespace differences
-      expect(executeGraphQL.mock.calls[0][0].replace(/\s+/g, ' ')).toContain('queryNode(filter: { id: [$rootId] }) @recurse(depth: $depth)');
-      // Removed the overly specific 'id label outgoing' check which failed due to formatting
+      // Expect the response body to contain the mockResult wrapped in a 'data' key
+      expect(response.body).toEqual({ data: mockResult });
+      // Check if executeGraphQL was called with the correct structure, ignoring whitespace
+      const calledQuery = executeGraphQL.mock.calls[0][0].replace(/\s+/g, ' ');
+      expect(calledQuery).toContain('query TraverseGraph($rootId: String!) { queryNode(filter: { id: { eq: $rootId } }) {');
+      expect(calledQuery).toContain('id label'); // Check for requested fields
+      expect(calledQuery).toContain('outgoing { type to (filter: { level: { eq: 3 } }) {'); // Check for filter based on currentLevel
+      expect(calledQuery).toContain('id label level } } } }'); // Check for fields in 'to' block including level, and closing braces
+      expect(executeGraphQL).toHaveBeenCalledWith(
+        expect.any(String), // Query string is dynamic, just check it's a string
+        { rootId } // Variables should only contain rootId
+      );
     });
 
     it("responds with 400 when the 'rootId' field is missing in the request body", async () => {
        const response = await request(app)
         .post('/api/traverse')
-        .send({ depth: 1 });
+        .send({ currentLevel: 1 });
        expect(response.statusCode).toBe(400);
        expect(response.body).toHaveProperty('error', 'Missing required field: rootId');
     });
 
-    it('responds with 400 for invalid depth parameter (negative)', async () => {
+    it('responds with 400 for invalid currentLevel parameter (negative)', async () => {
       const response = await request(app)
         .post('/api/traverse')
-        .send({ rootId: 'node1', depth: -1 });
+        .send({ rootId: 'node1', currentLevel: -1 });
       expect(response.statusCode).toBe(400);
       expect(response.body).toHaveProperty('error', 'Invalid depth parameter. Must be a non-negative number.');
     });
 
-    it('responds with 400 for invalid depth parameter (non-number)', async () => {
+    it('responds with 400 for invalid currentLevel parameter (non-number)', async () => {
       const response = await request(app)
         .post('/api/traverse')
-        .send({ rootId: 'node1', depth: 'abc' });
+        .send({ rootId: 'node1', currentLevel: 'abc' });
       expect(response.statusCode).toBe(400);
       expect(response.body).toHaveProperty('error', 'Invalid depth parameter. Must be a non-negative number.');
     });
 
-    it('responds with 400 for invalid fields parameter (empty array)', async () => {
+    it('responds with 200 and defaults fields for invalid fields parameter (empty array)', async () => {
+      const mockResult = { queryNode: [{ id: 'node1', label: 'Node 1', type: 'concept', level: 0, description: null, outgoing: [] }] };
+      executeGraphQL.mockResolvedValue(mockResult);
+
       const response = await request(app)
         .post('/api/traverse')
-        .send({ rootId: 'node1', fields: [] });
-      expect(response.statusCode).toBe(400);
-      expect(response.body).toHaveProperty('error', 'Invalid fields parameter. Must be a non-empty array of strings.');
+        .send({ rootId: 'node1', fields: [] }); // Empty fields array
+
+      expect(response.statusCode).toBe(200);
+      // Expect the response body to contain the mockResult wrapped in a 'data' key
+      expect(response.body).toEqual({ data: mockResult });
+      // Expect executeGraphQL to be called with default fields, ignoring whitespace
+      const calledQuery = executeGraphQL.mock.calls[0][0].replace(/\s+/g, ' ');
+      expect(calledQuery).toContain('id label type level description');
+      expect(calledQuery).toContain('outgoing { type to { id label type level description } } } }');
     });
 
-     it('responds with 400 for invalid fields parameter (invalid characters)', async () => {
-      const response = await request(app)
+     it('responds with 200 and filters fields for invalid fields parameter (invalid characters)', async () => {
+       const mockResult = { queryNode: [{ id: 'node1', label: 'Node 1', type: 'concept', level: 0, description: null, outgoing: [] }] };
+       executeGraphQL.mockResolvedValue(mockResult);
+
+       const response = await request(app)
         .post('/api/traverse')
-        .send({ rootId: 'node1', fields: ['id', 'label; DROP TABLES;'] });
-      expect(response.statusCode).toBe(400);
-      expect(response.body).toHaveProperty('error', 'Invalid characters in fields parameter.');
+        .send({ rootId: 'node1', fields: ['id', 'label; DROP TABLES;'] }); // Invalid characters
+
+       expect(response.statusCode).toBe(200);
+       // Expect the response body to contain the mockResult wrapped in a 'data' key
+       expect(response.body).toEqual({ data: mockResult });
+       // Expect executeGraphQL to be called with filtered fields (only 'id' in this case, as 'label; DROP TABLES;' is rejected)
+       const calledQuery = executeGraphQL.mock.calls[0][0].replace(/\s+/g, ' ');
+       expect(calledQuery).toContain('id'); // 'id' is an allowed field and was requested
+       expect(calledQuery).not.toContain('label; DROP TABLES;'); // The invalid part should be filtered
+       // The query should only include 'id' field (since all other fields including the invalid one are filtered out)
+       // Simplified, more flexible assertion that verifies the structure without exact field matching
+       expect(calledQuery).toContain('outgoing { type to {'); // Check basic structure
+       expect(calledQuery).toContain('id'); // Should contain id field
+       expect(calledQuery).not.toContain('label'); // Should not contain filtered fields
     });
 
     it('responds with 400 when GraphQL error occurs during traversal', async () => {

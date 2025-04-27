@@ -138,4 +138,31 @@ describe('ApiService', () => {
     });
   });
 
+  describe('deleteNodeCascade', () => {
+    it('should call axios.post with correct parameters for deleteNodeCascade', async () => {
+      const mockResponse = { data: { success: true } };
+      (axios.post as any).mockResolvedValue(mockResponse);
+      const nodeId = 'testNodeId';
+      await deleteNodeCascade(nodeId);
+      // Expect the call to include the headers object
+      expect(axios.post).toHaveBeenCalledWith('/api/deleteNodeCascade', { nodeId }, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    });
+
+    it('should return data on successful deleteNodeCascade call', async () => {
+      const mockResult = { success: true, deletedNode: 'testNodeId', deletedEdgesCount: 5 };
+      (axios.post as any).mockResolvedValue({ data: mockResult });
+      const result = await deleteNodeCascade('testNodeId');
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should throw error on failed deleteNodeCascade call', async () => {
+      const errorMessage = 'Failed to delete node.'; // Match the error message thrown by the function
+      (axios.post as any).mockRejectedValue(new Error('Network Error')); // Mock a network error from axios
+      await expect(deleteNodeCascade('testNodeId')).rejects.toThrow(errorMessage);
+    });
+  });
 });
