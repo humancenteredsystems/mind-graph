@@ -347,7 +347,7 @@ describe('API Endpoints (GraphQL-centric)', () => {
       expect(response.statusCode).toBe(200);
       expect(response.body).toEqual({ apiStatus: "OK", dgraphStatus: "OK" });
       // Check only for the query string argument, as variables are not passed
-      expect(executeGraphQL).toHaveBeenCalledWith(expect.stringContaining('limit: 0'));
+      expect(executeGraphQL).toHaveBeenCalledWith('query { queryNode { id } }');
     });
 
     it('responds with 500 and Error status for Dgraph when the health check query fails', async () => {
@@ -359,7 +359,7 @@ describe('API Endpoints (GraphQL-centric)', () => {
        expect(response.statusCode).toBe(500);
        expect(response.body).toEqual({ apiStatus: "OK", dgraphStatus: "Error", error: errorMessage });
        // Check only for the query string argument, as variables are not passed
-       expect(executeGraphQL).toHaveBeenCalledWith(expect.stringContaining('limit: 0'));
+       expect(executeGraphQL).toHaveBeenCalledWith('query { queryNode { id } }');
     });
   });
 

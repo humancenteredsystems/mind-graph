@@ -39,11 +39,23 @@ const GraphView: React.FC<GraphViewProps> = ({
     const nodeElements = nodes.map(({ id, label, ...rest }) => ({
       data: { id, label: label ?? id, ...rest },
     }));
-    const edgeElements = edges.map(({ source, target, ...rest }) => ({
+
+    // Filter edges to ensure source and target nodes exist
+    const validNodeIds = new Set(nodes.map(node => node.id));
+    const safeEdges = edges.filter(edge =>
+        validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
+    );
+
+    if (edges.length !== safeEdges.length) {
+      console.warn(`[GRAPH RENDER] Skipped ${edges.length - safeEdges.length} invalid edges.`);
+    }
+
+    const edgeElements = safeEdges.map(({ source, target, ...rest }) => ({
       data: { source, target, ...rest },
     }));
+
     return [...nodeElements, ...edgeElements];
-  }, [nodes, edges]);
+  }, [nodes, edges]); // Dependencies are the original props
 
   const stylesheet: StylesheetCSS[] = [
     {

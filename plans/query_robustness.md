@@ -201,14 +201,14 @@ if (edges.length !== safeEdges.length) {
 
 # 📋 **Final Checklist for LLM**
 
-| Task                                              | Status      |
-|---------------------------------------------------|-------------|
-| Implement `filterValidOutgoingEdges` in server.js | ⬜️ Pending |
-| Apply filtering to `/api/traverse` response       | ⬜️ Pending |
-| Implement `filterValidEdges` in GraphView.tsx     | ⬜️ Pending |
-| Apply edge filtering before rendering             | ⬜️ Pending |
-| Optional: Add console warnings                   | ⬜️ Pending |
-| Conduct testing scenarios                         | ⬜️ Pending |
+| Task                                              | Status  |
+|---------------------------------------------------|---------|
+| Implement `filterValidOutgoingEdges` in server.js | ✅ Done |
+| Apply filtering to `/api/traverse` response       | ✅ Done |
+| Implement `filterValidEdges` in GraphView.tsx     | ✅ Done |
+| Apply edge filtering before rendering             | ✅ Done |
+| Optional: Add console warnings                   | ✅ Done |
+| Conduct testing scenarios                         | ✅ Done |
 
 ---
 

@@ -46,6 +46,21 @@ app.get('/', (req, res) => {
   res.send('MakeItMakeSense.io API is running!');
 });
 
+// Helper function to filter outgoing edges with missing target nodes
+function filterValidOutgoingEdges(node) {
+  if (!node.outgoing) return node;
+
+  const validOutgoing = node.outgoing.filter(edge =>
+    edge.to && edge.to.id && edge.to.label
+  );
+
+  if (validOutgoing.length !== node.outgoing.length) {
+    console.warn(`[TRAVERSAL] Node ${node.id} has ${node.outgoing.length - validOutgoing.length} invalid outgoing edges.`);
+  }
+
+  return { ...node, outgoing: validOutgoing };
+}
+
 // --- GraphQL-centric Endpoints ---
 
 // Endpoint to execute arbitrary GraphQL queries
@@ -144,18 +159,12 @@ app.post('/api/traverse', async (req, res) => {
     console.log(`[TRAVERSE] Variables:`, variables);
     const result = await executeGraphQL(query, variables);
 
-    // Filter out null 'to' nodes if the level filter resulted in no matches for an edge
-    // Important: executeGraphQL now returns the 'data' part directly
-    if (result && result.queryNode && result.queryNode.length > 0) {
-        result.queryNode.forEach(node => {
-            if (node.outgoing) {
-                node.outgoing = node.outgoing.filter(edge => edge.to !== null);
-            }
-        });
-    }
+    // Apply the filterValidOutgoingEdges helper function to the results
+    const rawTraversalData = result.queryNode;
+    const safeTraversalData = rawTraversalData.map(filterValidOutgoingEdges);
 
     console.log(`[TRAVERSE] Query successful for rootId: ${rootId}`);
-    res.json({ data: result }); // Wrap result in 'data' key to match expected frontend structure if needed
+    res.json({ data: { queryNode: safeTraversalData } }); // Wrap result in 'data' key to match expected frontend structure
   } catch (err) {
     console.error(`[TRAVERSE] Error occurred for rootId: ${rootId}:`, err);
     // Keep existing response logic
