@@ -293,10 +293,14 @@ app.post('/api/deleteNodeCascade', async (req, res) => {
   try {
     console.log(`[DELETE NODE CASCADE] Attempting to delete node and connected edges for node: ${nodeId}`);
 
-    // Mutation to delete edges connected to the node and then the node itself
+    // Mutation to delete incoming and outgoing edges, then the node using scalar IDs
     const deleteMutation = `
       mutation DeleteNodeAndEdges($nodeId: String!) {
-        deleteEdge(filter: { or: [{ from: { id: { eq: $nodeId } } }, { to: { id: { eq: $nodeId } } }] }) {
+        deleteIncomingEdges: deleteEdge(filter: { toId: { eq: $nodeId } }) {
+          msg
+          numUids
+        }
+        deleteOutgoingEdges: deleteEdge(filter: { fromId: { eq: $nodeId } }) {
           msg
           numUids
         }
@@ -311,21 +315,26 @@ app.post('/api/deleteNodeCascade', async (req, res) => {
 
     console.log(`[DELETE NODE CASCADE] Dgraph delete result:`, result);
 
-    // Check if the node was actually deleted
-    if (result?.deleteNode?.numUids > 0) {
-       console.log(`[DELETE NODE CASCADE] Successfully deleted node: ${nodeId} and associated edges.`);
+    const deletedNodesCount = result?.deleteNode?.numUids || 0;
+    const deletedIncomingEdgesCount = result?.deleteIncomingEdges?.numUids || 0;
+    const deletedOutgoingEdgesCount = result?.deleteOutgoingEdges?.numUids || 0;
+    const totalDeletedEdges = deletedIncomingEdgesCount + deletedOutgoingEdgesCount;
+
+
+    if (deletedNodesCount > 0) {
+       console.log(`[DELETE NODE CASCADE] Successfully deleted node: ${nodeId}, ${totalDeletedEdges} associated edges.`);
        res.json({
          success: true,
          deletedNode: nodeId,
-         deletedEdgesCount: result?.deleteEdge?.numUids || 0,
-         deletedNodesCount: result.deleteNode.numUids
+         deletedEdgesCount: totalDeletedEdges,
+         deletedNodesCount: deletedNodesCount
        });
     } else {
        console.warn(`[DELETE NODE CASCADE] Node ${nodeId} not found or not deleted.`);
        // Even if the node wasn't found, edges might have been deleted if they pointed to it.
        res.status(404).json({
          error: `Node ${nodeId} not found or not deleted.`,
-         deletedEdgesCount: result?.deleteEdge?.numUids || 0
+         deletedEdgesCount: totalDeletedEdges
        });
     }
 

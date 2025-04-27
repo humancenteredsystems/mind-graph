@@ -10,6 +10,8 @@ type Node {
 
 type Edge {
   from: Node! @hasInverse(field: "outgoing")
+  fromId: String! @search(by: [hash])
   to: Node
+  toId: String! @search(by: [hash])
   type: String!
 }

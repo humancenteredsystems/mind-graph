@@ -157,9 +157,9 @@ export const fetchAllNodeIds = async (): Promise<string[]> => {
   }
 };
 
-export async function deleteNodeCascade(nodeId: string): Promise<{ success: boolean; deletedEdges: number; deletedNode: string }> {
+export async function deleteNodeCascade(nodeId: string): Promise<{ success: boolean; deletedEdgesCount: number; deletedNodesCount: number; deletedNodeId: string }> {
   try {
-    const response = await axios.post('/api/deleteNodeCascade', { nodeId }, {
+    const response = await axios.post(`${API_BASE_URL}/deleteNodeCascade`, { nodeId }, {
       headers: {
         'Content-Type': 'application/json',
       },
@@ -167,6 +167,7 @@ export async function deleteNodeCascade(nodeId: string): Promise<{ success: bool
 
     console.log('[ApiService] Node deleted successfully:', response.data);
 
+    // The backend now returns deletedEdgesCount and deletedNodesCount
     return response.data;
   } catch (error: any) {
     console.error('[ApiService] Error deleting node cascade:', error);
