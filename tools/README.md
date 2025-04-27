@@ -6,13 +6,14 @@ A collection of tools for working with the MakeItMakeSense.io Dgraph database.
 
 This toolkit provides simple utilities for managing and interacting with the graph database:
 
+- `drop_data.py`: Drop all data from the Dgraph database
 - `push_schema.py`: Push your schema.graphql to the Dgraph admin endpoint
 - `seed_graph.py`: Add test data via GraphQL mutations
 - `query_graph.py`: Run simple queries to test connections
 - `export_graph.py`: Export current graph to JSON for debugging or backup
 - `visualize_mermaid.html`: Visualize graph data in a browser using Mermaid diagrams
 
-All tools use the Dgraph GraphQL API and are designed to work with a local Dgraph instance running in Docker.
+All tools interact with the Dgraph database and are designed to work with a local Dgraph instance running in Docker.
 
 ## Prerequisites
 
@@ -55,7 +56,7 @@ Example test data format:
     {"id": "node2", "label": "Concept 2", "type": "concept", "level": 1, "status": "approved", "branch": "main"}
   ],
   "edges": [
-    {"from": "node1", "to": "node2", "type": "related"}
+    {"from": "node1", "fromId": "node1", "to": "node2", "toId": "node2", "type": "related"}
   ]
 }
 ```

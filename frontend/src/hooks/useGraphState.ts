@@ -190,9 +190,9 @@ export const useGraphState = (): UseGraphState => {
           // If a parentId was provided, create an edge connecting the new node to its parent
           if (parentId) {
             const edgeMutation = `mutation AddEdge($input: [AddEdgeInput!]!) {
-              addEdge(input: $input) { edge { from { id } to { id } type } }
+              addEdge(input: $input) { edge { from { id } fromId to { id } toId type } }
             }`;
-            const edgeVars = { input: [{ from: { id: parentId }, to: { id: addedNode.id }, type: "simple" }] };
+            const edgeVars = { input: [{ from: { id: parentId }, fromId: parentId, to: { id: addedNode.id }, toId: addedNode.id, type: "simple" }] };
             try {
               const edgeResult = await executeMutation(edgeMutation, edgeVars);
               const addedEdge = edgeResult.addEdge?.edge?.[0];

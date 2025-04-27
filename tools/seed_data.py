@@ -54,10 +54,11 @@ DEFAULT_TEST_DATA = {
     ],
     "edges": [
         # Note: Dgraph GraphQL requires 'from' and 'to' to be objects with 'id'
-        {"from": {"id": "node1"}, "to": {"id": "node2"}, "type": "related"},
-        {"from": {"id": "node1"}, "to": {"id": "node3"}, "type": "parent"},
-        {"from": {"id": "node2"}, "to": {"id": "node4"}, "type": "has_example"},
-        {"from": {"id": "node3"}, "to": {"id": "node5"}, "type": "has_question"}
+        # Also include fromId and toId scalar fields
+        {"from": {"id": "node1"}, "fromId": "node1", "to": {"id": "node2"}, "toId": "node2", "type": "related"},
+        {"from": {"id": "node1"}, "fromId": "node1", "to": {"id": "node3"}, "toId": "node3", "type": "parent"},
+        {"from": {"id": "node2"}, "fromId": "node2", "to": {"id": "node4"}, "toId": "node4", "type": "has_example"},
+        {"from": {"id": "node3"}, "fromId": "node3", "to": {"id": "node5"}, "toId": "node5", "type": "has_question"}
     ]
 }
 
@@ -78,7 +79,9 @@ mutation AddEdge($input: [AddEdgeInput!]!) {
   addEdge(input: $input) {
     edge {
       from { id }
+      fromId
       to { id }
+      toId
       type
     }
   }
@@ -108,12 +111,8 @@ def add_edges(edges: List[Dict[str, Any]], endpoint: str) -> bool:
     """Add edges to the graph database."""
     try:
         # Ensure edge 'from' and 'to' are formatted correctly for GraphQL input
-        formatted_edges = [
-            {**edge, "from": {"id": edge["from"]}, "to": {"id": edge["to"]}}
-            if isinstance(edge.get("from"), str) else edge # Check if already formatted
-            for edge in edges
-        ]
-        variables = {"input": formatted_edges}
+        # The input data should already include fromId and toId
+        variables = {"input": edges} # Use edges directly as they should be formatted
         result = _execute_graphql_http(ADD_EDGE_MUTATION, variables, endpoint) # Use internal function
 
         if "errors" in result:
