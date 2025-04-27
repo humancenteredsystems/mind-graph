@@ -51,10 +51,14 @@ async function executeGraphQL(query, variables = {}) {
     } else {
       // Something happened in setting up the request that triggered an Error
       console.error('Dgraph client setup error:', error.message);
+      // Re-throw the original error if it's not a network/response issue
+      throw error;
     }
 
-    // Re-throw a generic error for the API layer to handle
-    throw new Error('Failed to communicate with Dgraph.');
+    // If there were GraphQL errors, the error was already thrown above.
+    // If we reached here, it's a different type of error (network, etc.)
+    // Re-throw a generic error for the API layer to handle, or the original error
+    throw new Error('Failed to communicate with Dgraph.'); // Keep this for network issues not caught by error.response/request
   }
 }
 

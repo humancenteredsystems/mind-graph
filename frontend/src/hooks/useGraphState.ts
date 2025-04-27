@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchTraversalData, fetchAllNodeIds } from '../services/ApiService';
+import { fetchTraversalData, fetchAllNodeIds, deleteNodeCascade } from '../services/ApiService';
 import { transformTraversalData } from '../utils/graphUtils';
 import { NodeData, EdgeData } from '../types/graph';
 import { log } from '../utils/logger'; // Import the logger utility
@@ -245,13 +245,7 @@ export const useGraphState = (): UseGraphState => {
     setIsLoading(true);
     setError(null);
     try {
-      const mutation = `mutation DeleteNode($input: DeleteNodeInput!) {
-        deleteNode(input: $input) {
-          node { id }
-        }
-      }`;
-      const variables = { input: { filter: { id: { eq: nodeId } } } };
-      await executeMutation(mutation, variables);
+      await deleteNodeCascade(nodeId);
       setNodes(prev => prev.filter(n => n.id !== nodeId));
       setEdges(prev => prev.filter(e => e.source !== nodeId && e.target !== nodeId));
     } catch (err) {

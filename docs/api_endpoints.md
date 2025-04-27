@@ -200,3 +200,29 @@ mutation {
 ---
 
 *This reference ensures you can integrate with the backend in both local and production environments.*
+
+## POST /api/deleteNodeCascade
+
+**Path:** `/api/deleteNodeCascade`  
+**Description:** Performs cascade deletion of a node and all associated edges.  
+**Request Body:**  
+```json
+{ "id": "node-id" }
+```
+**Response (200 OK):**  
+```json
+{
+  "deleteEdgeFrom": {
+    "edge": [ { "to": { "id": "..." } } ]
+  },
+  "deleteEdgeTo": {
+    "edge": [ { "from": { "id": "..." } } ]
+  },
+  "deleteNode": {
+    "node": [ { "id": "deleted-node-id" } ]
+  }
+}
+```
+**Error Responses:**  
+- 400 Bad Request if `id` field is missing.  
+- 500 Internal Server Error on unexpected failures.

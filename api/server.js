@@ -81,7 +81,6 @@ app.post('/api/mutate', async (req, res) => {
     console.log('[MUTATE] Dgraph result for addNode:', result);
     res.status(200).json(result); // Use 200 OK for mutations unless specifically creating (201)
   } catch (error) {
-    // Log the detailed error
     console.error(`Error in /api/mutate endpoint:`, error);
      // Provide a more specific error message if possible
     const errorMessage = error.message.includes('GraphQL query failed:')
@@ -158,7 +157,6 @@ app.post('/api/traverse', async (req, res) => {
     console.log(`[TRAVERSE] Query successful for rootId: ${rootId}`);
     res.json({ data: result }); // Wrap result in 'data' key to match expected frontend structure if needed
   } catch (err) {
-    // Log the full error object for more details
     console.error(`[TRAVERSE] Error occurred for rootId: ${rootId}:`, err);
     // Keep existing response logic
     if (err.message?.startsWith('GraphQL query failed:')) {
@@ -239,7 +237,7 @@ app.get('/api/schema', async (req, res) => {
 
 // Endpoint for health check
 app.get('/api/health', async (req, res) => {
-  const healthQuery = `query { queryNode(limit: 0) { id } }`; // Minimal query
+  const healthQuery = `query { queryNode { id } }`; // Minimal query
   try {
     await executeGraphQL(healthQuery);
     res.json({ apiStatus: "OK", dgraphStatus: "OK" });
@@ -281,6 +279,51 @@ app.get('/api/debug/dgraph', async (req, res) => {
       httpError: err.response?.status || err.message,
       graphqlError: err.response?.data?.errors || null
     });
+  }
+});
+
+// Cascade delete endpoint for nodes and their related edges
+app.post('/api/deleteNodeCascade', async (req, res) => {
+  const { nodeId } = req.body;
+
+  if (!nodeId) {
+    return res.status(400).json({ error: 'Missing nodeId in request body.' });
+  }
+
+  try {
+    console.log(`[DELETE NODE CASCADE] Attempting to delete node: ${nodeId}`);
+
+    const deleteNodeMutation = `
+      mutation DeleteNode($id: String!) {
+        deleteNode(filter: { id: { eq: $id } }) {
+          msg
+          numUids
+        }
+      }
+    `;
+    const deleteNodeResult = await executeGraphQL(deleteNodeMutation, { id: nodeId });
+
+    console.log(`[DELETE NODE CASCADE] Delete node result:`, deleteNodeResult);
+
+    // Check if the node was actually deleted
+    if (deleteNodeResult?.deleteNode?.numUids > 0) {
+       console.log(`[DELETE NODE CASCADE] Successfully deleted node: ${nodeId}`);
+       res.json({
+         success: true,
+         deletedNode: nodeId,
+         numUids: deleteNodeResult.deleteNode.numUids
+       });
+    } else {
+       console.warn(`[DELETE NODE CASCADE] Node ${nodeId} not found or not deleted.`);
+       res.status(404).json({ error: `Node ${nodeId} not found or not deleted.` });
+    }
+
+  } catch (error) {
+    console.error('[DELETE NODE CASCADE] Error:', error);
+    const errorMessage = error.message.includes('GraphQL query failed:')
+      ? `GraphQL error during delete: ${error.message.replace('GraphQL query failed: ', '')}`
+      : `Server error during delete: ${error.message}`;
+    res.status(500).json({ error: errorMessage });
   }
 });
 

@@ -156,3 +156,22 @@ export const fetchAllNodeIds = async (): Promise<string[]> => {
     throw error;
   }
 };
+
+export async function deleteNodeCascade(nodeId: string): Promise<{ success: boolean; deletedEdges: number; deletedNode: string }> {
+  try {
+    const response = await axios.post('/api/deleteNodeCascade', { nodeId }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    console.log('[ApiService] Node deleted successfully:', response.data);
+
+    return response.data;
+  } catch (error: any) {
+    console.error('[ApiService] Error deleting node cascade:', error);
+
+    // Optional: you could throw a custom error here
+    throw new Error(error?.response?.data?.error || 'Failed to delete node.');
+  }
+}

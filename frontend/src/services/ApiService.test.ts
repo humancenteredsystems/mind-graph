@@ -1,7 +1,7 @@
 // Test file for ApiService.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
-import { fetchTraversalData, executeQuery, executeMutation, fetchSchema, fetchHealth } from './ApiService';
+import { fetchTraversalData, executeQuery, executeMutation, fetchSchema, fetchHealth, deleteNodeCascade } from './ApiService';
 
 // Mock the axios module
 vi.mock('axios');

@@ -29,10 +29,8 @@ describe('useGraphState create and delete flow', () => {
       addNode: { node: [newNode] }
     });
 
-    // Mock executeMutation for deleteNode to return the deleted node id
-    (ApiService.executeMutation as vi.Mock).mockResolvedValueOnce({
-      deleteNode: { node: [{ id: newNode.id }] }
-    });
+    // Mock deleteNodeCascade for deleteNode to return successful response
+    (ApiService.deleteNodeCascade as vi.Mock).mockResolvedValueOnce({});
 
     // Render the hook
     const { result } = renderHook(() => useGraphState());
