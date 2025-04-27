@@ -98,6 +98,7 @@ type Node {
 - `addNode`: Create a new node.
 - `addEdge`: Create a new edge connecting nodes.
 - `updateNode`: Update properties of an existing node.
+- `deleteNode`: Delete nodes matching specified filter.
 
 **Example: Create Edge**
 ```graphql

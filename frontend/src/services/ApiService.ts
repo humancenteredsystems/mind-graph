@@ -25,6 +25,7 @@ interface MutateResponse {
   addNode?: { node: NodeData[] };
   addEdge?: { edge: EdgeData[] };
   updateNode?: { node: NodeData[] };
+  deleteNode?: { node: NodeData[] };
 }
 
 interface HealthStatus {
@@ -102,11 +103,8 @@ export const executeMutation = async (mutation: string, variables?: Record<strin
       mutation,
       variables,
     });
-    const result = response.data;
-    if (result.addNode === undefined && result.addEdge === undefined && result.updateNode === undefined) {
-      throw new Error('Invalid mutation response: missing addNode/addEdge/updateNode field');
-    }
-    return result;
+    // Return the mutation response data
+    return response.data;
   } catch (error) {
     console.error('Error executing mutation:', error);
     throw error;

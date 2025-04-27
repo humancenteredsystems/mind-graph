@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "types": ["vitest/globals"]
+    "types": ["vitest", "vitest/globals"]
   },
   "files": [],
   "references": [
