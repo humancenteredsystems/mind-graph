@@ -291,31 +291,42 @@ app.post('/api/deleteNodeCascade', async (req, res) => {
   }
 
   try {
-    console.log(`[DELETE NODE CASCADE] Attempting to delete node: ${nodeId}`);
+    console.log(`[DELETE NODE CASCADE] Attempting to delete node and connected edges for node: ${nodeId}`);
 
-    const deleteNodeMutation = `
-      mutation DeleteNode($id: String!) {
-        deleteNode(filter: { id: { eq: $id } }) {
+    // Mutation to delete edges connected to the node and then the node itself
+    const deleteMutation = `
+      mutation DeleteNodeAndEdges($nodeId: String!) {
+        deleteEdge(filter: { or: [{ from: { id: { eq: $nodeId } } }, { to: { id: { eq: $nodeId } } }] }) {
+          msg
+          numUids
+        }
+        deleteNode(filter: { id: { eq: $nodeId } }) {
           msg
           numUids
         }
       }
     `;
-    const deleteNodeResult = await executeGraphQL(deleteNodeMutation, { id: nodeId });
 
-    console.log(`[DELETE NODE CASCADE] Delete node result:`, deleteNodeResult);
+    const result = await executeGraphQL(deleteMutation, { nodeId });
+
+    console.log(`[DELETE NODE CASCADE] Dgraph delete result:`, result);
 
     // Check if the node was actually deleted
-    if (deleteNodeResult?.deleteNode?.numUids > 0) {
-       console.log(`[DELETE NODE CASCADE] Successfully deleted node: ${nodeId}`);
+    if (result?.deleteNode?.numUids > 0) {
+       console.log(`[DELETE NODE CASCADE] Successfully deleted node: ${nodeId} and associated edges.`);
        res.json({
          success: true,
          deletedNode: nodeId,
-         numUids: deleteNodeResult.deleteNode.numUids
+         deletedEdgesCount: result?.deleteEdge?.numUids || 0,
+         deletedNodesCount: result.deleteNode.numUids
        });
     } else {
        console.warn(`[DELETE NODE CASCADE] Node ${nodeId} not found or not deleted.`);
-       res.status(404).json({ error: `Node ${nodeId} not found or not deleted.` });
+       // Even if the node wasn't found, edges might have been deleted if they pointed to it.
+       res.status(404).json({
+         error: `Node ${nodeId} not found or not deleted.`,
+         deletedEdgesCount: result?.deleteEdge?.numUids || 0
+       });
     }
 
   } catch (error) {
