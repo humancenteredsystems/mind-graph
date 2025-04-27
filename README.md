@@ -180,8 +180,10 @@ The backend API provides several endpoints under `/api`:
 *   `GET /api/search`: Search nodes by label.
 *   `GET /api/schema`: Retrieve the current GraphQL schema text.
 *   `GET /api/health`: Check API and Dgraph connectivity.
+*   `POST /api/deleteNodeCascade`: Performs cascade deletion of a node and all associated edges.
+*   `GET /api/debug/dgraph`: Diagnostic endpoint to test Dgraph connectivity.
 
-*(See `/docs/api_endpoints.md` for detailed descriptions - **This file needs to be created**).*
+*(See `/docs/api_endpoints.md` for detailed descriptions).*
 
 ## Utility Tools (`tools/` directory)
 
