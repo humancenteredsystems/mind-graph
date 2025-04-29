@@ -76,6 +76,13 @@ return (
             log('App', `Add node requested at position: ${JSON.stringify(position)}`);
             openAddModal(parentId);
           }}
+          onEditNode={(nodeId) => {
+            log('App', `Edit node requested for: ${nodeId}`);
+            const nodeData = nodes.find(node => node.id === nodeId);
+            if (nodeData) {
+              openEditDrawer(nodeData);
+            }
+          }}
           onLoadCompleteGraph={loadCompleteGraph}
           onDeleteNode={(nodeId) => {
             log('App', `Delete node requested for: ${nodeId}`);

@@ -108,6 +108,26 @@ const GraphView: React.FC<GraphViewProps> = ({
     },
   ];
 
+  // Double-click handler for node editing
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || !onEditNode) return;
+    
+    const dblClickHandler = (event: any) => {
+      const target = event.target;
+      if (target.isNode) {
+        onEditNode(target.id());
+      }
+    };
+    
+    cy.on('dblclick', 'node', dblClickHandler);
+    return () => {
+      if (cy.removeListener) {
+        cy.removeListener('dblclick', 'node', dblClickHandler);
+      }
+    };
+  }, [onEditNode]);
+
   // Context menu handling with accurate cursor positioning
   useEffect(() => {
     const cy = cyRef.current;

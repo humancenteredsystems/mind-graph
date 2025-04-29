@@ -56,7 +56,7 @@ const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) 
     >
       <div style={{ padding: 12, borderBottom: '1px solid #eee' }}>
         <button onClick={onClose} style={{ float: 'right' }}>×</button>
-        <h3 style={{ margin: 0 }}>Node: {node.id}</h3>
+        <h3 style={{ margin: 0 }}>Node: {node.label}</h3>
       </div>
       <div style={{ display: 'flex', borderBottom: '1px solid #eee' }}>
         {TABS.map((tab) => (
