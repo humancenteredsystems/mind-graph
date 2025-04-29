@@ -23,8 +23,8 @@
     "url": "git+https://github.com/heythisisgordon/mims-graph.git"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Gordon Banks",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/heythisisgordon/mims-graph/issues"
   },

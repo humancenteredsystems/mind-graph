@@ -212,6 +212,14 @@ This directory contains Python scripts for interacting with the Dgraph database 
 *   Maintain documentation (e.g., `deployment_guide.md` and API reference).
 *   Remove redundant `setup_schema.py`.
 
+## License
+
+MakeItMakeSense.io is licensed under the [MIT License](LICENSE). This means you are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, as long as you include the original copyright notice and license text.
+
+The MIT License is one of the most permissive and widely used open-source licenses, ensuring the code remains freely available while allowing for maximum flexibility in how it can be used.
+
+See the [LICENSE](LICENSE) file for the full text of the license.
+
 ## Contributing
 
 (Placeholder - contribution guidelines can be added here later.)
