@@ -1,0 +1,10 @@
+- API endpoint to push schema
+- Different node shapes for different levels
+- Ability to implement a structured node hierarchy
+- Arrange nodes based on hierarchy levels
+- Hotkeys
+- Mind map type nodes - "I want my nodes to look like Simple Mind Pro"
+- Swooping edges
+- Checklist nodes
+- Hide node
+- Tie level to 'Type'

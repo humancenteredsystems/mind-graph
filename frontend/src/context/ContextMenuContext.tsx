@@ -113,7 +113,10 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({
             label: 'Hide Node',
             icon: '👁️‍🗨️',
             shortcut: 'H',
-            action: () => showComingSoonAlert(),
+            action: () =>
+              payload.onHideNode
+                ? payload.onHideNode(node.id)
+                : console.log('Hide Node not available'),
           },
           {
             id: 'expand-children',
@@ -175,7 +178,10 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({
             label: 'Hide Nodes',
             icon: '👁️‍🗨️',
             shortcut: 'H',
-            action: () => showComingSoonAlert(),
+            action: () =>
+              payload.onHideNodes
+                ? payload.onHideNodes(ids)
+                : console.log('Hide Nodes not available'),
           },
           {
             id: 'expand-multi',

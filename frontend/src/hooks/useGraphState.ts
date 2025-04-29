@@ -12,6 +12,7 @@ interface UseGraphState {
   isLoading: boolean;
   isExpanding: boolean;
   error: string | null;
+  hiddenNodeIds: Set<string>;
   loadInitialGraph: (rootId: string) => Promise<void>;
   loadCompleteGraph: () => Promise<void>;
   expandNode: (nodeId: string) => Promise<void>;
@@ -19,6 +20,8 @@ interface UseGraphState {
   editNode: (nodeId: string, values: { label: string; type: string; level: number }) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<void>;
   deleteNodes: (nodeIds: string[]) => Promise<void>;
+  hideNode: (nodeId: string) => void;
+  hideNodes: (nodeIds: string[]) => void;
   // Add resetGraph later if needed
 }
 
@@ -31,6 +34,9 @@ export const useGraphState = (): UseGraphState => {
 
   // Add a ref to track expanded node IDs
   const expandedNodeIds = useRef<Set<string>>(new Set());
+  
+  // Add state for hidden nodes
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
 
   // Function to load the initial graph
   const loadInitialGraph = useCallback(async (rootId: string) => {
@@ -83,6 +89,10 @@ export const useGraphState = (): UseGraphState => {
 
       setNodes(Array.from(nodeMap.values()));
       setEdges(Array.from(edgeMap.values()));
+      
+      // Reset hidden nodes when loading the complete graph
+      setHiddenNodeIds(new Set());
+      log('useGraphState', 'Hidden nodes reset during complete graph load');
     } catch (err) {
       log('useGraphState', 'ERROR: Failed to load complete graph data:', err);
       setError('Failed to load complete graph data. Is the API server running?');
@@ -279,12 +289,25 @@ export const useGraphState = (): UseGraphState => {
     }
   }, [executeMutation]);
 
+  // Function to hide a node
+  const hideNode = useCallback((nodeId: string) => {
+    log('useGraphState', `Hiding node ${nodeId}`);
+    setHiddenNodeIds(prev => new Set([...prev, nodeId]));
+  }, []);
+
+  // Function to hide multiple nodes
+  const hideNodes = useCallback((nodeIds: string[]) => {
+    log('useGraphState', `Hiding nodes ${nodeIds.join(',')}`);
+    setHiddenNodeIds(prev => new Set([...prev, ...nodeIds]));
+  }, []);
+
   return {
     nodes,
     edges,
     isLoading,
     isExpanding,
     error,
+    hiddenNodeIds,
     loadInitialGraph,
     loadCompleteGraph,
     expandNode,
@@ -292,5 +315,7 @@ export const useGraphState = (): UseGraphState => {
     editNode,
     deleteNode,
     deleteNodes,
+    hideNode,
+    hideNodes,
   };
 };

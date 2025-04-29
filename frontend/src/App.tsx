@@ -18,6 +18,7 @@ function App() {
     isLoading,
     isExpanding,
     error,
+    hiddenNodeIds,
     expandNode,
     addNode,
     loadInitialGraph,
@@ -25,6 +26,8 @@ function App() {
     editNode,
     deleteNode,
     deleteNodes,
+    hideNode,
+    hideNodes,
   } = useGraphState();
 
   useEffect(() => {
@@ -68,6 +71,7 @@ return (
         <GraphView
           nodes={nodes}
           edges={edges}
+          hiddenNodeIds={hiddenNodeIds}
           onNodeExpand={(nodeId) => {
             log('App', `Expand node requested for: ${nodeId}`);
             expandNode(nodeId);
@@ -91,6 +95,14 @@ return (
           onDeleteNodes={(ids) => {
             log('App', `Delete nodes requested for: ${ids}`);
             deleteNodes(ids);
+          }}
+          onHideNode={(nodeId) => {
+            log('App', `Hide node requested for: ${nodeId}`);
+            hideNode(nodeId);
+          }}
+          onHideNodes={(ids) => {
+            log('App', `Hide nodes requested for: ${ids}`);
+            hideNodes(ids);
           }}
         />
       )}

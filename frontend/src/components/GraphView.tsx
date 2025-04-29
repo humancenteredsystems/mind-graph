@@ -13,41 +13,52 @@ interface GraphViewProps {
   nodes: NodeData[];
   edges: EdgeData[];
   style?: React.CSSProperties;
+  hiddenNodeIds?: Set<string>;
   onNodeExpand?: (nodeId: string) => void;
   onAddNode?: (parentId?: string, position?: { x: number; y: number }) => void;
   onEditNode?: (nodeId: string) => void;
   onLoadCompleteGraph?: () => void;
   onDeleteNode?: (nodeId: string) => void;
   onDeleteNodes?: (nodeIds: string[]) => void;
-  }
+  onHideNode?: (nodeId: string) => void;
+  onHideNodes?: (nodeIds: string[]) => void;
+}
 
 const GraphView: React.FC<GraphViewProps> = ({
   nodes,
   edges,
   style,
+  hiddenNodeIds = new Set(),
   onNodeExpand,
   onAddNode,
   onEditNode,
   onLoadCompleteGraph,
   onDeleteNode,
   onDeleteNodes,
+  onHideNode,
+  onHideNodes,
 }) => {
   const cyRef = useRef<Core | null>(null);
   const { openMenu } = useContextMenu();
 
   const elements = useMemo<ElementDefinition[]>(() => {
-    const nodeElements = nodes.map(({ id, label, ...rest }) => ({
+    // Filter out hidden nodes
+    const visibleNodes = nodes.filter(node => !hiddenNodeIds.has(node.id));
+    const nodeElements = visibleNodes.map(({ id, label, ...rest }) => ({
       data: { id, label: label ?? id, ...rest },
     }));
 
-    // Filter edges to ensure source and target nodes exist
-    const validNodeIds = new Set(nodes.map(node => node.id));
+    // Filter edges to ensure source and target nodes exist and are not hidden
+    const validNodeIds = new Set(visibleNodes.map(node => node.id));
     const safeEdges = edges.filter(edge =>
         validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
     );
 
     if (edges.length !== safeEdges.length) {
-      console.warn(`[GRAPH RENDER] Skipped ${edges.length - safeEdges.length} invalid edges.`);
+      const skippedCount = edges.length - safeEdges.length;
+      if (skippedCount > hiddenNodeIds.size) {
+        console.warn(`[GRAPH RENDER] Skipped ${skippedCount} invalid edges.`);
+      }
     }
 
     const edgeElements = safeEdges.map(({ source, target, ...rest }) => ({
@@ -55,7 +66,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     }));
 
     return [...nodeElements, ...edgeElements];
-  }, [nodes, edges]); // Dependencies are the original props
+  }, [nodes, edges, hiddenNodeIds]); // Added hiddenNodeIds as a dependency
 
   const stylesheet: StylesheetCSS[] = [
     {
@@ -154,6 +165,8 @@ const GraphView: React.FC<GraphViewProps> = ({
             onEditNode,
             onDeleteNode,
             onDeleteNodes,
+            onHideNode,
+            onHideNodes,
           });
       }
       event.originalEvent.preventDefault();
@@ -164,7 +177,7 @@ const GraphView: React.FC<GraphViewProps> = ({
         cy.removeListener('cxttap', handler);
       }
     };
-  }, [onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, openMenu]);
+  }, [onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, openMenu]);
 
   // Run layout on elements update
   useEffect(() => {
