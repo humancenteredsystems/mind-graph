@@ -372,28 +372,83 @@ type Node {
 
 *This reference ensures you can integrate with the backend in both local and production environments.*
 
-## POST /api/deleteNodeCascade
+## POST /api/admin/dropAll
 
-**Path:** `/api/deleteNodeCascade`  
-**Description:** Performs cascade deletion of a node and all associated edges.  
-**Request Body:**  
-```json
-{ "id": "node-id" }
-```
-**Response (200 OK):**  
+**Path:** `/api/admin/dropAll`
+**Description:** Clears all data (nodes and edges) from the specified Dgraph instance(s).
+**Authentication:** Requires admin API key via `X-Admin-API-Key` header.
+**Request Body:**
 ```json
 {
-  "deleteEdgeFrom": {
-    "edge": [ { "to": { "id": "..." } } ]
-  },
-  "deleteEdgeTo": {
-    "edge": [ { "from": { "id": "..." } } ]
-  },
-  "deleteNode": {
-    "node": [ { "id": "deleted-node-id" } ]
+  "target": "local" // or "remote", or "both"
+}
+```
+**Request Body Parameters:**
+- `target` (required): Specifies which Dgraph instance(s) to drop data from. Accepted values: `"local"`, `"remote"`, `"both"`.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Drop all data operation completed successfully for target(s): local",
+  "results": {
+    "local": {
+      "success": true,
+      "data": { /* Dgraph alter response data */ }
+    }
+    // "remote": { ... } // Included if target is "remote" or "both"
   }
 }
 ```
-**Error Responses:**  
-- 400 Bad Request if `id` field is missing.  
+**Response (500 Internal Server Error):**
+```json
+{
+  "success": false,
+  "message": "Drop all data operation encountered errors for target(s): local",
+  "results": {
+    "local": {
+      "success": false,
+      "error": "Error message from Dgraph admin request",
+      "details": { /* Optional: Dgraph error details */ }
+    }
+    // "remote": { ... } // Included if target is "remote" or "both"
+  }
+}
+```
+**Error Responses:**
+- 400 Bad Request if `target` field is missing or invalid.
+- 401 Unauthorized if API key is missing or invalid.
+- 500 Internal Server Error if the drop operation fails on one or more targets.
+
+---
+
+## POST /api/deleteNodeCascade
+
+**Path:** `/api/deleteNodeCascade`
+**Description:** Performs cascade deletion of a node and all associated edges.
+**Request Body:**
+```json
+{ "id": "node-id" }
+```
+**Request Body Parameters:**
+- `id` (required): The ID of the node to delete.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "deletedNode": "node-id",
+  "deletedEdgesCount": 5, // Example count
+  "deletedNodesCount": 1
+}
+```
+**Response (404 Not Found):**
+```json
+{
+  "error": "Node node-id not found or not deleted.",
+  "deletedEdgesCount": 0 // Edges might still be deleted if they pointed to a non-existent node
+}
+```
+**Error Responses:**
+- 400 Bad Request if `id` field is missing.
 - 500 Internal Server Error on unexpected failures.

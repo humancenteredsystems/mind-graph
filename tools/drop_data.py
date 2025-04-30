@@ -1,117 +1,100 @@
 #!/usr/bin/env python3
 """
-Drop all data from the Dgraph database.
+Drop all data from the Dgraph database using the backend API.
 
-This tool sends a DropAll operation to the Dgraph /alter endpoint.
+This tool calls the /api/admin/dropAll endpoint on the backend API.
 """
 import argparse
 import sys
 import requests
-from typing import Dict, Any, Optional
+import os # Import os to read environment variables
 
 # --- Constants ---
-DEFAULT_ALTER_ENDPOINT = "http://localhost:8080/alter"
-DEFAULT_GRAPHQL_ENDPOINT = "http://localhost:8080/graphql" # Add GraphQL endpoint for verification
+DEFAULT_API_BASE_URL = "http://localhost:3000/api"
 # --- End Constants ---
 
-def drop_all_data(endpoint: str) -> bool:
-    """Sends a DropAll operation to the Dgraph /alter endpoint."""
-    headers = {"Content-Type": "application/json"}
-    payload = {"drop_all": True}
+def drop_all_data_via_api(api_base_url: str, target: str, admin_api_key: str) -> bool:
+    """Calls the backend API's /api/admin/dropAll endpoint."""
+    url = f"{api_base_url}/admin/dropAll"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Admin-API-Key": admin_api_key
+    }
+    payload = {"target": target}
 
-    print(f"Attempting to drop all data from Dgraph at {endpoint}...")
+    print(f"Attempting to drop all data via API at {url} for target: {target}...")
 
     try:
-        response = requests.post(endpoint, json=payload, headers=headers)
+        response = requests.post(url, json=payload, headers=headers)
         response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
-
-        # Dgraph /alter endpoint for DropAll typically returns a success message or empty JSON on success
-        print('✅ Drop operation request successful.')
-        return True
-
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Failed to send drop all data request: {str(e)}")
-        if hasattr(response, 'text'):
-            print(f"Response: {response.text}")
-        return False
-    except Exception as e:
-        print(f"❌ An unexpected error occurred during drop request: {str(e)}")
-        return False
-
-def verify_data_dropped(graphql_endpoint: str) -> bool:
-    """Queries Dgraph to verify if data has been dropped."""
-    query = """
-        query {
-          queryNode {
-            id
-          }
-        }
-    """
-    headers = {"Content-Type": "application/json"}
-    payload = {"query": query}
-
-    print(f"Verifying data drop by querying {graphql_endpoint}...")
-
-    try:
-        response = requests.post(graphql_endpoint, json=payload, headers=headers)
-        response.raise_for_status()
 
         result = response.json()
 
-        if result.get("data", {}).get("queryNode") is None:
-             # Schema might be gone, queryNode might be null or missing
-             print("✅ Verification successful: queryNode is null or missing (schema likely dropped).")
-             return True
-        elif len(result["data"]["queryNode"]) == 0:
-            print("✅ Verification successful: No nodes found.")
+        if result.get("success"):
+            print('✅ Drop operation request successful via API.')
+            # Optionally print detailed results from the API response
+            if result.get("results"):
+                print("API Results:")
+                for instance, res in result["results"].items():
+                    status = "SUCCESS" if res.get("success") else "FAILED"
+                    print(f"  {instance.capitalize()}: {status}")
+                    if res.get("error"):
+                        print(f"    Error: {res['error']}")
             return True
         else:
-            print(f"❌ Verification failed: Found {len(result['data']['queryNode'])} nodes after drop.")
+            print('❌ Drop operation request failed via API.')
+            if result.get("message"):
+                print(f"Message: {result['message']}")
+            if result.get("results"):
+                 print("API Results:")
+                 for instance, res in result["results"].items():
+                     status = "SUCCESS" if res.get("success") else "FAILED"
+                     print(f"  {instance.capitalize()}: {status}")
+                     if res.get("error"):
+                         print(f"    Error: {res['error']}")
             return False
 
     except requests.exceptions.RequestException as e:
-        print(f"❌ Verification query failed: {str(e)}")
+        print(f"❌ Failed to send drop all data request to API: {str(e)}")
         if hasattr(response, 'text'):
             print(f"Response: {response.text}")
-        # If the schema is dropped, the GraphQL endpoint might return an error on query.
-        # This is acceptable verification.
-        if response.status_code == 400 and "Unknown type \"queryNode\"" in response.text:
-             print("✅ Verification successful: Schema appears to be dropped.")
-             return True
         return False
     except Exception as e:
-        print(f"❌ An unexpected error occurred during verification: {str(e)}")
+        print(f"❌ An unexpected error occurred during API request: {str(e)}")
         return False
 
 
 def main():
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(description="Drop all data from the Dgraph database")
+    parser = argparse.ArgumentParser(description="Drop all data from the Dgraph database using the backend API")
     parser.add_argument(
-        "--endpoint", "-e",
-        default=DEFAULT_ALTER_ENDPOINT,
-        help=f"Dgraph /alter endpoint (default: {DEFAULT_ALTER_ENDPOINT})"
+        "--api-base",
+        default=DEFAULT_API_BASE_URL,
+        help=f"Backend API base URL (default: {DEFAULT_API_BASE_URL})"
     )
     parser.add_argument(
-        "--graphql-endpoint", "-g",
-        default=DEFAULT_GRAPHQL_ENDPOINT,
-        help=f"Dgraph GraphQL endpoint for verification (default: {DEFAULT_GRAPHQL_ENDPOINT})"
+        "--target", "-t",
+        required=True,
+        choices=['local', 'remote', 'both'],
+        help="Target Dgraph instance(s): 'local', 'remote', or 'both'"
+    )
+    parser.add_argument(
+        "--admin-api-key",
+        help="Admin API Key (can also be set via ADMIN_API_KEY environment variable)"
     )
     args = parser.parse_args()
 
-    # Perform the drop operation
-    if not drop_all_data(args.endpoint):
-        sys.exit(1) # Exit if the drop request failed
+    admin_api_key = args.admin_api_key or os.environ.get("ADMIN_API_KEY")
 
-    # Add a small delay to allow Dgraph to process the drop
-    import time
-    time.sleep(2) # Adjust delay if needed
+    if not admin_api_key:
+        print("Error: Admin API Key is required. Provide via --admin-api-key or ADMIN_API_KEY environment variable.")
+        sys.exit(1)
 
-    # Verify the data has been dropped
-    if not verify_data_dropped(args.graphql_endpoint):
-        sys.exit(1) # Exit if verification failed
+    # Perform the drop operation via API
+    if not drop_all_data_via_api(args.api_base, args.target, admin_api_key):
+        sys.exit(1) # Exit if the API request failed
 
-    print("✅ Data drop process completed and verified.")
+    print("✅ Data drop process completed via API.")
     sys.exit(0) # Exit successfully
 
 if __name__ == "__main__":

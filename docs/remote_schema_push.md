@@ -4,16 +4,6 @@ Push a local `schema.graphql` to the deployed Dgraph Alpha instance inside Rende
 
 ---
 
-## 🧹 Clearing Remote Data
-
-To clear all data (nodes and edges) from the remote Dgraph instance, execute the following command from your local machine via SSH:
-
-```bash
-ssh srv-d02m8v3uibrs73b1kan0@ssh.virginia.render.com 'curl -X POST http://localhost:8080/graphql -H "Content-Type: application/json" -d "{\"query\":\"mutation { deleteEdge(filter: {}) { msg numUids } deleteNode(filter: {}) { msg numUids } }\"}"'
-```
-
----
-
 ## ✅ Recommended API-Based Schema Push
 
 This is the preferred method for pushing the schema to the remote Dgraph instance as it leverages the backend API's integrated functionality.

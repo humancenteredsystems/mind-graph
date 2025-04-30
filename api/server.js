@@ -44,6 +44,72 @@ app.use((req, res, next) => {
   next();
 });
 
+// Middleware to authenticate admin requests
+const authenticateAdmin = (req, res, next) => {
+  const apiKey = req.headers['x-admin-api-key'];
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+};
+
+// Helper function to send requests to Dgraph admin endpoints
+async function sendDgraphAdminRequest(url, payload) {
+  try {
+    const response = await axios.post(url, payload, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    // response.raiseForStatus(); // Removed: Rely on default axios error handling
+    // Check for non-2xx status explicitly if needed, but catch block handles it by default
+    if (response.status >= 200 && response.status < 300) {
+       return { success: true, data: response.data };
+    } else {
+       // This case should ideally be caught by the catch block due to default validateStatus
+       // but adding an explicit check here for clarity if raiseForStatus is unavailable
+       console.error(`[DGRAPH ADMIN REQUEST] Received non-2xx status for ${url}: ${response.status}`);
+       return { success: false, error: `Dgraph admin request failed with status: ${response.status}`, details: response.data };
+    }
+  } catch (error) {
+    console.error(`[DGRAPH ADMIN REQUEST] Error sending request to ${url}:`, error.message);
+    if (error.response) {
+      console.error('[DGRAPH ADMIN REQUEST] Response status:', error.response.status);
+      console.error('[DGRAPH ADMIN REQUEST] Response data:', error.response.data);
+      return { success: false, error: `Dgraph admin request failed: ${error.response.status} - ${error.response.statusText}`, details: error.response.data };
+    } else if (error.request) {
+      // The request was made but no response was received
+      return { success: false, error: `No response received from Dgraph admin at ${url}` };
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      return { success: false, error: `Error setting up Dgraph admin request: ${error.message}` };
+    }
+  }
+}
+
+// Helper function to drop all data from Dgraph instance(s)
+async function dropAllData(target) {
+  const results = {};
+  const payload = { "drop_all": true };
+
+  if (target === 'local' || target === 'both') {
+    const url = process.env.DGRAPH_ALTER_URL_LOCAL || 'http://localhost:8080/alter';
+    console.log(`[DROP ALL] Sending drop_all to local Dgraph at ${url}`);
+    results.local = await sendDgraphAdminRequest(url, payload);
+  }
+
+  if (target === 'remote' || target === 'both') {
+    const url = process.env.DGRAPH_ALTER_URL_REMOTE;
+    if (!url) {
+      results.remote = { success: false, error: 'DGRAPH_ALTER_URL_REMOTE environment variable not set for remote drop.' };
+      console.error('[DROP ALL] DGRAPH_ALTER_URL_REMOTE environment variable not set.');
+    } else {
+      console.log(`[DROP ALL] Sending drop_all to remote Dgraph at ${url}`);
+      results.remote = await sendDgraphAdminRequest(url, payload);
+    }
+  }
+
+  return results;
+}
+
 
 app.get('/', (req, res) => {
   res.send('MakeItMakeSense.io API is running!');
@@ -304,7 +370,7 @@ async function pushSchemaToRemote(schema) {
 // -------------------------------------------------------------------
 
 // GET /api/schemas - List all available schemas
-app.get('/api/schemas', async (req, res) => {
+app.get('/api/schemas', authenticateAdmin, async (req, res) => {
   try {
     const schemas = await schemaRegistry.getAllSchemas();
     res.json(schemas);
@@ -315,7 +381,7 @@ app.get('/api/schemas', async (req, res) => {
 });
 
 // GET /api/schemas/:id - Get a specific schema by ID
-app.get('/api/schemas/:id', async (req, res) => {
+app.get('/api/schemas/:id', authenticateAdmin, async (req, res) => {
   try {
     const schema = await schemaRegistry.getSchemaById(req.params.id);
     if (!schema) {
@@ -329,7 +395,7 @@ app.get('/api/schemas/:id', async (req, res) => {
 });
 
 // GET /api/schemas/:id/content - Get the schema content
-app.get('/api/schemas/:id/content', async (req, res) => {
+app.get('/api/schemas/:id/content', authenticateAdmin, async (req, res) => {
   try {
     const content = await schemaRegistry.getSchemaContent(req.params.id);
     res.type('text/plain').send(content);
@@ -343,24 +409,18 @@ app.get('/api/schemas/:id/content', async (req, res) => {
 });
 
 // POST /api/schemas - Create a new schema
-app.post('/api/schemas', async (req, res) => {
-  // Check admin API key authentication
-  const apiKey = req.headers['x-admin-api-key'];
-  if (apiKey !== process.env.ADMIN_API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
+app.post('/api/schemas', authenticateAdmin, async (req, res) => {
   try {
     const { schemaInfo, content } = req.body;
-    
+
     if (!schemaInfo || !content) {
       return res.status(400).json({ error: 'Missing required fields: schemaInfo and content' });
     }
-    
+
     if (!schemaInfo.id || !schemaInfo.name) {
       return res.status(400).json({ error: 'Schema must have an id and name' });
     }
-    
+
     const newSchema = await schemaRegistry.addSchema(schemaInfo, content);
     res.status(201).json(newSchema);
   } catch (error) {
@@ -370,20 +430,14 @@ app.post('/api/schemas', async (req, res) => {
 });
 
 // PUT /api/schemas/:id - Update an existing schema
-app.put('/api/schemas/:id', async (req, res) => {
-  // Check admin API key authentication
-  const apiKey = req.headers['x-admin-api-key'];
-  if (apiKey !== process.env.ADMIN_API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
+app.put('/api/schemas/:id', authenticateAdmin, async (req, res) => {
   try {
     const { updates, content } = req.body;
-    
+
     if (!updates) {
       return res.status(400).json({ error: 'Missing required field: updates' });
     }
-    
+
     const updatedSchema = await schemaRegistry.updateSchema(req.params.id, updates, content);
     res.json(updatedSchema);
   } catch (error) {
@@ -396,58 +450,52 @@ app.put('/api/schemas/:id', async (req, res) => {
 });
 
 // POST /api/schemas/:id/push - Push a specific schema to Dgraph
-app.post('/api/schemas/:id/push', async (req, res) => {
-  // Check admin API key authentication
-  const apiKey = req.headers['x-admin-api-key'];
-  if (apiKey !== process.env.ADMIN_API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
+app.post('/api/schemas/:id/push', authenticateAdmin, async (req, res) => {
   try {
     const schemaId = req.params.id;
     const target = req.query.target || 'local';
-    
+
     if (!['local', 'remote', 'both'].includes(target)) {
       return res.status(400).json({ error: 'Invalid target. Must be "local", "remote", or "both"' });
     }
-    
+
     // Get schema content
     const schemaContent = await schemaRegistry.getSchemaContent(schemaId);
-    
+
     const results = {};
-    
+
     // Handle local schema push
     if (target === 'local' || target === 'both') {
       console.log(`[SCHEMA PUSH] Pushing schema ${schemaId} to local Dgraph instance`);
       const localResult = await pushSchemaToLocal(schemaContent);
       results.local = localResult;
-      
+
       if (!localResult.success) {
         console.error('[SCHEMA PUSH] Local push failed:', localResult.error);
       }
     }
-    
+
     // Handle remote schema push
     if (target === 'remote' || target === 'both') {
       console.log(`[SCHEMA PUSH] Pushing schema ${schemaId} to remote Dgraph instance`);
       const remoteResult = await pushSchemaToRemote(schemaContent);
       results.remote = remoteResult;
-      
+
       if (!remoteResult.success) {
         console.error('[SCHEMA PUSH] Remote push failed:', remoteResult.error);
       }
     }
-    
+
     // Return overall success status
     const allSuccessful = Object.values(results).every(result => result.success);
-    
+
     if (allSuccessful) {
       // If pushing the production schema, update other schemas to not be production
       const schema = await schemaRegistry.getSchemaById(schemaId);
       if (schema.is_production) {
         await schemaRegistry.updateSchema(schemaId, { is_production: true });
       }
-      
+
       res.json({
         success: true,
         message: `Schema ${schemaId} successfully pushed to ${target}`,
@@ -470,13 +518,7 @@ app.post('/api/schemas/:id/push', async (req, res) => {
 });
 
 // Endpoint to push schema directly or from registry
-app.post('/api/admin/schema', async (req, res) => {
-  // Check admin API key authentication
-  const apiKey = req.headers['x-admin-api-key'];
-  if (apiKey !== process.env.ADMIN_API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+app.post('/api/admin/schema', authenticateAdmin, async (req, res) => {
   try {
     // Get schema from request body, or schema ID if provided
     const { schema, schemaId, target = 'local' } = req.body;
@@ -524,6 +566,40 @@ app.post('/api/admin/schema', async (req, res) => {
     console.error('[SCHEMA PUSH] Error:', err);
     // Return 500 status code for unexpected errors
     return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/admin/dropAll - Endpoint to drop all data from Dgraph instance(s)
+app.post('/api/admin/dropAll', authenticateAdmin, async (req, res) => {
+  const { target } = req.body;
+
+  if (!target || !['local', 'remote', 'both'].includes(target)) {
+    return res.status(400).json({ error: 'Missing or invalid required field: target. Must be "local", "remote", or "both".' });
+  }
+
+  try {
+    console.log(`[DROP ALL] Received request to drop data for target: ${target}`);
+    const results = await dropAllData(target);
+
+    const allSuccessful = Object.values(results).every(result => result.success);
+
+    if (allSuccessful) {
+      res.json({
+        success: true,
+        message: `Drop all data operation completed successfully for target(s): ${target}`,
+        results
+      });
+    } else {
+      // Return 500 status code if any drop failed
+      res.status(500).json({
+        success: false,
+        message: `Drop all data operation encountered errors for target(s): ${target}`,
+        results
+      });
+    }
+  } catch (error) {
+    console.error('[DROP ALL] Error in endpoint handler:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
