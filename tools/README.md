@@ -25,7 +25,7 @@ All tools interact with the Dgraph database and are designed to work with a loca
 
 ### push_schema.py
 
-Push a GraphQL schema to Dgraph:
+Push a GraphQL schema directly to local Dgraph:
 
 ```bash
 python push_schema.py --schema ../schema.graphql
@@ -34,6 +34,30 @@ python push_schema.py --schema ../schema.graphql
 Options:
 - `--schema`, `-s`: Path to the schema file (default: ../schema.graphql)
 - `--endpoint`, `-e`: Dgraph admin schema endpoint (default: http://localhost:8080/admin/schema)
+
+### api_push_schema.py
+
+Push a GraphQL schema via the API (supports both local and remote Dgraph instances):
+
+```bash
+# Set your admin API key
+export MIMS_ADMIN_API_KEY=your_secure_key
+
+# Push to local Dgraph
+python api_push_schema.py --target local
+
+# Push to remote Dgraph
+python api_push_schema.py --target remote
+
+# Push to both local and remote
+python api_push_schema.py --target both
+```
+
+Options:
+- `--schema`, `-s`: Path to the schema file (default: ../schema.graphql)
+- `--target`, `-t`: Target environment(s) to push to (choices: local, remote, both; default: local)
+- `--api-endpoint`, `-e`: API endpoint URL (default: from MIMS_API_URL env var or http://localhost:3000/api/admin/schema)
+- `--api-key`, `-k`: Admin API Key (default: from MIMS_ADMIN_API_KEY environment variable)
 
 ### seed_graph.py
 

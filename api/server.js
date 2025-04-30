@@ -1,4 +1,7 @@
 require('dotenv').config(); // Load environment variables from .env file
+const fs = require('fs');
+const { Client } = require('ssh2'); // For remote schema push
+const schemaRegistry = require('./schemaRegistry'); // Schema registry module
 
 // --- Global Error Handlers ---
 process.on('uncaughtException', (err, origin) => {
@@ -120,7 +123,7 @@ app.post('/api/traverse', async (req, res) => {
   }
 
   // Validate fields
-  const allowedFields = ['id', 'label', 'type', 'level', 'description']; // Add only whitelisted fields
+  const allowedFields = ['id', 'label', 'type', 'level', 'status', 'branch']; // Include all schema fields
   const safeFields = Array.isArray(fields) && fields.length > 0
     ? fields.filter(f => allowedFields.includes(f))
     : allowedFields; // Default to allowed fields if none provided or invalid
@@ -247,6 +250,391 @@ app.get('/api/schema', async (req, res) => {
         }
         res.status(500).json({ error: 'Failed to fetch schema from Dgraph.' });
     }
+});
+
+// Helper function to push schema to local Dgraph instance
+async function pushSchemaToLocal(schema) {
+  try {
+    const DGRAPH_ADMIN_ENDPOINT = process.env.DGRAPH_ADMIN_URL || 'http://localhost:8080/admin/schema';
+    
+    const response = await axios.post(
+      DGRAPH_ADMIN_ENDPOINT,
+      schema,
+      { headers: { 'Content-Type': 'application/graphql' } }
+    );
+    
+    // Verify schema was applied
+    const verificationResult = await verifySchemaLocal();
+    
+    return {
+      success: true,
+      verification: verificationResult,
+      response: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      details: error.response?.data || null
+    };
+  }
+}
+
+// Helper function to verify schema was applied locally
+async function verifySchemaLocal() {
+  try {
+    // Wait briefly for schema to apply
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Use introspection query to verify GraphQL schema is loaded
+    const introspectionQuery = "{ __schema { queryType { name } } }";
+    const response = await axios.post(
+      process.env.DGRAPH_URL || 'http://localhost:8080/graphql',
+      { query: introspectionQuery },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    
+    return {
+      success: true,
+      data: response.data
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Helper function to push schema to remote Dgraph instance
+async function pushSchemaToRemote(schema) {
+  try {
+    // Get SSH connection details from environment variables
+    const host = process.env.DGRAPH_SSH_HOST;
+    const username = process.env.DGRAPH_SSH_USER;
+    const privateKey = process.env.DGRAPH_SSH_KEY || 
+                      (process.env.DGRAPH_SSH_KEY_PATH ? 
+                       fs.readFileSync(process.env.DGRAPH_SSH_KEY_PATH) : 
+                       undefined);
+    
+    if (!host || !username || !privateKey) {
+      throw new Error('Missing required SSH configuration for remote push');
+    }
+    
+    // Create temporary schema file with unique name
+    const tempFilePath = `/tmp/schema_${Date.now()}.graphql`;
+    fs.writeFileSync(tempFilePath, schema);
+    
+    // Create SSH connection
+    const conn = new Client();
+    
+    // Promisify connection
+    const connectResult = await new Promise((resolve, reject) => {
+      conn.on('ready', () => {
+        resolve({ success: true });
+      }).on('error', (err) => {
+        reject(err);
+      }).connect({
+        host,
+        username,
+        privateKey
+      });
+    });
+    
+    // SCP the schema file to the server
+    const scpResult = await new Promise((resolve, reject) => {
+      conn.sftp((err, sftp) => {
+        if (err) return reject(err);        
+        sftp.fastPut(tempFilePath, 'schema.graphql', (err) => {
+          if (err) return reject(err);
+          resolve({ success: true });
+        });
+      });
+    });
+    
+    // Execute curl command to push schema
+    const curlCommand = 'curl -X POST http://localhost:8080/admin/schema -H "Content-Type: application/graphql" --data-binary @schema.graphql';
+    const execResult = await new Promise((resolve, reject) => {
+      conn.exec(curlCommand, (err, stream) => {
+        if (err) return reject(err);
+        
+        let output = '';
+        stream.on('data', (data) => {
+          output += data.toString();
+        }).on('close', (code) => {
+          if (code === 0) {
+            resolve({ success: true, output });
+          } else {
+            reject(new Error(`Command exited with code ${code}: ${output}`));
+          }
+        });
+      });
+    });
+    
+    // Clean up connection and temp file
+    conn.end();
+    fs.unlinkSync(tempFilePath);
+    
+    return {
+      success: true,
+      scp: scpResult,
+      exec: execResult
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Schema Management Endpoints
+// -------------------------------------------------------------------
+
+// GET /api/schemas - List all available schemas
+app.get('/api/schemas', async (req, res) => {
+  try {
+    const schemas = await schemaRegistry.getAllSchemas();
+    res.json(schemas);
+  } catch (error) {
+    console.error('[SCHEMAS] Error getting schemas:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/schemas/:id - Get a specific schema by ID
+app.get('/api/schemas/:id', async (req, res) => {
+  try {
+    const schema = await schemaRegistry.getSchemaById(req.params.id);
+    if (!schema) {
+      return res.status(404).json({ error: `Schema not found: ${req.params.id}` });
+    }
+    res.json(schema);
+  } catch (error) {
+    console.error(`[SCHEMAS] Error getting schema ${req.params.id}:`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/schemas/:id/content - Get the schema content
+app.get('/api/schemas/:id/content', async (req, res) => {
+  try {
+    const content = await schemaRegistry.getSchemaContent(req.params.id);
+    res.type('text/plain').send(content);
+  } catch (error) {
+    console.error(`[SCHEMAS] Error getting schema content ${req.params.id}:`, error);
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/schemas - Create a new schema
+app.post('/api/schemas', async (req, res) => {
+  // Check admin API key authentication
+  const apiKey = req.headers['x-admin-api-key'];
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    const { schemaInfo, content } = req.body;
+    
+    if (!schemaInfo || !content) {
+      return res.status(400).json({ error: 'Missing required fields: schemaInfo and content' });
+    }
+    
+    if (!schemaInfo.id || !schemaInfo.name) {
+      return res.status(400).json({ error: 'Schema must have an id and name' });
+    }
+    
+    const newSchema = await schemaRegistry.addSchema(schemaInfo, content);
+    res.status(201).json(newSchema);
+  } catch (error) {
+    console.error('[SCHEMAS] Error creating schema:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/schemas/:id - Update an existing schema
+app.put('/api/schemas/:id', async (req, res) => {
+  // Check admin API key authentication
+  const apiKey = req.headers['x-admin-api-key'];
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    const { updates, content } = req.body;
+    
+    if (!updates) {
+      return res.status(400).json({ error: 'Missing required field: updates' });
+    }
+    
+    const updatedSchema = await schemaRegistry.updateSchema(req.params.id, updates, content);
+    res.json(updatedSchema);
+  } catch (error) {
+    console.error(`[SCHEMAS] Error updating schema ${req.params.id}:`, error);
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/schemas/:id/push - Push a specific schema to Dgraph
+app.post('/api/schemas/:id/push', async (req, res) => {
+  // Check admin API key authentication
+  const apiKey = req.headers['x-admin-api-key'];
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    const schemaId = req.params.id;
+    const target = req.query.target || 'local';
+    
+    if (!['local', 'remote', 'both'].includes(target)) {
+      return res.status(400).json({ error: 'Invalid target. Must be "local", "remote", or "both"' });
+    }
+    
+    // Get schema content
+    const schemaContent = await schemaRegistry.getSchemaContent(schemaId);
+    
+    const results = {};
+    
+    // Handle local schema push
+    if (target === 'local' || target === 'both') {
+      console.log(`[SCHEMA PUSH] Pushing schema ${schemaId} to local Dgraph instance`);
+      const localResult = await pushSchemaToLocal(schemaContent);
+      results.local = localResult;
+      
+      if (!localResult.success) {
+        console.error('[SCHEMA PUSH] Local push failed:', localResult.error);
+      }
+    }
+    
+    // Handle remote schema push
+    if (target === 'remote' || target === 'both') {
+      console.log(`[SCHEMA PUSH] Pushing schema ${schemaId} to remote Dgraph instance`);
+      const remoteResult = await pushSchemaToRemote(schemaContent);
+      results.remote = remoteResult;
+      
+      if (!remoteResult.success) {
+        console.error('[SCHEMA PUSH] Remote push failed:', remoteResult.error);
+      }
+    }
+    
+    // Return overall success status
+    const allSuccessful = Object.values(results).every(result => result.success);
+    
+    if (allSuccessful) {
+      // If pushing the production schema, update other schemas to not be production
+      const schema = await schemaRegistry.getSchemaById(schemaId);
+      if (schema.is_production) {
+        await schemaRegistry.updateSchema(schemaId, { is_production: true });
+      }
+      
+      res.json({
+        success: true,
+        message: `Schema ${schemaId} successfully pushed to ${target}`,
+        results
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: `Schema ${schemaId} push to ${target} encountered errors`,
+        results
+      });
+    }
+  } catch (error) {
+    console.error(`[SCHEMA PUSH] Error pushing schema ${req.params.id}:`, error);
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Original direct schema push endpoint (maintained for compatibility)
+app.post('/api/admin/schema', async (req, res) => {
+  // Check admin API key authentication
+  const apiKey = req.headers['x-admin-api-key'];
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    // Get schema from request body, or schema ID if provided
+    const { schema, schemaId, target = 'local' } = req.body;
+    
+    // Determine which schema to use
+    let schemaContent;
+    
+    if (schemaId) {
+      // If schemaId is provided, use schema from registry
+      console.log(`[SCHEMA PUSH] Using schema ${schemaId} from registry`);
+      schemaContent = await schemaRegistry.getSchemaContent(schemaId);
+    } else if (schema) {
+      // If schema content is provided directly, use it
+      schemaContent = schema;
+    } else {
+      return res.status(400).json({ error: 'Missing required field: schema or schemaId' });
+    }
+    
+    if (!['local', 'remote', 'both'].includes(target)) {
+      return res.status(400).json({ error: 'Invalid target. Must be "local", "remote", or "both"' });
+    }
+    
+    const results = {};
+    
+    // Handle local schema push
+    if (target === 'local' || target === 'both') {
+      console.log('[SCHEMA PUSH] Pushing schema to local Dgraph instance');
+      const localResult = await pushSchemaToLocal(schemaContent);
+      results.local = localResult;
+      
+      if (!localResult.success) {
+        console.error('[SCHEMA PUSH] Local push failed:', localResult.error);
+      }
+    }
+    
+    // Handle remote schema push
+    if (target === 'remote' || target === 'both') {
+      console.log('[SCHEMA PUSH] Pushing schema to remote Dgraph instance');
+      const remoteResult = await pushSchemaToRemote(schemaContent);
+      results.remote = remoteResult;
+      
+      if (!remoteResult.success) {
+        console.error('[SCHEMA PUSH] Remote push failed:', remoteResult.error);
+      }
+    }
+    
+    // Return overall success status
+    const allSuccessful = Object.values(results).every(result => result.success);
+    
+    if (allSuccessful) {
+      res.json({
+        success: true,
+        message: `Schema successfully pushed to ${target}`,
+        results
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: `Schema push to ${target} encountered errors`,
+        results
+      });
+    }
+    
+  } catch (error) {
+    console.error('[SCHEMA PUSH] Error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: `Server error during schema push: ${error.message}` 
+    });
+  }
 });
 
 // Endpoint for health check

@@ -1,0 +1,17 @@
+type Node {
+  id: String! @id
+  label: String! @search(by: [term])
+  type: String!
+  level: Int @search
+  status: String
+  branch: String
+  outgoing: [Edge] @hasInverse(field: "from")
+}
+
+type Edge {
+  from: Node! @hasInverse(field: "outgoing")
+  fromId: String! @search(by: [hash])
+  to: Node
+  toId: String! @search(by: [hash])
+  type: String!
+}

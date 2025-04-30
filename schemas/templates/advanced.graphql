@@ -1,0 +1,31 @@
+# Advanced schema template
+# A more complex starting point with additional fields and types
+
+type Node {
+  id: String! @id
+  label: String! @search(by: [term])
+  type: String! @search(by: [hash])
+  level: Int @search
+  description: String @search(by: [fulltext])
+  tags: [String] @search(by: [hash])
+  metadata: JSON
+  created_at: DateTime
+  updated_at: DateTime
+  created_by: String
+  outgoing: [Edge] @hasInverse(field: "from")
+}
+
+type Edge {
+  from: Node! @hasInverse(field: "outgoing")
+  fromId: String! @search(by: [hash])
+  to: Node!
+  toId: String! @search(by: [hash])
+  type: String! @search(by: [hash])
+  weight: Float
+  metadata: JSON
+  created_at: DateTime
+}
+
+# Custom scalar types
+scalar JSON
+scalar DateTime

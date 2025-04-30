@@ -136,6 +136,7 @@ mutation {
   "fields": ["id","label"]    // optional
 }
 ```
+**Allowed Fields:** `id`, `label`, `type`, `level`, `status`, `branch`
 **Response (200 OK):**  
 ```json
 {
@@ -196,6 +197,38 @@ mutation {
   "graphqlError": null
 }
 ```
+
+---
+
+## POST /api/admin/schema
+
+**Path:** `/api/admin/schema`  
+**Description:** Pushes a GraphQL schema to Dgraph instance(s).  
+**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
+**Request Body:**  
+```json
+{
+  "schema": "type Node { id: String! @id ... }",
+  "target": "local" // "local", "remote", or "both"
+}
+```
+**Response (200 OK):**  
+```json
+{
+  "success": true,
+  "message": "Schema successfully pushed to local",
+  "results": {
+    "local": {
+      "success": true,
+      "verification": { /* verification details */ }
+    }
+  }
+}
+```
+**Error Responses:**  
+- 400 Bad Request if schema is missing or target is invalid.  
+- 401 Unauthorized if API key is missing or invalid.  
+- 500 Internal Server Error if schema push fails.
 
 ---
 

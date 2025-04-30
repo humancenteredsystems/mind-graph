@@ -126,10 +126,27 @@ The easiest way to start the full development environment (Dgraph database, back
     *   **API Base:** The API server runs on `http://localhost:3000` (or the `PORT` in `api/.env`). The frontend proxy handles requests to `/api`.
 6.  **Push Schema (Required on first run or after schema changes):**
     In a separate terminal, while Dgraph is running:
+    
+    **Option 1: Direct push (legacy):**
     ```bash
     # Ensure conda environment is active if needed
     # conda activate pointcloud
     python tools/push_schema.py
+    ```
+    
+    **Option 2: API-based push (recommended):**
+    ```bash
+    # Set your admin API key
+    export MIMS_ADMIN_API_KEY=your_secure_key
+    
+    # Push to local Dgraph
+    python tools/api_push_schema.py --target local
+    
+    # Push to remote Dgraph (requires SSH config in .env)
+    python tools/api_push_schema.py --target remote
+    
+    # Push to both local and remote
+    python tools/api_push_schema.py --target both
     ```
 7.  **Seed Data (Optional):**
     In a separate terminal:

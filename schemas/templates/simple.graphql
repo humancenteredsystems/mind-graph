@@ -1,0 +1,16 @@
+# Simple schema template
+# A basic starting point for custom knowledge graphs
+
+type Node {
+  id: String! @id
+  label: String! @search(by: [term])
+  type: String!
+  description: String
+  outgoing: [Edge] @hasInverse(field: "from")
+}
+
+type Edge {
+  from: Node! @hasInverse(field: "outgoing")
+  to: Node!
+  type: String!
+}
