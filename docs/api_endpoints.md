@@ -200,16 +200,154 @@ mutation {
 
 ---
 
-## POST /api/admin/schema
+# Schema Management Endpoints
 
-**Path:** `/api/admin/schema`  
-**Description:** Pushes a GraphQL schema to Dgraph instance(s).  
+## GET /api/schemas
+
+**Path:** `/api/schemas`  
+**Description:** Lists all available schemas in the registry.  
+**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
+**Response (200 OK):**  
+```json
+[
+  {
+    "id": "default",
+    "name": "Default Schema",
+    "description": "The main production schema",
+    "owner": "system",
+    "created_at": "2025-04-20T00:00:00Z",
+    "is_production": true
+  },
+  {
+    "id": "simple",
+    "name": "Simple Template",
+    "description": "A simplified schema for basic graphs",
+    "owner": "admin",
+    "created_at": "2025-04-21T00:00:00Z",
+    "is_production": false
+  }
+]
+```
+
+## GET /api/schemas/:id
+
+**Path:** `/api/schemas/:id`  
+**Description:** Gets metadata for a specific schema by ID.  
+**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
+**Response (200 OK):**  
+```json
+{
+  "id": "default",
+  "name": "Default Schema",
+  "description": "The main production schema",
+  "owner": "system",
+  "created_at": "2025-04-20T00:00:00Z",
+  "is_production": true
+}
+```
+
+## GET /api/schemas/:id/content
+
+**Path:** `/api/schemas/:id/content`  
+**Description:** Gets the actual GraphQL schema content for a specific schema ID.  
+**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
+**Response (200 OK):** Plain text GraphQL schema  
+```graphql
+type Node {
+  id: String! @id
+  # ...schema content...
+}
+```
+
+## POST /api/schemas
+
+**Path:** `/api/schemas`  
+**Description:** Creates a new schema in the registry.  
 **Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
 **Request Body:**  
 ```json
 {
-  "schema": "type Node { id: String! @id ... }",
-  "target": "local" // "local", "remote", or "both"
+  "schemaInfo": {
+    "id": "new-schema",
+    "name": "New Schema",
+    "description": "A new schema for testing",
+    "owner": "admin",
+    "is_production": false
+  },
+  "content": "type Node { id: String! @id ... }"
+}
+```
+**Response (201 Created):**  
+```json
+{
+  "id": "new-schema",
+  "name": "New Schema",
+  "description": "A new schema for testing",
+  "owner": "admin",
+  "created_at": "2025-04-29T20:00:00Z",
+  "is_production": false
+}
+```
+
+## PUT /api/schemas/:id
+
+**Path:** `/api/schemas/:id`  
+**Description:** Updates an existing schema in the registry.  
+**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
+**Request Body:**  
+```json
+{
+  "updates": {
+    "name": "Updated Schema Name",
+    "is_production": true
+  },
+  "content": "type Node { id: String! @id ... }" // Optional: include to update schema content
+}
+```
+**Response (200 OK):**  
+```json
+{
+  "id": "schema-id",
+  "name": "Updated Schema Name",
+  "description": "Original description",
+  "owner": "admin",
+  "created_at": "2025-04-20T00:00:00Z",
+  "is_production": true
+}
+```
+
+## POST /api/schemas/:id/push
+
+**Path:** `/api/schemas/:id/push?target=local`  
+**Description:** Pushes a specific schema from the registry to Dgraph instance(s).  
+**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
+**Query Parameters:**  
+- `target` (optional): Where to push the schema (choices: "local", "remote", "both"; default: "local")  
+**Response (200 OK):**  
+```json
+{
+  "success": true,
+  "message": "Schema schema-id successfully pushed to local",
+  "results": {
+    "local": {
+      "success": true,
+      "verification": { /* verification details */ }
+    }
+  }
+}
+```
+
+## POST /api/admin/schema
+
+**Path:** `/api/admin/schema`  
+**Description:** Legacy endpoint for pushing a GraphQL schema to Dgraph instance(s).  
+**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
+**Request Body:**  
+```json
+{
+  "schema": "type Node { id: String! @id ... }", // Direct schema content
+  "schemaId": "default",                          // OR schema ID from registry
+  "target": "local"                               // "local", "remote", or "both"
 }
 ```
 **Response (200 OK):**  
