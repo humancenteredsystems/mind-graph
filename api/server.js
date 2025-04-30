@@ -1,7 +1,7 @@
 require('dotenv').config(); // Load environment variables from .env file
 const fs = require('fs');
-const { Client } = require('ssh2'); // For remote schema push
 const schemaRegistry = require('./schemaRegistry'); // Schema registry module
+const { pushSchemaViaHttp } = require('./utils/pushSchema'); // Import the new helper
 
 // --- Global Error Handlers ---
 process.on('uncaughtException', (err, origin) => {
@@ -254,30 +254,15 @@ app.get('/api/schema', async (req, res) => {
 
 // Helper function to push schema to local Dgraph instance
 async function pushSchemaToLocal(schema) {
-  try {
-    const DGRAPH_ADMIN_ENDPOINT = process.env.DGRAPH_ADMIN_URL || 'http://localhost:8080/admin/schema';
-    
-    const response = await axios.post(
-      DGRAPH_ADMIN_ENDPOINT,
-      schema,
-      { headers: { 'Content-Type': 'application/graphql' } }
-    );
-    
-    // Verify schema was applied
-    const verificationResult = await verifySchemaLocal();
-    
-    return {
-      success: true,
-      verification: verificationResult,
-      response: response.data
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      details: error.response?.data || null
-    };
-  }
+  const url = process.env.DGRAPH_ADMIN_URL || 'http://localhost:8080/admin/schema';
+  const result = await pushSchemaViaHttp(url, schema);
+
+  // Add local verification step if needed, similar to the old pushSchemaToLocal
+  // For now, we'll rely on the HTTP push result
+  // const verificationResult = await verifySchemaLocal();
+  // result.verification = verificationResult;
+
+  return result;
 }
 
 // Helper function to verify schema was applied locally
@@ -285,7 +270,7 @@ async function verifySchemaLocal() {
   try {
     // Wait briefly for schema to apply
     await new Promise(resolve => setTimeout(resolve, 3000));
-    
+
     // Use introspection query to verify GraphQL schema is loaded
     const introspectionQuery = "{ __schema { queryType { name } } }";
     const response = await axios.post(
@@ -293,7 +278,7 @@ async function verifySchemaLocal() {
       { query: introspectionQuery },
       { headers: { 'Content-Type': 'application/json' } }
     );
-    
+
     return {
       success: true,
       data: response.data
@@ -308,84 +293,11 @@ async function verifySchemaLocal() {
 
 // Helper function to push schema to remote Dgraph instance
 async function pushSchemaToRemote(schema) {
-  try {
-    // Get SSH connection details from environment variables
-    const host = process.env.DGRAPH_SSH_HOST;
-    const username = process.env.DGRAPH_SSH_USER;
-    const privateKey = process.env.DGRAPH_SSH_KEY || 
-                      (process.env.DGRAPH_SSH_KEY_PATH ? 
-                       fs.readFileSync(process.env.DGRAPH_SSH_KEY_PATH) : 
-                       undefined);
-    
-    if (!host || !username || !privateKey) {
-      throw new Error('Missing required SSH configuration for remote push');
-    }
-    
-    // Create temporary schema file with unique name
-    const tempFilePath = `/tmp/schema_${Date.now()}.graphql`;
-    fs.writeFileSync(tempFilePath, schema);
-    
-    // Create SSH connection
-    const conn = new Client();
-    
-    // Promisify connection
-    const connectResult = await new Promise((resolve, reject) => {
-      conn.on('ready', () => {
-        resolve({ success: true });
-      }).on('error', (err) => {
-        reject(err);
-      }).connect({
-        host,
-        username,
-        privateKey
-      });
-    });
-    
-    // SCP the schema file to the server
-    const scpResult = await new Promise((resolve, reject) => {
-      conn.sftp((err, sftp) => {
-        if (err) return reject(err);        
-        sftp.fastPut(tempFilePath, 'schema.graphql', (err) => {
-          if (err) return reject(err);
-          resolve({ success: true });
-        });
-      });
-    });
-    
-    // Execute curl command to push schema
-    const curlCommand = 'curl -X POST http://localhost:8080/admin/schema -H "Content-Type: application/graphql" --data-binary @schema.graphql';
-    const execResult = await new Promise((resolve, reject) => {
-      conn.exec(curlCommand, (err, stream) => {
-        if (err) return reject(err);
-        
-        let output = '';
-        stream.on('data', (data) => {
-          output += data.toString();
-        }).on('close', (code) => {
-          if (code === 0) {
-            resolve({ success: true, output });
-          } else {
-            reject(new Error(`Command exited with code ${code}: ${output}`));
-          }
-        });
-      });
-    });
-    
-    // Clean up connection and temp file
-    conn.end();
-    fs.unlinkSync(tempFilePath);
-    
-    return {
-      success: true,
-      scp: scpResult,
-      exec: execResult
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
+  const url = process.env.DGRAPH_ADMIN_URL_REMOTE;
+  if (!url) {
+    throw new Error('DGRAPH_ADMIN_URL_REMOTE environment variable not set for remote push.');
   }
+  return await pushSchemaViaHttp(url, schema);
 }
 
 // Schema Management Endpoints
@@ -557,7 +469,7 @@ app.post('/api/schemas/:id/push', async (req, res) => {
   }
 });
 
-// Original direct schema push endpoint (maintained for compatibility)
+// Endpoint to push schema directly or from registry
 app.post('/api/admin/schema', async (req, res) => {
   // Check admin API key authentication
   const apiKey = req.headers['x-admin-api-key'];
@@ -568,10 +480,10 @@ app.post('/api/admin/schema', async (req, res) => {
   try {
     // Get schema from request body, or schema ID if provided
     const { schema, schemaId, target = 'local' } = req.body;
-    
+
     // Determine which schema to use
     let schemaContent;
-    
+
     if (schemaId) {
       // If schemaId is provided, use schema from registry
       console.log(`[SCHEMA PUSH] Using schema ${schemaId} from registry`);
@@ -582,58 +494,36 @@ app.post('/api/admin/schema', async (req, res) => {
     } else {
       return res.status(400).json({ error: 'Missing required field: schema or schemaId' });
     }
-    
+
     if (!['local', 'remote', 'both'].includes(target)) {
-      return res.status(400).json({ error: 'Invalid target. Must be "local", "remote", or "both"' });
+      return res.status(400).json({ success: false, message: `Invalid target: ${target}. Must be "local", "remote", or "both"` });
     }
-    
-    const results = {};
-    
-    // Handle local schema push
-    if (target === 'local' || target === 'both') {
-      console.log('[SCHEMA PUSH] Pushing schema to local Dgraph instance');
-      const localResult = await pushSchemaToLocal(schemaContent);
-      results.local = localResult;
-      
-      if (!localResult.success) {
-        console.error('[SCHEMA PUSH] Local push failed:', localResult.error);
-      }
+
+    let result;
+    if (target === 'local') {
+      result = await pushSchemaToLocal(schemaContent);
+    } else if (target === 'remote') {
+      result = await pushSchemaToRemote(schemaContent);
+    } else if (target === 'both') {
+      const local = await pushSchemaToLocal(schemaContent);
+      const remote = await pushSchemaToRemote(schemaContent);
+      result = {
+        local,
+        remote,
+        success: local.success && remote.success,
+      };
     }
-    
-    // Handle remote schema push
-    if (target === 'remote' || target === 'both') {
-      console.log('[SCHEMA PUSH] Pushing schema to remote Dgraph instance');
-      const remoteResult = await pushSchemaToRemote(schemaContent);
-      results.remote = remoteResult;
-      
-      if (!remoteResult.success) {
-        console.error('[SCHEMA PUSH] Remote push failed:', remoteResult.error);
-      }
-    }
-    
-    // Return overall success status
-    const allSuccessful = Object.values(results).every(result => result.success);
-    
-    if (allSuccessful) {
-      res.json({
-        success: true,
-        message: `Schema successfully pushed to ${target}`,
-        results
-      });
+
+    if (result.success) {
+      return res.json({ success: true, results: result });
     } else {
-      res.status(500).json({
-        success: false,
-        message: `Schema push to ${target} encountered errors`,
-        results
-      });
+      // Return 500 status code if any push failed
+      return res.status(500).json({ success: false, message: 'Schema push encountered errors', results: result });
     }
-    
-  } catch (error) {
-    console.error('[SCHEMA PUSH] Error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: `Server error during schema push: ${error.message}` 
-    });
+  } catch (err) {
+    console.error('[SCHEMA PUSH] Error:', err);
+    // Return 500 status code for unexpected errors
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
