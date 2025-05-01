@@ -7,6 +7,9 @@ This tool calls the /api/admin/dropAll endpoint on the backend API.
 import argparse
 import sys
 import os # Import os to read environment variables
+
+# Add the parent directory to the Python path to be able to import tools
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from tools.api_client import call_api # Import the shared API client
 
 # --- Constants (API base derived from env) ---

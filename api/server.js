@@ -25,6 +25,13 @@ const { v4: uuidv4 } = require('uuid'); // Import UUID generator
 const axios = require('axios'); // Import axios for /api/schema
 const { sendDgraphAdminRequest } = require('./utils/dgraphAdmin');
 const app = express();
+
+// Add a simple logging middleware to see incoming requests
+app.use((req, res, next) => {
+  console.log(`[INCOMING REQUEST] ${req.method} ${req.url}`);
+  next();
+});
+
 const PORT = process.env.PORT || 3000; // Use PORT from .env or default to 3000
 
 // Ensure DGRAPH_BASE_URL is set
@@ -481,22 +488,22 @@ app.post('/api/admin/dropAll', authenticateAdmin, async (req, res) => {
 
   try {
     console.log(`[DROP ALL] Received request to drop data for target: ${target}`);
-    const results = await dropAllData(target);
+    const result = await dropAllData(target); // dropAllData now returns a single result object
 
-    const allSuccessful = Object.values(results).every(result => result.success);
-
-    if (allSuccessful) {
+    // The API endpoint should now return the single result from dropAllData
+    if (result.success) {
       res.json({
         success: true,
-        message: `Drop all data operation completed successfully for target(s): ${target}`,
-        results
+        message: `Drop all data operation completed successfully for configured Dgraph instance`,
+        data: result.data // Include the data from the Dgraph response
       });
     } else {
-      // Return 500 status code if any drop failed
+      // Return 500 status code if the drop failed
       res.status(500).json({
         success: false,
-        message: `Drop all data operation encountered errors for target(s): ${target}`,
-        results
+        message: `Drop all data operation encountered errors`,
+        error: result.error, // Include the error message from the result
+        details: result.details // Include any details from the result
       });
     }
   } catch (error) {
@@ -533,15 +540,25 @@ app.get('/api/debug/dgraph', async (req, res) => {
     const { address } = await dns.lookup(host);
     const lookupMs = Date.now() - dnsStart;
 
-    // Test HTTP admin API reachability
-    await axios.head(adminSchemaUrl);
+    console.log(`[DEBUG] Attempting POST request to Dgraph admin schema endpoint: ${adminSchemaUrl}`);
+    // Test HTTP admin API reachability using POST with empty schema
+    const adminRes = await axios.post(
+      adminSchemaUrl,
+      "# Empty schema for testing connectivity",
+      { headers: { 'Content-Type': 'application/graphql' } }
+    );
+    console.log('[DEBUG] POST request to Dgraph admin schema endpoint successful.');
+    console.log('[DEBUG] Dgraph admin response data:', adminRes.data);
 
+
+    console.log(`[DEBUG] Attempting POST request to Dgraph GraphQL endpoint: ${graphqlUrl}`);
     // Test GraphQL introspection
     const gqlRes = await axios.post(
       graphqlUrl,
       { query: '{ __schema { queryType { name } } }', variables: null },
       { headers: { 'Content-Type': 'application/json' } }
     );
+    console.log('[DEBUG] POST request to Dgraph GraphQL endpoint successful.');
 
     res.json({
       dns: { host: address, lookupMs },
@@ -549,6 +566,11 @@ app.get('/api/debug/dgraph', async (req, res) => {
       graphql: gqlRes.data
     });
   } catch (err) {
+    console.error('[DEBUG] Error in /api/debug/dgraph:', err.message);
+    if (err.response) {
+      console.error('[DEBUG] Dgraph response status:', err.response.status);
+      console.error('[DEBUG] Dgraph response data:', err.response.data);
+    }
     res.status(500).json({
       dnsError: err.code || null,
       httpError: err.response?.status || err.message,

@@ -10,6 +10,9 @@ import os
 import sys
 import json
 from pathlib import Path
+
+# Add the parent directory to the Python path to be able to import tools
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from tools.api_client import call_api # Import the shared API client
 
 # Default API endpoints (override with MIMS_API_URL env var)
