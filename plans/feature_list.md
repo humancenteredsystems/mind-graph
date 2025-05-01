@@ -1,4 +1,3 @@
-- API endpoint to push schema
 - Different node shapes for different levels
 - Ability to implement a structured node hierarchy
 - Arrange nodes based on hierarchy levels

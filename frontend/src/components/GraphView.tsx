@@ -1,12 +1,14 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
-import cytoscape, { Core, StylesheetCSS, ElementDefinition } from 'cytoscape';
+import cytoscape, { Core, ElementDefinition, StylesheetCSS } from 'cytoscape';
+// import dblclick from 'cytoscape-dblclick'; // Remove dblclick extension
 import klay from 'cytoscape-klay';
 import { NodeData, EdgeData } from '../types/graph';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { log } from '../utils/logger';
 
-// Register Klay layout extension
+// Register Cytoscape plugins ONCE at module load
+// cytoscape.use(dblclick); // Remove dblclick extension
 cytoscape.use(klay);
 
 interface GraphViewProps {
@@ -16,7 +18,8 @@ interface GraphViewProps {
   hiddenNodeIds?: Set<string>;
   onNodeExpand?: (nodeId: string) => void;
   onAddNode?: (parentId?: string, position?: { x: number; y: number }) => void;
-  onEditNode?: (nodeId: string) => void;
+  onEditNode?: (node: NodeData) => void; // Changed to pass full NodeData
+  onNodeSelect?: (node: NodeData) => void; // Prop for single-click selection
   onLoadCompleteGraph?: () => void;
   onDeleteNode?: (nodeId: string) => void;
   onDeleteNodes?: (nodeIds: string[]) => void;
@@ -32,6 +35,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   onNodeExpand,
   onAddNode,
   onEditNode,
+  onNodeSelect, // Add new prop
   onLoadCompleteGraph,
   onDeleteNode,
   onDeleteNodes,
@@ -40,38 +44,32 @@ const GraphView: React.FC<GraphViewProps> = ({
 }) => {
   const cyRef = useRef<Core | null>(null);
   const { openMenu } = useContextMenu();
+  // Refs for refined manual double-click detection
+  const lastConfirmedClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 }); 
+  const shortTermTapTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
+  const potentialClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 });
 
+  // Build elements: filter hidden nodes and edges
   const elements = useMemo<ElementDefinition[]>(() => {
-    // Filter out hidden nodes
-    const visibleNodes = nodes.filter(node => !hiddenNodeIds.has(node.id));
-    const nodeElements = visibleNodes.map(({ id, label, ...rest }) => ({
-      data: { id, label: label ?? id, ...rest },
+    const visible = nodes.filter(n => !hiddenNodeIds.has(n.id));
+    const nodeEls = visible.map(({ id, label, type, level, status, branch }) => ({
+      data: { id, label: label ?? id, type, level, status, branch },
     }));
+    const validIds = new Set(visible.map(n => n.id));
+    const edgeEls = edges
+      .filter(e => validIds.has(e.source) && validIds.has(e.target))
+      .map(({ id, source, target, type }) => ({
+        data: { id: id ?? `${source}_${target}`, source, target, type },
+      }));
+    return [...nodeEls, ...edgeEls];
+  }, [nodes, edges, hiddenNodeIds]);
 
-    // Filter edges to ensure source and target nodes exist and are not hidden
-    const validNodeIds = new Set(visibleNodes.map(node => node.id));
-    const safeEdges = edges.filter(edge =>
-        validNodeIds.has(edge.source) && validNodeIds.has(edge.target)
-    );
-
-    if (edges.length !== safeEdges.length) {
-      const skippedCount = edges.length - safeEdges.length;
-      if (skippedCount > hiddenNodeIds.size) {
-        console.warn(`[GRAPH RENDER] Skipped ${skippedCount} invalid edges.`);
-      }
-    }
-
-    const edgeElements = safeEdges.map(({ source, target, ...rest }) => ({
-      data: { source, target, ...rest },
-    }));
-
-    return [...nodeElements, ...edgeElements];
-  }, [nodes, edges, hiddenNodeIds]); // Added hiddenNodeIds as a dependency
-
-  const stylesheet: StylesheetCSS[] = [
+  // Stylesheet: disable selection and style nodes/edges
+  const stylesheet = [
     {
       selector: 'node',
-      css: {
+      style: {
+        selectable: 'no',
         'background-color': '#888',
         label: 'data(label)',
         width: '40px',
@@ -88,28 +86,19 @@ const GraphView: React.FC<GraphViewProps> = ({
     },
     {
       selector: "node[type='concept']",
-      css: {
-        'background-color': '#3498db',
-        'border-color': '#2980b9',
-      },
+      style: { 'background-color': '#3498db', 'border-color': '#2980b9' },
     },
     {
       selector: "node[type='example']",
-      css: {
-        'background-color': '#2ecc71',
-        'border-color': '#27ae60',
-      },
+      style: { 'background-color': '#2ecc71', 'border-color': '#27ae60' },
     },
     {
       selector: "node[type='question']",
-      css: {
-        'background-color': '#f1c40f',
-        'border-color': '#f39c12',
-      },
+      style: { 'background-color': '#f1c40f', 'border-color': '#f39c12' },
     },
     {
       selector: 'edge',
-      css: {
+      style: {
         width: 1,
         'line-color': '#ccc',
         'target-arrow-color': '#ccc',
@@ -119,100 +108,199 @@ const GraphView: React.FC<GraphViewProps> = ({
     },
   ];
 
-  // Double-click handler for node editing
+  // Attach Cytoscape instance reference
+  const attachCy = (cy: Core) => {
+    cyRef.current = cy;
+    log('GraphView', 'Cytoscape instance attached');
+    // Expose cyInstance in development mode (Optional: Keep if needed for other debugging)
+    // if (import.meta.env.DEV) {
+    //   (window as any).cyInstance = cy;
+    //   log('GraphView', 'cyInstance exposed');
+    // }
+  };
+  
+  // Set up all event handlers - SEPARATED from attachCy for clarity
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy || !onEditNode) return;
+    if (!cy) {
+      log('GraphView', 'ERROR: No Cytoscape instance available');
+      return;
+    }
     
-    const dblClickHandler = (event: any) => {
-      const target = event.target;
-      if (target.isNode) {
-        onEditNode(target.id());
-      }
-    };
+    log('GraphView', 'Setting up event handlers');
     
-    cy.on('dblclick', 'node', dblClickHandler);
-    return () => {
-      if (cy.removeListener) {
-        cy.removeListener('dblclick', 'node', dblClickHandler);
-      }
-    };
-  }, [onEditNode]);
+    // Completely disable selection
+    cy.autounselectify(true);
+    log('GraphView', 'Selection disabled via autounselectify(true)');
+    
+    // Refined manual double-click detection logic
+    const DOUBLE_CLICK_DELAY = 400; // Max time between clicks for double-click (ms)
+    const SHORT_TERM_DEBOUNCE = 50; // Time to wait to confirm a single tap isn't a duplicate firing (ms)
 
-  // Context menu handling with accurate cursor positioning
+    const handleTap = (e: any) => {
+      const targetNode = e.target;
+      const nodeId = targetNode.id ? targetNode.id() : null;
+      const now = Date.now();
+
+      // Clear any pending short-term timeout - this handles the duplicate firing case
+      if (shortTermTapTimeoutRef.current) {
+        clearTimeout(shortTermTapTimeoutRef.current);
+        shortTermTapTimeoutRef.current = null;
+        log('GraphView', '[handleTap] Cleared short-term timeout (duplicate tap event likely)');
+        // We might still need to check if this completes a double-click
+      }
+      
+      if (!nodeId) {
+        log('GraphView', '[handleTap] Tap detected on background or unknown target.');
+        lastConfirmedClickRef.current = { nodeId: null, time: 0 }; // Reset on background tap
+        potentialClickRef.current = { nodeId: null, time: 0 };
+        return;
+      }
+
+      // Check if this tap completes a double-click sequence with the last *confirmed* click
+      const { nodeId: lastConfirmedNodeId, time: lastConfirmedTime } = lastConfirmedClickRef.current;
+      const timeDiffFromConfirmed = now - lastConfirmedTime;
+
+      if (nodeId === lastConfirmedNodeId && timeDiffFromConfirmed < DOUBLE_CLICK_DELAY) {
+        // --- Double-click detected ---
+        log('GraphView', `[handleTap] Double-click detected on node: ${nodeId} (Time diff: ${timeDiffFromConfirmed}ms)`);
+        
+        // Reset state immediately
+        lastConfirmedClickRef.current = { nodeId: null, time: 0 }; 
+        potentialClickRef.current = { nodeId: null, time: 0 };
+        if (shortTermTapTimeoutRef.current) { // Clear just in case
+           clearTimeout(shortTermTapTimeoutRef.current);
+           shortTermTapTimeoutRef.current = null;
+        }
+
+        // Trigger the action
+        if (onEditNode) {
+          const nodeData = nodes.find(n => n.id === nodeId);
+          if (nodeData) {
+            log('GraphView', `[handleTap] Calling onEditNode for node: ${nodeId}`);
+            onEditNode(nodeData);
+          } else {
+            log('GraphView', `[handleTap] Warning: Node data not found for ID: ${nodeId}`);
+          }
+        } else {
+          log('GraphView', '[handleTap] Double-click detected but no onEditNode handler provided.');
+        }
+        
+        // Prevent default behavior for the second tap
+        e.preventDefault(); 
+        e.stopPropagation();
+        return false; 
+      } else {
+         // --- Potential Single Click ---
+         // Store this tap temporarily
+         potentialClickRef.current = { nodeId, time: now };
+         log('GraphView', `[handleTap] Potential single click on node: ${nodeId}. Setting short-term timeout.`);
+
+         // Set a short timeout. If no other tap event clears this timeout within ~50ms, 
+          // then confirm this as the first click of a potential double-click sequence.
+          shortTermTapTimeoutRef.current = setTimeout(() => {
+              const confirmedNodeId = potentialClickRef.current.nodeId;
+              log('GraphView', `[handleTap] Short-term timeout completed. Confirming single click for node: ${confirmedNodeId}`);
+              lastConfirmedClickRef.current = { ...potentialClickRef.current };
+              shortTermTapTimeoutRef.current = null;
+              
+              // If single click confirmed, call onNodeSelect if provided
+              if (onNodeSelect && confirmedNodeId) {
+                  const nodeData = nodes.find(n => n.id === confirmedNodeId);
+                  if (nodeData) {
+                      log('GraphView', `[handleTap] Calling onNodeSelect for node: ${confirmedNodeId}`);
+                      onNodeSelect(nodeData);
+                  } else {
+                      log('GraphView', `[handleTap] Warning: Node data not found for ID: ${confirmedNodeId} after confirming single click.`);
+                  }
+              }
+          }, SHORT_TERM_DEBOUNCE);
+       }
+     };
+
+     // Register tap handler
+    log('GraphView', 'Registering tap event handler for manual double-click detection');
+    cy.on('tap', 'node', handleTap);
+    cy.on('tap', handleTap); // Also listen on background to reset
+
+    // Clean up handlers and timeout on unmount
+    return () => {
+      log('GraphView', 'Cleaning up tap event handler and timeout');
+      cy.off('tap', 'node', handleTap);
+      cy.off('tap', handleTap);
+      if (shortTermTapTimeoutRef.current) {
+       clearTimeout(shortTermTapTimeoutRef.current);
+       }
+     };
+   }, [onEditNode, onNodeSelect, nodes]); // Dependencies: onEditNode, onNodeSelect, and nodes (used in handler)
+
+  // Context menu (right-click) handling
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const handler = (event: any) => {
-      const target = event.target;
-      // Compute position from mouse event
-      const origEvent = event.originalEvent as MouseEvent;
-      const position = { x: origEvent.clientX, y: origEvent.clientY };
-      if (target === cy) {
-        openMenu('background', position, {
-          onAddNode,
-          loadInitialGraph: onLoadCompleteGraph,
+    
+    const handler = (e: any) => {
+      const orig = e.originalEvent as MouseEvent;
+      if (orig.button !== 2) return;
+      
+      const pos = { x: orig.clientX, y: orig.clientY };
+      const tgt = e.target;
+      
+      if (tgt === cy) {
+        // Background context menu
+        openMenu('background', pos, { 
+          onAddNode, 
+          loadInitialGraph: onLoadCompleteGraph 
         });
-      } else if (target.isNode) {
-          const selectedIds = cy.nodes(':selected').map((el) => el.id());
-          const menuType = selectedIds.length > 1 ? 'multi-node' : 'node';
-          const nodeData = target.data() as NodeData;
-          openMenu(menuType, position, {
-            node: nodeData,
-            nodeIds: selectedIds,
-            onAddNode,
-            onNodeExpand,
-            onEditNode,
-            onDeleteNode,
-            onDeleteNodes,
-            onHideNode,
-            onHideNodes,
-          });
+      } else if (tgt.isNode && tgt.isNode()) {
+        // Node context menu
+        const sel = cy.nodes(':selected').map(el => el.id());
+        const type = sel.length > 1 ? 'multi-node' : 'node';
+        const data = tgt.data() as NodeData;
+        
+        openMenu(type, pos, {
+          node: data,
+          nodeIds: sel,
+          onAddNode,
+          onNodeExpand,
+          onEditNode,
+          onDeleteNode,
+          onDeleteNodes,
+          onHideNode,
+          onHideNodes,
+        });
       }
-      event.originalEvent.preventDefault();
+      
+      orig.preventDefault();
     };
+    
     cy.on('cxttap', handler);
+    
     return () => {
-      if (cy.removeListener) {
-        cy.removeListener('cxttap', handler);
-      }
+      cy.off('cxttap', handler);
     };
-  }, [onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, openMenu]);
+  }, [openMenu, onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes]);
 
-  // Run layout on elements update
+  // Layout on elements update
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const layout = cy.layout({
+    
+    cy.layout({
       name: 'klay',
       klay: { spacing: 40, nodePlacement: 'LINEAR_SEGMENTS', layoutHierarchy: true },
       animate: true,
       animationDuration: 300,
-    } as any);
-    layout.run();
+    } as any).run();
   }, [elements]);
 
-  const containerStyle: React.CSSProperties = {
-    width: '100%',
-    height: '100%',
-    overflow: 'hidden',
-    position: 'relative',
-    ...style,
-  };
-
   return (
-    <div data-testid="graph-container" style={containerStyle}>
+    <div data-testid="graph-container" style={{ width: '100%', height: '100%', ...style }}>
       <CytoscapeComponent
         elements={elements}
         stylesheet={stylesheet}
         style={{ width: '100%', height: '100%' }}
-        cy={(cy: Core) => {
-          cyRef.current = cy;
-          if (import.meta.env.DEV) {
-            (window as any).cyInstance = cy;
-            log('GraphView', 'Cytoscape instance exposed as window.cyInstance');
-          }
-        }}
+        cy={attachCy}
       />
     </div>
   );

@@ -109,7 +109,7 @@ The easiest way to start the full development environment (Dgraph database, back
 3.  **Install API & Frontend Dependencies:** The `start-dev-env` script *does not* automatically install dependencies in the sub-directories. You need to do this manually the first time:
     ```bash
     cd api && npm install && cd ..
-    cd frontend && npm install && cd ..
+    cd frontend && npm install && npm install cytoscape-dblclick && cd ..
     ```
 4.  **Start Everything:** In the project root directory, run:
     ```bash
@@ -236,6 +236,11 @@ MakeItMakeSense.io is licensed under the [MIT License](LICENSE). This means you 
 The MIT License is one of the most permissive and widely used open-source licenses, ensuring the code remains freely available while allowing for maximum flexibility in how it can be used.
 
 See the [LICENSE](LICENSE) file for the full text of the license.
+
+## User Interaction
+
+- Double-click (or double-tap) on a node to open the drawer.
+- Single-click (or single-tap) no longer opens the drawer.
 
 ## Contributing
 

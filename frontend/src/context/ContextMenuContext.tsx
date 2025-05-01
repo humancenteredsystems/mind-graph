@@ -96,7 +96,7 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({
             label: 'Edit Node',
             icon: '✏️',
             shortcut: 'Ctrl + E',
-            action: () => ui.openEditDrawer(node),
+            action: () => payload.onEditNode ? payload.onEditNode(node.id) : console.log('Edit Node action not available'),
           },
           {
             id: 'delete-node',

@@ -23,6 +23,7 @@
     "axios": "^1.8.4",
     "cytoscape": "^3.31.2",
     "cytoscape-context-menus": "^4.2.1",
+    "cytoscape-dblclick": "^0.3.1",
     "cytoscape-klay": "^3.1.4",
     "react": "^19.0.0",
     "react-cytoscapejs": "^2.0.0",
