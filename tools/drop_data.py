@@ -9,8 +9,11 @@ import sys
 import requests
 import os # Import os to read environment variables
 
-# --- Constants ---
-DEFAULT_API_BASE_URL = "http://localhost:3000/api"
+# --- Constants (API base derived from env) ---
+env_api_base = os.environ.get("MIMS_API_URL")
+if not env_api_base and os.environ.get("DGRAPH_URL"):
+    env_api_base = os.environ["DGRAPH_URL"].replace("/graphql", "/api")
+DEFAULT_API_BASE_URL = env_api_base or "http://localhost:3000/api"
 # --- End Constants ---
 
 def drop_all_data_via_api(api_base_url: str, target: str, admin_api_key: str) -> bool:

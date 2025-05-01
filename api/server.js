@@ -1,5 +1,4 @@
 require('dotenv').config(); // Load environment variables from .env file
-const fs = require('fs');
 const schemaRegistry = require('./schemaRegistry'); // Schema registry module
 const { pushSchemaViaHttp } = require('./utils/pushSchema'); // Import the new helper
 
@@ -24,6 +23,7 @@ const { executeGraphQL } = require('./dgraphClient'); // Import the client
 
 const { v4: uuidv4 } = require('uuid'); // Import UUID generator
 const axios = require('axios'); // Import axios for /api/schema
+const { sendDgraphAdminRequest } = require('./utils/dgraphAdmin');
 const app = express();
 const PORT = process.env.PORT || 3000; // Use PORT from .env or default to 3000
 
@@ -53,37 +53,6 @@ const authenticateAdmin = (req, res, next) => {
   next();
 };
 
-// Helper function to send requests to Dgraph admin endpoints
-async function sendDgraphAdminRequest(url, payload) {
-  try {
-    const response = await axios.post(url, payload, {
-      headers: { 'Content-Type': 'application/json' },
-    });
-    // response.raiseForStatus(); // Removed: Rely on default axios error handling
-    // Check for non-2xx status explicitly if needed, but catch block handles it by default
-    if (response.status >= 200 && response.status < 300) {
-       return { success: true, data: response.data };
-    } else {
-       // This case should ideally be caught by the catch block due to default validateStatus
-       // but adding an explicit check here for clarity if raiseForStatus is unavailable
-       console.error(`[DGRAPH ADMIN REQUEST] Received non-2xx status for ${url}: ${response.status}`);
-       return { success: false, error: `Dgraph admin request failed with status: ${response.status}`, details: response.data };
-    }
-  } catch (error) {
-    console.error(`[DGRAPH ADMIN REQUEST] Error sending request to ${url}:`, error.message);
-    if (error.response) {
-      console.error('[DGRAPH ADMIN REQUEST] Response status:', error.response.status);
-      console.error('[DGRAPH ADMIN REQUEST] Response data:', error.response.data);
-      return { success: false, error: `Dgraph admin request failed: ${error.response.status} - ${error.response.statusText}`, details: error.response.data };
-    } else if (error.request) {
-      // The request was made but no response was received
-      return { success: false, error: `No response received from Dgraph admin at ${url}` };
-    } else {
-      // Something happened in setting up the request that triggered an Error
-      return { success: false, error: `Error setting up Dgraph admin request: ${error.message}` };
-    }
-  }
-}
 
 // Helper function to drop all data from Dgraph instance(s)
 async function dropAllData(target) {
@@ -96,11 +65,18 @@ async function dropAllData(target) {
     results.local = await sendDgraphAdminRequest(url, payload);
   }
 
-  if (target === 'remote' || target === 'both') {
-    const url = process.env.DGRAPH_ALTER_URL_REMOTE;
+    if (target === 'remote' || target === 'both') {
+    let url;
+    if (process.env.DGRAPH_ALTER_URL_REMOTE) {
+      url = process.env.DGRAPH_ALTER_URL_REMOTE;
+    } else if (process.env.DGRAPH_URL) {
+      url = process.env.DGRAPH_URL.replace(/\/graphql\/?$/, '') + '/alter';
+    } else if (process.env.DGRAPH_ADMIN_URL_REMOTE) {
+      url = process.env.DGRAPH_ADMIN_URL_REMOTE.replace(/\/admin\/schema\/?$/, '') + '/alter';
+    }
     if (!url) {
-      results.remote = { success: false, error: 'DGRAPH_ALTER_URL_REMOTE environment variable not set for remote drop.' };
-      console.error('[DROP ALL] DGRAPH_ALTER_URL_REMOTE environment variable not set.');
+      results.remote = { success: false, error: 'Neither DGRAPH_ALTER_URL_REMOTE nor DGRAPH_ADMIN_URL_REMOTE environment variable set for remote drop.' };
+      console.error('[DROP ALL] DGRAPH_ALTER_URL_REMOTE or DGRAPH_ADMIN_URL_REMOTE environment variable not set.');
     } else {
       console.log(`[DROP ALL] Sending drop_all to remote Dgraph at ${url}`);
       results.remote = await sendDgraphAdminRequest(url, payload);
@@ -325,37 +301,10 @@ async function pushSchemaToLocal(schema) {
 
   // Add local verification step if needed, similar to the old pushSchemaToLocal
   // For now, we'll rely on the HTTP push result
-  // const verificationResult = await verifySchemaLocal();
-  // result.verification = verificationResult;
 
   return result;
 }
 
-// Helper function to verify schema was applied locally
-async function verifySchemaLocal() {
-  try {
-    // Wait briefly for schema to apply
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    // Use introspection query to verify GraphQL schema is loaded
-    const introspectionQuery = "{ __schema { queryType { name } } }";
-    const response = await axios.post(
-      process.env.DGRAPH_URL || 'http://localhost:8080/graphql',
-      { query: introspectionQuery },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-
-    return {
-      success: true,
-      data: response.data
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
 
 // Helper function to push schema to remote Dgraph instance
 async function pushSchemaToRemote(schema) {
