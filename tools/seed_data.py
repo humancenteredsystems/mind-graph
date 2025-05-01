@@ -5,43 +5,15 @@ Seed the Dgraph database with test data.
 This tool adds test nodes and edges to the graph database using GraphQL mutations.
 """
 import argparse
+import os # Import os to read environment variables
 import sys
 import json
-import requests
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from tools.api_client import call_api # Import the shared API client
 
-# --- Constants moved from utils.py ---
-DEFAULT_ENDPOINT = "http://localhost:8080/graphql"
-# --- End Constants ---
-
-# --- execute_graphql logic moved here ---
-def _execute_graphql_http(
-    query: str,
-    variables: Optional[Dict[str, Any]] = None,
-    endpoint: str = DEFAULT_ENDPOINT
-) -> Dict[str, Any]:
-    """Internal function to execute GraphQL via HTTP POST."""
-    headers = {"Content-Type": "application/json"}
-    payload = {"query": query}
-    if variables:
-        payload["variables"] = variables
-
-    try:
-        response = requests.post(endpoint, json=payload, headers=headers)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        print(f"❌ GraphQL request failed: {str(e)}") # Replaced logger
-        if hasattr(response, 'text'):
-            print(f"Response: {response.text}") # Replaced logger
-        # Re-raise the exception to be caught by the calling function
-        raise
-    except Exception as e:
-        print(f"❌ An unexpected error occurred during GraphQL request: {str(e)}") # Replaced logger
-        raise
-# --- End execute_graphql logic ---
-
+# Default API base URL (override with MIMS_API_URL env var)
+DEFAULT_API_BASE = "http://localhost:3000/api"
 
 # Sample test data
 DEFAULT_TEST_DATA = {
@@ -88,59 +60,81 @@ mutation AddEdge($input: [AddEdgeInput!]!) {
 }
 """
 
-def add_nodes(nodes: List[Dict[str, Any]], endpoint: str) -> bool:
-    """Add nodes to the graph database."""
-    try:
-        variables = {"input": nodes}
-        result = _execute_graphql_http(ADD_NODE_MUTATION, variables, endpoint) # Use internal function
+def add_nodes(nodes: List[Dict[str, Any]], api_base: str, api_key: str) -> bool:
+    """Add nodes to the graph database via the API."""
+    print(f"Adding {len(nodes)} nodes via API at {api_base}...")
+    payload = {
+        "mutation": ADD_NODE_MUTATION,
+        "variables": {"input": nodes}
+    }
+    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload)
 
-        if "errors" in result:
-            error_messages = [err.get('message', 'Unknown error') for err in result['errors']]
-            print(f"❌ Failed to add nodes: {'; '.join(error_messages)}") # Replaced logger
-            return False
-
-        added_nodes = result.get("data", {}).get("addNode", {}).get("node", [])
-        print(f"Added {len(added_nodes)} nodes") # Replaced logger
+    if response["success"]:
+        added_nodes = response.get("data", {}).get("addNode", {}).get("node", [])
+        print(f"✅ Added {len(added_nodes)} nodes.")
         return True
-    except Exception as e:
-        # Error already printed by _execute_graphql_http
-        print(f"Error during node addition process.")
+    else:
+        print(f"❌ Failed to add nodes: {response['error']}")
+        if response.get("details"):
+            print("Details:", response["details"])
         return False
 
-def add_edges(edges: List[Dict[str, Any]], endpoint: str) -> bool:
-    """Add edges to the graph database."""
-    try:
-        # Ensure edge 'from' and 'to' are formatted correctly for GraphQL input
-        # The input data should already include fromId and toId
-        variables = {"input": edges} # Use edges directly as they should be formatted
-        result = _execute_graphql_http(ADD_EDGE_MUTATION, variables, endpoint) # Use internal function
+def add_edges(edges: List[Dict[str, Any]], api_base: str, api_key: str) -> bool:
+    """Add edges to the graph database via the API."""
+    print(f"Adding {len(edges)} edges via API at {api_base}...")
+    payload = {
+        "mutation": ADD_EDGE_MUTATION,
+        "variables": {"input": edges}
+    }
+    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload)
 
-        if "errors" in result:
-            error_messages = [err.get('message', 'Unknown error') for err in result['errors']]
-            print(f"❌ Failed to add edges: {'; '.join(error_messages)}") # Replaced logger
-            return False
-
-        added_edges = result.get("data", {}).get("addEdge", {}).get("edge", [])
-        print(f"Added {len(added_edges)} edges") # Replaced logger
+    if response["success"]:
+        added_edges = response.get("data", {}).get("addEdge", {}).get("edge", [])
+        print(f"✅ Added {len(added_edges)} edges.")
         return True
-    except Exception as e:
-        # Error already printed by _execute_graphql_http
-        print(f"Error during edge addition process.")
+    else:
+        print(f"❌ Failed to add edges: {response['error']}")
+        if response.get("details"):
+            print("Details:", response["details"])
         return False
 
 def main():
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(description="Seed the Dgraph database with test data")
+    parser = argparse.ArgumentParser(description="Seed the Dgraph database with test data via API")
     parser.add_argument(
         "--data", "-d",
         help="Path to JSON file with test data (default: use built-in test data)"
     )
     parser.add_argument(
-        "--endpoint", "-e",
-        default=DEFAULT_ENDPOINT, # Use local constant
-        help=f"Dgraph GraphQL endpoint (default: {DEFAULT_ENDPOINT})"
+        "--target", "-t",
+        choices=["local", "remote"], # Initially support local and remote
+        required=True, # Target is now required
+        help="Target environment to seed data to ('local' or 'remote')"
     )
+    parser.add_argument(
+        "--api-base", "-b",
+        default=os.environ.get("MIMS_API_URL", DEFAULT_API_BASE),
+        help=f"API base URL for the target environment (default: {DEFAULT_API_BASE})"
+    )
+    parser.add_argument(
+        "--api-key", "-k",
+        default=os.environ.get("MIMS_ADMIN_API_KEY", ""),
+        help="Admin API Key (default: from MIMS_ADMIN_API_KEY environment variable)"
+    )
+    
     args = parser.parse_args()
+
+    # Check for API key
+    if not args.api_key:
+        print("❌ Error: Admin API key is required. Set MIMS_ADMIN_API_KEY environment variable or use --api-key.")
+        return 1
+
+    # Determine API base URL based on target (if not explicitly provided)
+    # If --api-base is provided, it overrides the default based on target.
+    api_base_url = args.api_base
+    # Note: A more sophisticated approach might involve looking up URLs based on target
+    # from a config file or environment variables specific to local/remote APIs.
+    # For now, we rely on the user providing the correct --api-base for the target.
 
     # Load test data
     if args.data:
@@ -150,17 +144,16 @@ def main():
                 test_data = json.load(f)
             print(f"Loaded test data from {data_path}")
         except Exception as e:
-            print(f"❌ Failed to load test data file '{args.data}': {str(e)}") # Replaced logger
+            print(f"❌ Failed to load test data file '{args.data}': {str(e)}")
             return 1
     else:
         test_data = DEFAULT_TEST_DATA
-        print("Using built-in test data") # Replaced logger
+        print("Using built-in test data")
 
     # Add nodes
     nodes_to_add = test_data.get("nodes", [])
     if nodes_to_add:
-        print(f"Adding {len(nodes_to_add)} nodes to {args.endpoint}") # Replaced logger
-        if not add_nodes(nodes_to_add, args.endpoint):
+        if not add_nodes(nodes_to_add, api_base_url, args.api_key):
             return 1
     else:
         print("No nodes found in test data.")
@@ -168,13 +161,12 @@ def main():
     # Add edges
     edges_to_add = test_data.get("edges", [])
     if edges_to_add:
-        print(f"Adding {len(edges_to_add)} edges to {args.endpoint}") # Replaced logger
-        if not add_edges(edges_to_add, args.endpoint):
+        if not add_edges(edges_to_add, api_base_url, args.api_key):
             return 1
     else:
         print("No edges found in test data.")
 
-    print("✅ Test data seeding process completed.") # Replaced logger
+    print("✅ Test data seeding process completed.")
     return 0
 
 if __name__ == "__main__":
