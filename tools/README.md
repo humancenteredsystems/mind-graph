@@ -12,7 +12,6 @@ This directory contains Python scripts and an HTML visualizer to operate on the 
 - **seed_data.py**: Populate the database with sample or test data via the backend API.
 - **query_graph.py**: Run predefined or custom GraphQL queries (currently direct to Dgraph, consider refactoring to use API).
 - **export_graph.py**: Export the current graph to a JSON file (currently direct from Dgraph, consider refactoring to use API).
-- **visualize_mermaid.html**: Load a JSON export in your browser and render it as a Mermaid diagram.
 
 ## Prerequisites
 
