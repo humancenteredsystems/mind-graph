@@ -27,6 +27,19 @@ const { sendDgraphAdminRequest } = require('./utils/dgraphAdmin');
 const app = express();
 const PORT = process.env.PORT || 3000; // Use PORT from .env or default to 3000
 
+// Ensure DGRAPH_BASE_URL is set
+if (!process.env.DGRAPH_BASE_URL) {
+  console.error("FATAL ERROR: DGRAPH_BASE_URL environment variable is not set.");
+  console.error("Please set DGRAPH_BASE_URL to your Dgraph instance's base URL (e.g., http://localhost:8080 or https://your-remote-dgraph.onrender.com).");
+  process.exit(1);
+}
+
+// Derive Dgraph endpoint URLs from the base URL
+const DGRAPH_BASE_URL = process.env.DGRAPH_BASE_URL.replace(/\/+$/, ''); // Remove trailing slash
+const DGRAPH_GRAPHQL_URL = `${DGRAPH_BASE_URL}/graphql`;
+const DGRAPH_ADMIN_SCHEMA_URL = `${DGRAPH_BASE_URL}/admin/schema`;
+const DGRAPH_ALTER_URL = `${DGRAPH_BASE_URL}/alter`;
+
 // Middleware
 app.use(express.json()); // Parse JSON bodies
 
@@ -54,36 +67,15 @@ const authenticateAdmin = (req, res, next) => {
 };
 
 
-// Helper function to drop all data from Dgraph instance(s)
-async function dropAllData(target) {
-  const results = {};
+// Helper function to drop all data from the configured Dgraph instance
+async function dropAllData(target) { // Keep target parameter for potential future validation/logging
   const payload = { "drop_all": true };
+  const url = DGRAPH_ALTER_URL; // Use the derived URL
 
-  if (target === 'local' || target === 'both') {
-    const url = process.env.DGRAPH_ALTER_URL_LOCAL || 'http://localhost:8080/alter';
-    console.log(`[DROP ALL] Sending drop_all to local Dgraph at ${url}`);
-    results.local = await sendDgraphAdminRequest(url, payload);
-  }
+  console.log(`[DROP ALL] Sending drop_all to configured Dgraph at ${url}`);
+  const result = await sendDgraphAdminRequest(url, payload);
 
-    if (target === 'remote' || target === 'both') {
-    let url;
-    if (process.env.DGRAPH_ALTER_URL_REMOTE) {
-      url = process.env.DGRAPH_ALTER_URL_REMOTE;
-    } else if (process.env.DGRAPH_URL) {
-      url = process.env.DGRAPH_URL.replace(/\/graphql\/?$/, '') + '/alter';
-    } else if (process.env.DGRAPH_ADMIN_URL_REMOTE) {
-      url = process.env.DGRAPH_ADMIN_URL_REMOTE.replace(/\/admin\/schema\/?$/, '') + '/alter';
-    }
-    if (!url) {
-      results.remote = { success: false, error: 'Neither DGRAPH_ALTER_URL_REMOTE nor DGRAPH_ADMIN_URL_REMOTE environment variable set for remote drop.' };
-      console.error('[DROP ALL] DGRAPH_ALTER_URL_REMOTE or DGRAPH_ADMIN_URL_REMOTE environment variable not set.');
-    } else {
-      console.log(`[DROP ALL] Sending drop_all to remote Dgraph at ${url}`);
-      results.remote = await sendDgraphAdminRequest(url, payload);
-    }
-  }
-
-  return results;
+  return result; // Return the single result object
 }
 
 
@@ -274,7 +266,7 @@ app.get('/api/search', async (req, res) => {
 
 // Endpoint to get the current GraphQL schema from Dgraph
 app.get('/api/schema', async (req, res) => {
-    const DGRAPH_ADMIN_ENDPOINT = 'http://localhost:8080/admin/schema'; // Dgraph Admin endpoint
+    const DGRAPH_ADMIN_ENDPOINT = DGRAPH_ADMIN_SCHEMA_URL; // Use the derived URL
     try {
         // Use axios directly as dgraphClient is for the /graphql endpoint
         const response = await axios.get(DGRAPH_ADMIN_ENDPOINT);
@@ -294,25 +286,14 @@ app.get('/api/schema', async (req, res) => {
     }
 });
 
-// Helper function to push schema to local Dgraph instance
-async function pushSchemaToLocal(schema) {
-  const url = process.env.DGRAPH_ADMIN_URL || 'http://localhost:8080/admin/schema';
+// Helper function to push schema to the configured Dgraph instance
+async function pushSchemaToConfiguredDgraph(schema) {
+  const url = DGRAPH_ADMIN_SCHEMA_URL; // Use the derived URL
   const result = await pushSchemaViaHttp(url, schema);
 
-  // Add local verification step if needed, similar to the old pushSchemaToLocal
-  // For now, we'll rely on the HTTP push result
+  // Add verification step if needed
 
   return result;
-}
-
-
-// Helper function to push schema to remote Dgraph instance
-async function pushSchemaToRemote(schema) {
-  const url = process.env.DGRAPH_ADMIN_URL_REMOTE;
-  if (!url) {
-    throw new Error('DGRAPH_ADMIN_URL_REMOTE environment variable not set for remote push.');
-  }
-  return await pushSchemaViaHttp(url, schema);
 }
 
 // Schema Management Endpoints
@@ -399,62 +380,45 @@ app.put('/api/schemas/:id', authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/schemas/:id/push - Push a specific schema to Dgraph
+// This endpoint will now push to the Dgraph instance configured by the API's DGRAPH_BASE_URL.
+// The 'target' query parameter is now redundant for the API's action, but we can keep it
+// for potential future validation or logging if needed.
 app.post('/api/schemas/:id/push', authenticateAdmin, async (req, res) => {
   try {
     const schemaId = req.params.id;
-    const target = req.query.target || 'local';
-
-    if (!['local', 'remote', 'both'].includes(target)) {
-      return res.status(400).json({ error: 'Invalid target. Must be "local", "remote", or "both"' });
-    }
+    // const target = req.query.target || 'local'; // Target parameter is now less relevant for API action
 
     // Get schema content
     const schemaContent = await schemaRegistry.getSchemaContent(schemaId);
 
-    const results = {};
+    console.log(`[SCHEMA PUSH] Pushing schema ${schemaId} to configured Dgraph instance`);
+    const result = await pushSchemaToConfiguredDgraph(schemaContent);
 
-    // Handle local schema push
-    if (target === 'local' || target === 'both') {
-      console.log(`[SCHEMA PUSH] Pushing schema ${schemaId} to local Dgraph instance`);
-      const localResult = await pushSchemaToLocal(schemaContent);
-      results.local = localResult;
-
-      if (!localResult.success) {
-        console.error('[SCHEMA PUSH] Local push failed:', localResult.error);
-      }
-    }
-
-    // Handle remote schema push
-    if (target === 'remote' || target === 'both') {
-      console.log(`[SCHEMA PUSH] Pushing schema ${schemaId} to remote Dgraph instance`);
-      const remoteResult = await pushSchemaToRemote(schemaContent);
-      results.remote = remoteResult;
-
-      if (!remoteResult.success) {
-        console.error('[SCHEMA PUSH] Remote push failed:', remoteResult.error);
-      }
-    }
-
-    // Return overall success status
-    const allSuccessful = Object.values(results).every(result => result.success);
-
-    if (allSuccessful) {
+    if (result.success) {
       // If pushing the production schema, update other schemas to not be production
+      // This logic might need adjustment depending on how production schema is managed
+      // with a single DGRAPH_BASE_URL. Assuming the API instance is tied to a specific
+      // Dgraph instance (local or remote), the concept of "production" might apply
+      // to the schema pushed to the remote instance.
+      // Let's keep this logic for now, assuming it's intended for the schema registry state.
       const schema = await schemaRegistry.getSchemaById(schemaId);
       if (schema.is_production) {
+        // This update is to the schema registry, not Dgraph itself.
+        // It marks this schema as the currently active production schema in the registry.
         await schemaRegistry.updateSchema(schemaId, { is_production: true });
       }
 
       res.json({
         success: true,
-        message: `Schema ${schemaId} successfully pushed to ${target}`,
-        results
+        message: `Schema ${schemaId} successfully pushed to configured Dgraph instance`,
+        results: result // Return the single result object
       });
     } else {
+      console.error('[SCHEMA PUSH] Push failed:', result.error);
       res.status(500).json({
         success: false,
-        message: `Schema ${schemaId} push to ${target} encountered errors`,
-        results
+        message: `Schema ${schemaId} push encountered errors`,
+        results: result // Return the single result object
       });
     }
   } catch (error) {
@@ -467,10 +431,12 @@ app.post('/api/schemas/:id/push', authenticateAdmin, async (req, res) => {
 });
 
 // Endpoint to push schema directly or from registry
+// This endpoint will also push to the Dgraph instance configured by the API's DGRAPH_BASE_URL.
+// The 'target' parameter in the request body is now redundant for the API's action.
 app.post('/api/admin/schema', authenticateAdmin, async (req, res) => {
   try {
     // Get schema from request body, or schema ID if provided
-    const { schema, schemaId, target = 'local' } = req.body;
+    const { schema, schemaId /*, target = 'local'*/ } = req.body; // Target parameter is now less relevant
 
     // Determine which schema to use
     let schemaContent;
@@ -486,29 +452,16 @@ app.post('/api/admin/schema', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Missing required field: schema or schemaId' });
     }
 
-    if (!['local', 'remote', 'both'].includes(target)) {
-      return res.status(400).json({ success: false, message: `Invalid target: ${target}. Must be "local", "remote", or "both"` });
-    }
-
-    let result;
-    if (target === 'local') {
-      result = await pushSchemaToLocal(schemaContent);
-    } else if (target === 'remote') {
-      result = await pushSchemaToRemote(schemaContent);
-    } else if (target === 'both') {
-      const local = await pushSchemaToLocal(schemaContent);
-      const remote = await pushSchemaToRemote(schemaContent);
-      result = {
-        local,
-        remote,
-        success: local.success && remote.success,
-      };
-    }
+    // The API instance is configured for a single Dgraph target via DGRAPH_BASE_URL.
+    // We will push the schema to *that* configured instance.
+    console.log('[SCHEMA PUSH] Pushing schema to configured Dgraph instance');
+    const result = await pushSchemaToConfiguredDgraph(schemaContent);
 
     if (result.success) {
       return res.json({ success: true, results: result });
     } else {
-      // Return 500 status code if any push failed
+      console.error('[SCHEMA PUSH] Push failed:', result.error);
+      // Return 500 status code if the push failed
       return res.status(500).json({ success: false, message: 'Schema push encountered errors', results: result });
     }
   } catch (err) {
@@ -556,6 +509,7 @@ app.post('/api/admin/dropAll', authenticateAdmin, async (req, res) => {
 app.get('/api/health', async (req, res) => {
   const healthQuery = `query { queryNode { id } }`; // Minimal query
   try {
+    // Use executeGraphQL which is configured with DGRAPH_GRAPHQL_URL
     await executeGraphQL(healthQuery);
     res.json({ apiStatus: "OK", dgraphStatus: "OK" });
   } catch (error) {
@@ -567,21 +521,25 @@ app.get('/api/health', async (req, res) => {
 // Diagnostic endpoint for Dgraph connectivity
 const dns = require('dns').promises;
 app.get('/api/debug/dgraph', async (req, res) => {
-  const raw = process.env.DGRAPH_URL || 'http://localhost:8080';
-  let base = raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
-  const host = base.split(':')[0];
+  // Use the derived URLs for testing connectivity
+  const graphqlUrl = DGRAPH_GRAPHQL_URL;
+  const adminSchemaUrl = DGRAPH_ADMIN_SCHEMA_URL;
+  const baseUrl = DGRAPH_BASE_URL; // Use the base URL for DNS lookup
+
+  let host = baseUrl.replace(/^https?:\/\//, '').split(':')[0];
+
   try {
     const dnsStart = Date.now();
     const { address } = await dns.lookup(host);
     const lookupMs = Date.now() - dnsStart;
 
     // Test HTTP admin API reachability
-    await axios.head(`${raw}/admin/schema`);
+    await axios.head(adminSchemaUrl);
 
     // Test GraphQL introspection
     const gqlRes = await axios.post(
-      `${raw}/graphql`,
-      { query: '{ __schema { queryType { name } } }' },
+      graphqlUrl,
+      { query: '{ __schema { queryType { name } } }', variables: null },
       { headers: { 'Content-Type': 'application/json' } }
     );
 

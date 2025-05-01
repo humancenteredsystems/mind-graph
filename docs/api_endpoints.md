@@ -187,7 +187,6 @@ mutation {
   "dns": { "host": "10.0.1.5", "lookupMs": 12 },
   "httpAdmin": "reachable",
   "graphql": { "__schema": { "queryType": { "name": "Query" } } }
-}
 ```
 **Error Response (500 Internal Server Error):**  
 ```json
@@ -318,107 +317,92 @@ type Node {
 
 ## POST /api/schemas/:id/push
 
-**Path:** `/api/schemas/:id/push?target=local`  
-**Description:** Pushes a specific schema from the registry to Dgraph instance(s).  
+**Path:** `/api/schemas/:id/push`  
+**Description:** Pushes a specific schema from the registry to the Dgraph instance configured by the API service's `DGRAPH_BASE_URL`. The `target` query parameter is now redundant for the API's action, but may be used by calling scripts.  
 **Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
 **Query Parameters:**  
-- `target` (optional): Where to push the schema (choices: "local", "remote", "both"; default: "local")  
+- `target` (optional): This parameter is now primarily for the calling script's reference and does not affect which Dgraph instance the API pushes to. Accepted values: "local", "remote", or "both".  
 **Response (200 OK):**  
 ```json
 {
   "success": true,
-  "message": "Schema schema-id successfully pushed to local",
-  "results": {
-    "local": {
-      "success": true,
-      "verification": { /* verification details */ }
-    }
-  }
+  "message": "Schema schema-id successfully pushed to configured Dgraph instance",
+  "results": { /* Result from the single push operation */ }
+}
+```
+**Response (500 Internal Server Error):**  
+```json
+{
+  "success": false,
+  "message": "Schema schema-id push encountered errors",
+  "results": { /* Error details from the single push operation */ }
 }
 ```
 
 ## POST /api/admin/schema
 
 **Path:** `/api/admin/schema`  
-**Description:** Legacy endpoint for pushing a GraphQL schema to Dgraph instance(s).  
+**Description:** Legacy endpoint for pushing a GraphQL schema directly or from the registry to the Dgraph instance configured by the API service's `DGRAPH_BASE_URL`. The `target` parameter in the request body is now redundant for the API's action, but may be used by calling scripts.  
 **Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
 **Request Body:**  
 ```json
 {
   "schema": "type Node { id: String! @id ... }", // Direct schema content
   "schemaId": "default",                          // OR schema ID from registry
-  "target": "local"                               // "local", "remote", or "both"
+  "target": "local"                               // This parameter is now primarily for the calling script's reference. Accepted values: "local", "remote", or "both".
 }
 ```
 **Response (200 OK):**  
 ```json
 {
   "success": true,
-  "message": "Schema successfully pushed to local",
-  "results": {
-    "local": {
-      "success": true,
-      "verification": { /* verification details */ }
-    }
-  }
+  "message": "Schema successfully pushed to configured Dgraph instance",
+  "results": { /* Result from the single push operation */ }
 }
 ```
 **Error Responses:**  
-- 400 Bad Request if schema is missing or target is invalid.  
+- 400 Bad Request if schema or schemaId is missing, or target is invalid.  
 - 401 Unauthorized if API key is missing or invalid.  
 - 500 Internal Server Error if schema push fails.
 
 ---
 
-*This reference ensures you can integrate with the backend in both local and production environments.*
+*This reference ensures you can integrate with the backend in both local and production environments. Note that Dgraph endpoint URLs (GraphQL, admin schema, alter) are now derived from a single `DGRAPH_BASE_URL` environment variable configured for the API service.*
 
 ## POST /api/admin/dropAll
 
 **Path:** `/api/admin/dropAll`
-**Description:** Clears all data (nodes and edges) from the specified Dgraph instance(s).
+**Description:** Clears all data (nodes and edges) from the Dgraph instance configured by the API service's `DGRAPH_BASE_URL`. The `target` parameter in the request body is now redundant for the API's action, but may be used by calling scripts.
 **Authentication:** Requires admin API key via `X-Admin-API-Key` header.
 **Request Body:**
 ```json
 {
-  "target": "local" // or "remote", or "both"
+  "target": "local" // This parameter is now primarily for the calling script's reference. Accepted values: "local", "remote", or "both".
 }
 ```
 **Request Body Parameters:**
-- `target` (required): Specifies which Dgraph instance(s) to drop data from. Accepted values: `"local"`, `"remote"`, `"both"`.
+- `target` (required): This parameter is now primarily for the calling script's reference and does not affect which Dgraph instance the API drops data from. Accepted values: `"local"`, `"remote"`, or `"both"`.
 
 **Response (200 OK):**
 ```json
 {
   "success": true,
-  "message": "Drop all data operation completed successfully for target(s): local",
-  "results": {
-    "local": {
-      "success": true,
-      "data": { /* Dgraph alter response data */ }
-    }
-    // "remote": { ... } // Included if target is "remote" or "both"
-  }
+  "message": "Drop all data operation completed successfully for configured Dgraph instance",
+  "results": { /* Result from the single drop operation */ }
 }
 ```
 **Response (500 Internal Server Error):**
 ```json
 {
   "success": false,
-  "message": "Drop all data operation encountered errors for target(s): local",
-  "results": {
-    "local": {
-      "success": false,
-      "error": "Error message from Dgraph admin request",
-      "details": { /* Optional: Dgraph error details */ }
-    }
-    // "remote": { ... } // Included if target is "remote" or "both"
-  }
+  "message": "Drop all data operation encountered errors",
+  "results": { /* Error details from the single drop operation */ }
 }
 ```
 **Error Responses:**
 - 400 Bad Request if `target` field is missing or invalid.
 - 401 Unauthorized if API key is missing or invalid.
-- 500 Internal Server Error if the drop operation fails on one or more targets.
+- 500 Internal Server Error if the drop operation fails.
 
 ---
 
