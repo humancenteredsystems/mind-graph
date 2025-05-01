@@ -8,3 +8,5 @@
 - Hide node
 - Tie level to 'Type'
 - Rate limite API requests
+- Get working on mobile
+- Test in different browsers

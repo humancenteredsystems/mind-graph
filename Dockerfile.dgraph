@@ -3,7 +3,7 @@ FROM dgraph/dgraph:latest
 # Copy and set entrypoint script
 COPY docker/dgraph-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/dgraph-entrypoint.sh
-COPY schema.graphql /schema.graphql
+COPY schemas/default.graphql /schema.graphql
 
 # Run both Zero and Alpha via the entrypoint
 ENTRYPOINT ["/usr/local/bin/dgraph-entrypoint.sh"]

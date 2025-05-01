@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core } from 'cytoscape';
-import dblclick from 'cytoscape-dblclick';
-
-// Register the plugin
-cytoscape.use(dblclick);
 
 interface DebugEvent {
   type: string;
@@ -91,13 +87,6 @@ const CytoscapeDebugger: React.FC = () => {
       logEvent('tap', nodeId);
       e.preventDefault();
       return false;
-    });
-    
-    // Add double-click handler
-    cy.on('dblclick', 'node', (e) => {
-      const nodeId = e.target.id();
-      logEvent('dblclick', nodeId);
-      handleNodeClick(nodeId);
     });
     
     // Add doubleTap for mobile
