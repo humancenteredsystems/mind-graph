@@ -1,14 +1,12 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition, StylesheetCSS } from 'cytoscape';
-// import dblclick from 'cytoscape-dblclick'; // Remove dblclick extension
 import klay from 'cytoscape-klay';
 import { NodeData, EdgeData } from '../types/graph';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { log } from '../utils/logger';
 
 // Register Cytoscape plugins ONCE at module load
-// cytoscape.use(dblclick); // Remove dblclick extension
 cytoscape.use(klay);
 
 interface GraphViewProps {
@@ -146,12 +144,12 @@ const GraphView: React.FC<GraphViewProps> = ({
       if (shortTermTapTimeoutRef.current) {
         clearTimeout(shortTermTapTimeoutRef.current);
         shortTermTapTimeoutRef.current = null;
-        log('GraphView', '[handleTap] Cleared short-term timeout (duplicate tap event likely)');
+        // log('GraphView', '[handleTap] Cleared short-term timeout (duplicate tap event likely)'); // Removed log
         // We might still need to check if this completes a double-click
       }
       
       if (!nodeId) {
-        log('GraphView', '[handleTap] Tap detected on background or unknown target.');
+        // log('GraphView', '[handleTap] Tap detected on background or unknown target.'); // Removed log
         lastConfirmedClickRef.current = { nodeId: null, time: 0 }; // Reset on background tap
         potentialClickRef.current = { nodeId: null, time: 0 };
         return;
@@ -163,7 +161,7 @@ const GraphView: React.FC<GraphViewProps> = ({
 
       if (nodeId === lastConfirmedNodeId && timeDiffFromConfirmed < DOUBLE_CLICK_DELAY) {
         // --- Double-click detected ---
-        log('GraphView', `[handleTap] Double-click detected on node: ${nodeId} (Time diff: ${timeDiffFromConfirmed}ms)`);
+        // log('GraphView', `[handleTap] Double-click detected on node: ${nodeId} (Time diff: ${timeDiffFromConfirmed}ms)`); // Removed log
         
         // Reset state immediately
         lastConfirmedClickRef.current = { nodeId: null, time: 0 }; 
@@ -177,13 +175,13 @@ const GraphView: React.FC<GraphViewProps> = ({
         if (onEditNode) {
           const nodeData = nodes.find(n => n.id === nodeId);
           if (nodeData) {
-            log('GraphView', `[handleTap] Calling onEditNode for node: ${nodeId}`);
+            // log('GraphView', `[handleTap] Calling onEditNode for node: ${nodeId}`); // Removed log
             onEditNode(nodeData);
           } else {
             log('GraphView', `[handleTap] Warning: Node data not found for ID: ${nodeId}`);
           }
         } else {
-          log('GraphView', '[handleTap] Double-click detected but no onEditNode handler provided.');
+          // log('GraphView', '[handleTap] Double-click detected but no onEditNode handler provided.'); // Removed log
         }
         
         // Prevent default behavior for the second tap
@@ -194,21 +192,21 @@ const GraphView: React.FC<GraphViewProps> = ({
          // --- Potential Single Click ---
          // Store this tap temporarily
          potentialClickRef.current = { nodeId, time: now };
-         log('GraphView', `[handleTap] Potential single click on node: ${nodeId}. Setting short-term timeout.`);
+         // log('GraphView', `[handleTap] Potential single click on node: ${nodeId}. Setting short-term timeout.`); // Removed log
 
          // Set a short timeout. If no other tap event clears this timeout within ~50ms, 
-          // then confirm this as the first click of a potential double-click sequence.
-          shortTermTapTimeoutRef.current = setTimeout(() => {
-              const confirmedNodeId = potentialClickRef.current.nodeId;
-              log('GraphView', `[handleTap] Short-term timeout completed. Confirming single click for node: ${confirmedNodeId}`);
-              lastConfirmedClickRef.current = { ...potentialClickRef.current };
-              shortTermTapTimeoutRef.current = null;
+         // then confirm this as the first click of a potential double-click sequence.
+         shortTermTapTimeoutRef.current = setTimeout(() => {
+             const confirmedNodeId = potentialClickRef.current.nodeId;
+             // log('GraphView', `[handleTap] Short-term timeout completed. Confirming single click for node: ${confirmedNodeId}`); // Removed log
+             lastConfirmedClickRef.current = { ...potentialClickRef.current };
+             shortTermTapTimeoutRef.current = null;
               
               // If single click confirmed, call onNodeSelect if provided
               if (onNodeSelect && confirmedNodeId) {
                   const nodeData = nodes.find(n => n.id === confirmedNodeId);
                   if (nodeData) {
-                      log('GraphView', `[handleTap] Calling onNodeSelect for node: ${confirmedNodeId}`);
+                      // log('GraphView', `[handleTap] Calling onNodeSelect for node: ${confirmedNodeId}`); // Removed log
                       onNodeSelect(nodeData);
                   } else {
                       log('GraphView', `[handleTap] Warning: Node data not found for ID: ${confirmedNodeId} after confirming single click.`);
