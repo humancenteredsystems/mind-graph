@@ -1,20 +1,27 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchTraversalData, fetchAllNodeIds, deleteNodeCascade } from '../services/ApiService';
-import { transformTraversalData } from '../utils/graphUtils';
+import { useState, useCallback, useRef } from 'react';
+import { fetchTraversalData, deleteNodeCascade, executeQuery, executeMutation } from '../services/ApiService'; // Added executeQuery
+import { transformTraversalData, transformAllGraphData } from '../utils/graphUtils'; // Added transformAllGraphData
 import { NodeData, EdgeData } from '../types/graph';
 import { log } from '../utils/logger'; // Import the logger utility
 import { v4 as uuidv4 } from 'uuid';
-import { executeMutation } from '../services/ApiService';
+// Import centralized queries and mutations
+import { GET_ALL_NODES_AND_EDGES_QUERY } from '../graphql/queries';
+import {
+  ADD_NODE_MUTATION,
+  ADD_EDGE_MUTATION,
+  UPDATE_NODE_MUTATION,
+  DELETE_NODE_MUTATION
+} from '../graphql/mutations';
 
 interface UseGraphState {
   nodes: NodeData[];
   edges: EdgeData[];
-  isLoading: boolean;
-  isExpanding: boolean;
+  isLoading: boolean; // Tracks initial load or full graph load
+  isExpanding: boolean; // Tracks node expansion load
   error: string | null;
   hiddenNodeIds: Set<string>;
-  loadInitialGraph: (rootId: string) => Promise<void>;
-  loadCompleteGraph: () => Promise<void>;
+  // loadInitialGraph removed
+  loadCompleteGraph: () => Promise<void>; // Now used for initial load
   expandNode: (nodeId: string) => Promise<void>;
   addNode: (values: { label: string; type: string }, parentId?: string) => Promise<void>;
   editNode: (nodeId: string, values: { label: string; type: string; level: number }) => Promise<void>;
@@ -38,70 +45,41 @@ export const useGraphState = (): UseGraphState => {
   // Add state for hidden nodes
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
 
-  // Function to load the initial graph
-  const loadInitialGraph = useCallback(async (rootId: string) => {
-    if (!rootId) {
-      log('useGraphState', 'loadInitialGraph skipped: no rootId provided.');
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    try {
-      const rawData = await fetchTraversalData(rootId, 1);
-      log("useGraphState", "Initial raw data from API:", JSON.stringify(rawData, null, 2)); // Use log
+  // loadInitialGraph function removed as it's no longer used
 
-      const { nodes: initialNodes, edges: initialEdges } = transformTraversalData(rawData);
-      log("useGraphState", "Initial transformed nodes:", initialNodes); // Use log
-      log("useGraphState", "Initial transformed edges:", initialEdges); // Use log
-
-      setNodes(initialNodes);
-      setEdges(initialEdges);
-
-      // Do not mark initial nodes as expanded automatically.
-      // Nodes are marked as expanded only when the user explicitly expands them.
-
-    } catch (err) {
-      log("useGraphState", "ERROR: Failed to load initial graph data:", err); // Use log
-      setError("Failed to load initial graph data. Is the API server running?");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []); // Dependencies for useCallback
-
-  // Function to load the complete graph
+  // Function to load the complete graph using a single efficient query
   const loadCompleteGraph = useCallback(async () => {
-    setIsLoading(true);
+    log('useGraphState', 'Attempting to load complete graph...');
+    setIsLoading(true); // Use isLoading for the full graph load
     setError(null);
     try {
-      const allIds = await fetchAllNodeIds();
-      const nodeMap = new Map<string, NodeData>();
-      const edgeMap = new Map<string, EdgeData>();
+      // Execute the single query to get all nodes and edges
+      const rawData = await executeQuery(GET_ALL_NODES_AND_EDGES_QUERY);
+      log("useGraphState", "Complete graph raw data from API:", JSON.stringify(rawData, null, 2));
 
-      for (const id of allIds) {
-        const rawData = await fetchTraversalData(id);
-        const { nodes: fetchedNodes, edges: fetchedEdges } = transformTraversalData(rawData);
-        fetchedNodes.forEach(n => nodeMap.set(n.id, n));
-        fetchedEdges.forEach(e => {
-          const key = `${e.source}-${e.target}-${e.type ?? ''}`;
-          edgeMap.set(key, e);
-        });
-      }
+      // Transform the data using the new utility function
+      const { nodes: allNodes, edges: allEdges } = transformAllGraphData(rawData);
+      log("useGraphState", "Complete graph transformed nodes:", allNodes);
+      log("useGraphState", "Complete graph transformed edges:", allEdges);
 
-      setNodes(Array.from(nodeMap.values()));
-      setEdges(Array.from(edgeMap.values()));
-      
+      setNodes(allNodes);
+      setEdges(allEdges);
+
       // Reset hidden nodes when loading the complete graph
       setHiddenNodeIds(new Set());
       log('useGraphState', 'Hidden nodes reset during complete graph load');
+      expandedNodeIds.current.clear(); // Also clear expanded nodes as we have the full graph
+      log('useGraphState', 'Expanded nodes reset during complete graph load');
+
     } catch (err) {
-      log('useGraphState', 'ERROR: Failed to load complete graph data:', err);
-      setError('Failed to load complete graph data. Is the API server running?');
+      log("useGraphState", "ERROR: Failed to load complete graph data:", err);
+      setError("Failed to load complete graph data. Is the API server running?");
     } finally {
       setIsLoading(false);
     }
-  }, []); // Dependencies for useCallback
+  }, [executeQuery]); // Dependency on executeQuery
 
-  // Initial graph loading now handled by App component via loadInitialGraph
+  // Initial graph loading is now handled by App component calling loadCompleteGraph
 
   // Function to expand a node
   const expandNode = useCallback(async (nodeId: string) => {
@@ -176,80 +154,114 @@ export const useGraphState = (): UseGraphState => {
       }
       const { label, type } = values;
       // Compute level based on parent
-      let level = 1;
+      let level = 1; // Default level for root nodes
       if (parentId) {
         const parentNode = nodes.find(n => n.id === parentId);
         if (parentNode && typeof parentNode.level === 'number') {
           level = parentNode.level + 1;
+        } else {
+          log('useGraphState', `Warning: Parent node ${parentId} not found or has no level. Defaulting new node level to 1.`);
         }
       }
-      // Default status and branch
+      // Default status and branch (consider making these configurable later)
       const status = 'pending';
       const branch = 'main';
-      // Construct GraphQL mutation for node
-      const mutation = `mutation AddNode($input: [AddNodeInput!]!) {
-        addNode(input: $input) { node { id label type level status branch } }
-      }`;
+
+      // Use imported ADD_NODE_MUTATION
       const variables = { input: [{ id: newId, label, type, level, status, branch }] };
       try {
         log('useGraphState', `Adding node ${newId} with values:`, values);
-        const result = await executeMutation(mutation, variables);
+        const result = await executeMutation(ADD_NODE_MUTATION, variables);
         const addedNode = result.addNode?.node?.[0];
         if (addedNode) {
-          setNodes(prev => [...prev, addedNode]);
+          // Ensure the added node has the correct structure before adding to state
+          const newNodeData: NodeData = {
+            id: addedNode.id,
+            label: addedNode.label,
+            type: addedNode.type,
+            level: addedNode.level,
+            // status: addedNode.status, // Include if needed by UI
+            // branch: addedNode.branch, // Include if needed by UI
+          };
+          setNodes(prev => [...prev, newNodeData]);
+
           // If a parentId was provided, create an edge connecting the new node to its parent
           if (parentId) {
-            const edgeMutation = `mutation AddEdge($input: [AddEdgeInput!]!) {
-              addEdge(input: $input) { edge { from { id } fromId to { id } toId type } }
-            }`;
-            const edgeVars = { input: [{ from: { id: parentId }, fromId: parentId, to: { id: addedNode.id }, toId: addedNode.id, type: "simple" }] };
+            // Use imported ADD_EDGE_MUTATION
+            const edgeVars = { input: [{ from: { id: parentId }, fromId: parentId, to: { id: addedNode.id }, toId: addedNode.id, type: "simple" }] }; // Assuming 'simple' type for now
             try {
-              const edgeResult = await executeMutation(edgeMutation, edgeVars);
+              const edgeResult = await executeMutation(ADD_EDGE_MUTATION, edgeVars);
               const addedEdge = edgeResult.addEdge?.edge?.[0];
-              if (addedEdge) {
-                setEdges(prev => [
-                  ...prev,
-                  { source: parentId, target: addedNode.id, type: addedEdge.type }
-                ]);
+              // The mutation result structure is { edge: [{ from: {id}, fromId, to: {id}, toId, type }] }
+              if (addedEdge && addedEdge.from?.id && addedEdge.to?.id) {
+                // Ensure the added edge has the correct structure for EdgeData
+                const newEdgeData: EdgeData = {
+                  source: addedEdge.from.id, // Correctly map from nested object
+                  target: addedEdge.to.id,   // Correctly map from nested object
+                  type: addedEdge.type,
+                };
+                setEdges(prev => [...prev, newEdgeData]);
+              } else {
+                 log('useGraphState', `Failed to add edge: Invalid edge data received from mutation.`, edgeResult);
+                 setError(`Failed to create edge for new node ${label}. Invalid data received.`);
               }
             } catch (edgeErr) {
               log('useGraphState', `Error adding edge for node ${newId}:`, edgeErr);
               setError(`Failed to create edge for new node ${label}.`);
             }
           }
+        } else {
+           log('useGraphState', `Failed to add node: Invalid node data received from mutation.`, result);
+           setError(`Failed to add node ${values.label}. Invalid data received.`);
         }
       } catch (err) {
         log('useGraphState', 'Error adding node:', err);
         setError(`Failed to add node ${values.label}.`);
       }
     },
-    [nodes, executeMutation]
+    [nodes, executeMutation] // Keep executeMutation dependency
   );
 
   // Function to edit a node
-  const editNode = useCallback(async (nodeId: string, values: { label: string; type: string; level: number }) => {
-    const mutation = `mutation UpdateNode($input: UpdateNodeInput!) {
-      updateNode(input: $input) { node { id label type level status branch } }
-    }`;
+  const editNode = useCallback(async (nodeId: string, values: { label: string; type: string; level?: number }) => { // Level is optional in UI, but required by mutation? Check schema. Assuming level might not always be edited.
+    // Use imported UPDATE_NODE_MUTATION
     const variables = {
       input: {
         filter: { id: { eq: nodeId } },
-        set: { label: values.label, type: values.type, level: values.level }
+        // Only set fields that are provided in values
+        set: {
+          label: values.label,
+          type: values.type,
+          ...(values.level !== undefined && { level: values.level }) // Conditionally include level
+        }
       }
     };
     try {
-      const result = await executeMutation(mutation, variables);
+      log('useGraphState', `Editing node ${nodeId} with values:`, values);
+      const result = await executeMutation(UPDATE_NODE_MUTATION, variables);
       const updated = result.updateNode?.node?.[0];
       if (updated) {
-        setNodes(prev => prev.map(n => n.id === updated.id ? updated : n));
+         // Ensure the updated node has the correct structure
+         const updatedNodeData: NodeData = {
+            id: updated.id,
+            label: updated.label,
+            type: updated.type,
+            level: updated.level,
+            // status: updated.status, // Include if needed by UI
+            // branch: updated.branch, // Include if needed by UI
+          };
+        setNodes(prev => prev.map(n => n.id === updated.id ? updatedNodeData : n));
+      } else {
+        log('useGraphState', `Failed to update node: Invalid data received from mutation.`, result);
+        setError(`Failed to update node ${nodeId}. Invalid data received.`);
       }
     } catch (err) {
       log('useGraphState', `Error editing node ${nodeId}:`, err);
       setError(`Failed to update node ${nodeId}.`);
     }
-  }, [executeMutation]);
+  }, [executeMutation]); // Keep executeMutation dependency
 
-  // Function to delete a node
+  // Function to delete a node (using cascade endpoint)
   const deleteNode = useCallback(async (nodeId: string) => {
     if (!nodeId) return;
     setIsLoading(true);
@@ -266,28 +278,31 @@ export const useGraphState = (): UseGraphState => {
     }
   }, [executeMutation]);
 
-  // Function to delete multiple nodes
+  // Function to delete multiple nodes (using standard mutation, NOT cascade)
+  // Consider if a batch cascade endpoint is needed or if this is sufficient.
   const deleteNodes = useCallback(async (nodeIds: string[]) => {
     if (!nodeIds || nodeIds.length === 0) return;
-    setIsLoading(true);
+    setIsLoading(true); // Use isLoading as it affects the whole graph potentially
     setError(null);
     try {
-      const mutation = `mutation DeleteNode($input: DeleteNodeInput!) {
-        deleteNode(input: $input) {
-          node { id }
-        }
-      }`;
+      // Use imported DELETE_NODE_MUTATION
       const variables = { input: { filter: { id: { in: nodeIds } } } };
-      await executeMutation(mutation, variables);
+      // Note: This standard delete might leave dangling edges if not handled by Dgraph schema (@cascade directive)
+      // The deleteNodeCascade endpoint is safer for single deletes.
+      // If batch cascade is needed, the backend API would need an update.
+      log('useGraphState', `Attempting to delete nodes: ${nodeIds.join(',')}`);
+      await executeMutation(DELETE_NODE_MUTATION, variables);
+      // Assuming successful deletion, remove from local state
       setNodes(prev => prev.filter(n => !nodeIds.includes(n.id)));
       setEdges(prev => prev.filter(e => !nodeIds.includes(e.source) && !nodeIds.includes(e.target)));
+      log('useGraphState', `Nodes ${nodeIds.join(',')} removed from local state.`);
     } catch (err) {
       log('useGraphState', `Error deleting nodes ${nodeIds.join(',')}:`, err);
       setError(`Failed to delete nodes ${nodeIds.join(',')}.`);
     } finally {
       setIsLoading(false);
     }
-  }, [executeMutation]);
+  }, [executeMutation]); // Keep executeMutation dependency
 
   // Function to hide a node
   const hideNode = useCallback((nodeId: string) => {
@@ -308,7 +323,7 @@ export const useGraphState = (): UseGraphState => {
     isExpanding,
     error,
     hiddenNodeIds,
-    loadInitialGraph,
+    // loadInitialGraph removed
     loadCompleteGraph,
     expandNode,
     addNode,

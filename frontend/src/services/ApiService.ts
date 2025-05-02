@@ -21,9 +21,18 @@ interface QueryResponse {
   // Add other possible query results
 }
 
+// Define the raw structure returned by the addEdge mutation
+interface RawEdgeResponse {
+  from?: { id: string };
+  fromId?: string; // May be present in response
+  to?: { id: string };
+  toId?: string;   // May be present in response
+  type?: string;
+}
+
 interface MutateResponse {
   addNode?: { node: NodeData[] };
-  addEdge?: { edge: EdgeData[] };
+  addEdge?: { edge: RawEdgeResponse[] }; // Use the correct raw response type
   updateNode?: { node: NodeData[] };
   deleteNode?: { node: NodeData[] };
 }
@@ -144,12 +153,16 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
 
 /**
  * Fetches all node IDs from the backend.
+ * Uses the centralized query constant.
  * @returns Promise resolving to an array of node IDs.
  */
+import { GET_ALL_NODE_IDS_QUERY } from '../graphql/queries'; // Import the centralized query
+
 export const fetchAllNodeIds = async (): Promise<string[]> => {
   try {
-    const query = `query { queryNode { id } }`;
-    const result = await executeQuery(query);
+    // Use the imported query constant
+    const result = await executeQuery(GET_ALL_NODE_IDS_QUERY);
+    // Ensure queryNode exists and map IDs
     return result.queryNode?.map(node => node.id) ?? [];
   } catch (error) {
     console.error('Error fetching all node IDs:', error);

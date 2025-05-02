@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import GraphView from './components/GraphView';
 import { useGraphState } from './hooks/useGraphState';
-import { fetchAllNodeIds } from './services/ApiService';
+// fetchAllNodeIds no longer needed here
 import { log } from './utils/logger';
 import { useUIContext } from './context/UIContext';
 import NodeFormModal from './components/NodeFormModal';
@@ -17,20 +17,19 @@ function App() {
   const toggleDebugger = useCallback(() => {
     setShowDebugger(prev => !prev);
   }, []);
-  const [rootId, setRootId] = useState<string>();
-  const [loadingRoot, setLoadingRoot] = useState<boolean>(true);
+  // rootId and loadingRoot state removed
 
   const {
     nodes,
     edges,
-    isLoading,
+    isLoading, // This now covers initial load
     isExpanding,
     error,
     hiddenNodeIds,
     expandNode,
     addNode,
-    loadInitialGraph,
-    loadCompleteGraph,
+    // loadInitialGraph removed
+    loadCompleteGraph, // Will be called on mount
     editNode,
     deleteNode,
     deleteNodes,
@@ -38,26 +37,12 @@ function App() {
     hideNodes,
   } = useGraphState();
 
+  // useEffect to load the complete graph on initial mount
   useEffect(() => {
-    const init = async () => {
-      try {
-        const ids = await fetchAllNodeIds();
-        if (ids.length > 0) {
-          const defaultId = import.meta.env.VITE_ROOT_NODE_ID ?? ids[0];
-          setRootId(defaultId);
-          loadInitialGraph(defaultId);
-        } else {
-          // No existing nodes; show empty graph and allow user to add first node via UI
-        }
- 
-      } catch (err) {
-        console.error('Error fetching node IDs:', err);
-      } finally {
-        setLoadingRoot(false);
-      }
-    };
-    init();
-  }, [loadInitialGraph]);
+    log('App', 'Initial mount: Loading complete graph...');
+    loadCompleteGraph();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   const {
   addModalOpen,
@@ -94,9 +79,11 @@ return (
         <CytoscapeDebugger />
       ) : (
         <>
-          {(loadingRoot || isExpanding) && <p>Loading graph data...</p>}
+          {/* Use isLoading for initial load indicator */}
+          {(isLoading || isExpanding) && <p>Loading graph data...</p>}
           {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-          {!loadingRoot && (
+          {/* Render GraphView once initial loading is complete */}
+          {!isLoading && (
         <GraphView
           nodes={nodes}
           edges={edges}

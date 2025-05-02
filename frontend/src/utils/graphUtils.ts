@@ -1,5 +1,23 @@
 import { NodeData, EdgeData } from '../types/graph'; // Import from centralized types
 
+// Interface representing the expected structure from the GET_ALL_NODES_AND_EDGES_QUERY
+interface AllGraphDataResponse {
+  queryNode?: {
+    id: string;
+    label?: string;
+    type?: string;
+    level?: number;
+    status?: string;
+    branch?: string;
+    outgoing?: {
+      type?: string;
+      to?: {
+        id: string;
+      };
+    }[];
+  }[];
+}
+
 /**
  * Helper function to extract nodes and edges from traversal data.
  * Assumes the input data structure from the /api/traverse endpoint
@@ -67,6 +85,71 @@ export const transformTraversalData = (data: any): { nodes: NodeData[], edges: E
       data
     );
   }
+
+  return { nodes, edges };
+};
+
+/**
+ * Transforms the raw data from the GET_ALL_NODES_AND_EDGES_QUERY into arrays of nodes and edges.
+ * @param data - The raw data object returned by the API (e.g., from executeQuery with GET_ALL_NODES_AND_EDGES_QUERY).
+ * @returns An object containing arrays of nodes and edges formatted for Cytoscape.
+ */
+export const transformAllGraphData = (data: AllGraphDataResponse): { nodes: NodeData[], edges: EdgeData[] } => {
+  const nodes: NodeData[] = [];
+  const edges: EdgeData[] = [];
+  const nodeMap = new Map<string, NodeData>(); // Use map for efficient node lookup
+
+  const rawNodes = data?.queryNode;
+
+  if (!Array.isArray(rawNodes)) {
+    console.warn("transformAllGraphData: Expected 'data.queryNode' array not found in the input:", data);
+    return { nodes, edges };
+  }
+
+  // First pass: create all nodes
+  rawNodes.forEach(node => {
+    if (!node || !node.id) {
+      return; // Skip invalid nodes
+    }
+    const newNode: NodeData = {
+      id: node.id,
+      label: node.label || node.id, // Fallback label
+      type: node.type,
+      level: node.level,
+      // Add status, branch if needed by UI later
+      // status: node.status,
+      // branch: node.branch,
+    };
+    nodes.push(newNode);
+    nodeMap.set(node.id, newNode); // Store in map for edge creation
+  });
+
+  // Second pass: create edges
+  rawNodes.forEach(node => {
+    if (!node || !node.id || !Array.isArray(node.outgoing)) {
+      return; // Skip nodes without valid ID or outgoing edges
+    }
+
+    node.outgoing.forEach(edge => {
+      // Ensure the edge and target node exist and have IDs
+      if (edge && edge.to && edge.to.id) {
+        const sourceId = node.id;
+        const targetId = edge.to.id;
+
+        // Check if both source and target nodes exist in our map (ensures data integrity)
+        if (nodeMap.has(sourceId) && nodeMap.has(targetId)) {
+          edges.push({
+            source: sourceId,
+            target: targetId,
+            type: edge.type,
+            // Add other relevant properties from edge if available
+          });
+        } else {
+          console.warn(`transformAllGraphData: Skipping edge from ${sourceId} to ${targetId} because one or both nodes were not found in the initial node list.`);
+        }
+      }
+    });
+  });
 
   return { nodes, edges };
 };
