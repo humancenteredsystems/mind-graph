@@ -33,6 +33,7 @@ function App() {
     deleteNodes,
     hideNode,
     hideNodes,
+    connectNodes,
   } = useGraphState();
 
   // useEffect to load the complete graph on initial mount
@@ -107,6 +108,10 @@ return (
           onHideNodes={(ids) => {
             log('App', `Hide nodes requested for: ${ids}`);
             hideNodes(ids);
+          }}
+          onConnect={(from, to) => {
+            log('App', `Connect nodes requested: ${from} -> ${to}`);
+            connectNodes(from, to);
           }}
         />
         )}

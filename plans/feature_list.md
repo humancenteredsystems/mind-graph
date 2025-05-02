@@ -1,4 +1,5 @@
 - Different node shapes for different levels
+- Fix node drawer opening from right-click context menu. Currently shows empty and when altered, changes are saved to the 'root' node.
 - Connect two nodes
 - Ability to implement a structured node hierarchy
     - New standalone nodes default to level 1

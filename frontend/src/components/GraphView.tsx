@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition, StylesheetCSS } from 'cytoscape';
 import klay from 'cytoscape-klay';
@@ -23,6 +23,7 @@ interface GraphViewProps {
   onDeleteNodes?: (nodeIds: string[]) => void;
   onHideNode?: (nodeId: string) => void;
   onHideNodes?: (nodeIds: string[]) => void;
+  onConnect?: (from: string, to: string) => void;
 }
 
 const GraphView: React.FC<GraphViewProps> = ({
@@ -39,9 +40,11 @@ const GraphView: React.FC<GraphViewProps> = ({
   onDeleteNodes,
   onHideNode,
   onHideNodes,
+  onConnect,
 }) => {
   const cyRef = useRef<Core | null>(null);
   const { openMenu } = useContextMenu();
+  const [selectedCount, setSelectedCount] = useState(0);
   // Refs for refined manual double-click detection
   const lastConfirmedClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 }); 
   const shortTermTapTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
@@ -67,7 +70,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     {
       selector: 'node',
       style: {
-        selectable: 'no',
+        selectable: 'yes',
         'background-color': '#888',
         label: 'data(label)',
         width: '40px',
@@ -104,6 +107,15 @@ const GraphView: React.FC<GraphViewProps> = ({
         'curve-style': 'bezier',
       },
     },
+    {
+      selector: 'node:selected',
+      style: {
+        'border-width': 3,
+        'border-color': '#ff0000',
+        'border-style': 'solid',
+        'background-color': '#ff9999',
+      },
+    },
   ];
 
   // Attach Cytoscape instance reference
@@ -128,8 +140,9 @@ const GraphView: React.FC<GraphViewProps> = ({
     log('GraphView', 'Setting up event handlers');
     
     // Completely disable selection
-    cy.autounselectify(true);
-    log('GraphView', 'Selection disabled via autounselectify(true)');
+    cy.autounselectify(false);
+    cy.boxSelectionEnabled(true);
+    log('GraphView', 'Multi-select enabled: autounselectify(false) and boxSelectionEnabled(true)');
     
     // Refined manual double-click detection logic
     const DOUBLE_CLICK_DELAY = 400; // Max time between clicks for double-click (ms)
@@ -258,15 +271,16 @@ const GraphView: React.FC<GraphViewProps> = ({
         
         openMenu(type, pos, {
           node: data,
-          nodeIds: sel,
-          onAddNode,
-          onNodeExpand,
-          onEditNode,
-          onDeleteNode,
-          onDeleteNodes,
-          onHideNode,
-          onHideNodes,
-        });
+        nodeIds: sel,
+        onAddNode,
+        onNodeExpand,
+        onEditNode,
+        onDeleteNode,
+        onDeleteNodes,
+        onHideNode,
+        onHideNodes,
+        onConnect,
+      });
       }
       
       orig.preventDefault();
@@ -277,7 +291,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     return () => {
       cy.off('cxttap', handler);
     };
-  }, [openMenu, onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes]);
+  }, [openMenu, onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect]);
 
   // Layout on elements update
   useEffect(() => {
@@ -292,8 +306,26 @@ const GraphView: React.FC<GraphViewProps> = ({
     } as any).run();
   }, [elements]);
 
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const updateSelection = () => {
+      const count = cy.nodes(':selected').length;
+      setSelectedCount(count);
+    };
+    cy.on('select unselect', 'node', updateSelection);
+    return () => {
+      cy.off('select unselect', 'node', updateSelection);
+    };
+  }, []);
+
   return (
     <div data-testid="graph-container" style={{ width: '100%', height: '100%', ...style }}>
+      {selectedCount > 0 && (
+        <div className="selection-indicator">
+          {selectedCount} node{selectedCount !== 1 ? 's' : ''} selected
+        </div>
+      )}
       <CytoscapeComponent
         elements={elements}
         stylesheet={stylesheet}

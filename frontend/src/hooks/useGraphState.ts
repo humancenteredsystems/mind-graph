@@ -29,6 +29,7 @@ interface UseGraphState {
   deleteNodes: (nodeIds: string[]) => Promise<void>;
   hideNode: (nodeId: string) => void;
   hideNodes: (nodeIds: string[]) => void;
+  connectNodes: (fromId: string, toId: string) => Promise<EdgeData>;
   // Add resetGraph later if needed
 }
 
@@ -316,6 +317,28 @@ export const useGraphState = (): UseGraphState => {
     setHiddenNodeIds(prev => new Set([...prev, ...nodeIds]));
   }, []);
 
+  // Helper to create an edge between two nodes
+  const createEdge = useCallback(async (fromId: string, toId: string): Promise<EdgeData> => {
+    const variables = { input: [{ from: { id: fromId }, fromId, to: { id: toId }, toId, type: 'simple' }] };
+    const result = await executeMutation(ADD_EDGE_MUTATION, variables);
+    const addedEdge = result.addEdge?.edge?.[0];
+    if (!addedEdge || !addedEdge.from?.id || !addedEdge.to?.id || !addedEdge.type) {
+      throw new Error('Failed to create edge: invalid data');
+    }
+    const edgeData: EdgeData = {
+      source: addedEdge.from.id,
+      target: addedEdge.to.id,
+      type: addedEdge.type,
+    };
+    setEdges(prev => [...prev, edgeData]);
+    return edgeData;
+  }, [executeMutation]);
+
+  // Connect two selected nodes
+  const connectNodes = useCallback(async (fromId: string, toId: string): Promise<EdgeData> => {
+    return await createEdge(fromId, toId);
+  }, [createEdge]);
+
   return {
     nodes,
     edges,
@@ -332,5 +355,6 @@ export const useGraphState = (): UseGraphState => {
     deleteNodes,
     hideNode,
     hideNodes,
+    connectNodes,
   };
 };
