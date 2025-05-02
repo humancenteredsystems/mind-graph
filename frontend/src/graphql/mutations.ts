@@ -8,9 +8,13 @@ export const ADD_NODE_MUTATION = `
         id
         label
         type
-        level
         status
         branch
+        hierarchyAssignments {
+          level {
+            id
+          }
+        }
       }
     }
   }
@@ -44,9 +48,13 @@ export const UPDATE_NODE_MUTATION = `
         id
         label
         type
-        level
         status
         branch
+        hierarchyAssignments {
+          level {
+            id
+          }
+        }
       }
     }
   }

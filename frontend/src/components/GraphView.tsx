@@ -60,8 +60,8 @@ const GraphView: React.FC<GraphViewProps> = ({
   // Build elements: filter hidden nodes and edges
   const elements = useMemo<ElementDefinition[]>(() => {
     const visible = nodes.filter(n => !hiddenNodeIds.has(n.id));
-    const nodeEls = visible.map(({ id, label, type, level, status, branch }) => ({
-      data: { id, label: label ?? id, type, level, status, branch },
+    const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => ({
+      data: { id, label: label ?? id, type, assignments, status, branch },
     }));
     const validIds = new Set(visible.map(n => n.id));
     const edgeEls = edges

@@ -2,7 +2,7 @@ export interface NodeData {
   id: string;
   label?: string;
   type?: string;
-  level?: number;
+  assignments?: string[];
   status?: string;
   branch?: string;
 }

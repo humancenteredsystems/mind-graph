@@ -18,27 +18,24 @@ describe('ApiService', () => {
       (axios.post as any).mockResolvedValue(mockResponse);
 
       const rootId = 'testId';
-      const depth = 2;
-      const fields = ['id', 'label']; // Fields passed in
-      const expectedFields = ['id', 'label', 'level']; // Fields actually sent by the function
+      const hierarchyId = 'hierarchy1';
 
-      await fetchTraversalData(rootId, depth, fields);
+      await fetchTraversalData(rootId, hierarchyId);
 
-      // Expect the function to add 'level' to the fields sent
-      expect(axios.post).toHaveBeenCalledWith('/api/traverse', { rootId, currentLevel: depth, fields: expectedFields });
+      expect(axios.post).toHaveBeenCalledWith('/api/traverse', { rootId, hierarchyId });
     });
 
      it('should return data on successful traverse call', async () => {
       const mockData = { queryNode: [{ id: 'node1' }] };
-      (axios.post as any).mockResolvedValue({ data: mockData });
-      const result = await fetchTraversalData('testId');
+      (axios.post as any).mockResolvedValue({ data: { data: mockData } });
+      const result = await fetchTraversalData('testId', 'hierarchy1');
       expect(result).toEqual(mockData);
     });
 
     it('should throw error on failed traverse call', async () => {
       const errorMessage = 'Network Error';
       (axios.post as any).mockRejectedValue(new Error(errorMessage));
-      await expect(fetchTraversalData('testId')).rejects.toThrow(errorMessage);
+      await expect(fetchTraversalData('testId', 'hierarchy1')).rejects.toThrow(errorMessage);
     });
   });
 

@@ -7,9 +7,13 @@ export const GET_ALL_NODES_AND_EDGES_QUERY = `
       id
       label
       type
-      level
       status # Assuming status might be needed
       branch # Assuming branch might be needed
+      hierarchyAssignments {
+        level {
+          id
+        }
+      }
       outgoing {
         type
         to {

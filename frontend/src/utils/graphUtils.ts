@@ -6,9 +6,11 @@ interface AllGraphDataResponse {
     id: string;
     label?: string;
     type?: string;
-    level?: number;
     status?: string;
     branch?: string;
+    hierarchyAssignments?: {
+      level: { id: string };
+    }[];
     outgoing?: {
       type?: string;
       to?: {
@@ -45,7 +47,7 @@ export const transformTraversalData = (data: any): { nodes: NodeData[], edges: E
         id: node.id,
         label: node.label || node.id, // Use label or ID
         type: node.type,
-        level: node.level, // Extract level
+        assignments: Array.isArray(node.hierarchyAssignments) ? node.hierarchyAssignments.map((a: any) => a.level.id) : [],
         // Add other relevant properties from node
       });
 
@@ -115,10 +117,9 @@ export const transformAllGraphData = (data: AllGraphDataResponse): { nodes: Node
       id: node.id,
       label: node.label || node.id, // Fallback label
       type: node.type,
-      level: node.level,
-      // Add status, branch if needed by UI later
-      // status: node.status,
-      // branch: node.branch,
+      assignments: Array.isArray(node.hierarchyAssignments) ? (node.hierarchyAssignments as any[]).map(a => a.level.id) : [],
+      status: node.status,
+      branch: node.branch,
     };
     nodes.push(newNode);
     nodeMap.set(node.id, newNode); // Store in map for edge creation

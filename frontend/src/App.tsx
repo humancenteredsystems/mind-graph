@@ -36,7 +36,7 @@ function App() {
     hideNode,
     hideNodes,
     connectNodes,
-  } = useGraphState();
+  } = useGraphState('hierarchy1');
 
   // useEffect to load the complete graph on initial mount
   useEffect(() => {
