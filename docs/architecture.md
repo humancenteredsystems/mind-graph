@@ -37,7 +37,7 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 
 ### Features (Current Implementation)
 - Interactive graph visualization via react-cytoscapejs.
-- Fetches initial graph data from the backend API (`/api/traverse`).
+- Fetches and displays the **complete graph** on initial load using the backend API (`/api/query`).
 - Basic pan and zoom provided via react-cytoscapejs (Cytoscape.js plugin).
 - Styling for different node types (`concept`, `example`, `question`).
 - Uses Klay layout algorithm.
@@ -159,14 +159,14 @@ type Edge {
 
 ---
 
-## 🚀 Example Workflow (Current Implementation)
+## 🚀 Example Workflow (Current Implementation - Initial Load)
 
 1. User visits the frontend application in their browser.
-2. Frontend (`App.tsx` + `graphUtils.ts`) calls the backend API (`POST /api/traverse`) with a root node ID.
-3. Backend API queries Dgraph for the root node and its immediate neighbors.
-4. Backend API returns the data to the frontend.
-5. Frontend transforms the data.
-6. Frontend renders the nodes and edges via react-cytoscapejs.
+2. Frontend (`App.tsx` -> `useGraphState.ts`) calls the backend API (`POST /api/query`) with a GraphQL query to fetch all nodes and edges.
+3. Backend API executes the GraphQL query against Dgraph.
+4. Backend API returns the complete graph data (all nodes and edges) to the frontend.
+5. Frontend (`graphUtils.ts`) transforms the data into the format required by Cytoscape.
+6. Frontend renders the complete graph via react-cytoscapejs.
 
 ## 🚀 Example Workflow (Future Goal - Branching/Merging)
 

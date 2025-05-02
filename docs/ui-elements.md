@@ -17,7 +17,7 @@ Items
 | Label               | Icon | Shortcut   | Handler                  | Description                                              |
 |---------------------|------|------------|--------------------------|----------------------------------------------------------|
 | Add Node            | ➕   | A          | `openAddModal(parentId)` | Opens the Add-Node modal for creating a new root or child |
-| Load Complete Graph | 📂   | L          | `loadInitialGraph(root)` | Fetches & displays entire graph                          |
+| Load Complete Graph | 📂   | L          | `loadCompleteGraph()`    | Fetches & displays entire graph using efficient query    |
 | Clear Graph         | 🗑️   | Ctrl+Del   | `resetGraph()`           | Clears canvas (prompts for confirmation)                 |
 
 ### 1.2 Node Context Menu

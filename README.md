@@ -73,6 +73,9 @@ This repository contains the core components for the MakeItMakeSense.io platform
 │       ├── context/
 │       │   ├── ContextMenuContext.tsx
 │       │   └── UIContext.tsx
+│       ├── graphql/        # Centralized GraphQL queries and mutations
+│       │   ├── mutations.ts
+│       │   └── queries.ts
 │       ├── hooks/
 │       │   └── useGraphState.ts # State management for graph data and UI
 │       ├── services/
