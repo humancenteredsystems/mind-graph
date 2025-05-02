@@ -31,8 +31,6 @@ This repository contains the core components for the MakeItMakeSense.io platform
 ├── package.json        # Root package file with helper scripts
 ├── package-lock.json
 ├── README.md           # This file
-├── schema.graphql      # The GraphQL schema for the Dgraph database
-├── setup_schema.py     # (DEPRECATED - Use tools/push_schema.py instead)
 ├── api/                # Backend API (Node.js/Express)
 │   ├── .env            # Environment variables (e.g., DGRAPH_ENDPOINT, PORT) - Not committed
 │   ├── .gitignore
@@ -44,7 +42,9 @@ This repository contains the core components for the MakeItMakeSense.io platform
 │   └── server.js       # Express server entry point
 ├── docs/               # Project documentation
 │   ├── architecture.md # High-level system design
-│   └── schema_notes.md # Notes related to the Dgraph schema
+│   ├── deployment_guide.md # Deployment instructions
+│   ├── schema_notes.md # Notes related to the Dgraph schema
+│   └── ui-elements.md  # UI component specifications
 ├── exports/            # Default directory for graph JSON exports (ignored by Git)
 ├── frontend/           # Frontend application (React/Vite)
 │   ├── .gitignore
@@ -62,22 +62,37 @@ This repository contains the core components for the MakeItMakeSense.io platform
 │       ├── main.tsx        # React entry point
 │       ├── setupTests.ts   # Vitest setup
 │       ├── vite-env.d.ts   # Vite TypeScript environment types
+│       ├── global.d.ts     # Global type definitions
 │       ├── assets/
 │       ├── components/
-│       │   └── GraphView.tsx # Cytoscape graph rendering component
+│       │   ├── ContextMenu.tsx
+│       │   ├── CytoscapeDebugger.tsx # Component for testing Cytoscape interactions
+│       │   ├── GraphView.tsx # Cytoscape graph rendering component
+│       │   ├── NodeDrawer.tsx
+│       │   └── NodeFormModal.tsx
+│       ├── context/
+│       │   ├── ContextMenuContext.tsx
+│       │   └── UIContext.tsx
+│       ├── hooks/
+│       │   └── useGraphState.ts # State management for graph data and UI
 │       ├── services/
 │       │   └── ApiService.ts # Functions for calling the backend API
+│       ├── types/          # TypeScript type definitions
 │       └── utils/
-│           └── graphUtils.ts # Helper functions for graph data transformation
+│           ├── graphUtils.ts # Helper functions for graph data transformation
+│           ├── logger.ts     # Simple console logger
+│           └── uiUtils.ts    # UI helper functions
 └── tools/              # Utility scripts and visualization tool
+    ├── api_client.py   # Helper for making API calls from Python tools
+    ├── api_push_schema.py # Pushes schema via the API (recommended)
+    ├── drop_data.py    # Script to clear Dgraph data
     ├── export_graph.py
-    ├── push_schema.py  # Preferred script for pushing schema
     ├── query_graph.py
     ├── README.md       # README specific to the tools directory
     ├── seed_data.py
     └── visualize_mermaid.html # HTML/Mermaid visualizer for exports
 ```
-*(Note: `setup_schema.py` in the root is redundant; use `tools/push_schema.py`.)*
+*(Note: The primary schema is now located at `schemas/default.graphql`. Use `tools/api_push_schema.py` for pushing.)*
 
 ## Prerequisites
 
@@ -109,7 +124,7 @@ The easiest way to start the full development environment (Dgraph database, back
 3.  **Install API & Frontend Dependencies:** The `start-dev-env` script *does not* automatically install dependencies in the sub-directories. You need to do this manually the first time:
     ```bash
     cd api && npm install && cd ..
-    cd frontend && npm install && npm install cytoscape-dblclick && cd ..
+    cd frontend && npm install && cd ..
     ```
 4.  **Start Everything:** In the project root directory, run:
     ```bash
@@ -127,14 +142,14 @@ The easiest way to start the full development environment (Dgraph database, back
 6.  **Push Schema (Required on first run or after schema changes):**
     In a separate terminal, while Dgraph is running:
     
-    **Option 1: Direct push (legacy):**
+    **Option 1: Direct push (Legacy - Use API push if possible):**
     ```bash
     # Ensure conda environment is active if needed
     # conda activate pointcloud
-    python tools/push_schema.py
+    python tools/push_schema.py # Pushes schemas/default.graphql directly
     ```
     
-    **Option 2: API-based push (recommended):**
+    **Option 2: API-based push (Recommended):**
     ```bash
     # Set your admin API key
     export MIMS_ADMIN_API_KEY=your_secure_key
@@ -205,9 +220,11 @@ The backend API provides several endpoints under `/api`:
 ## Utility Tools (`tools/` directory)
 
 This directory contains Python scripts for interacting with the Dgraph database and visualizing data:
-*   `push_schema.py`: Pushes `schema.graphql` to Dgraph.
+*   `api_push_schema.py`: (Recommended) Pushes schema via the backend API. Supports local/remote targets.
+*   `push_schema.py`: (Legacy) Pushes `schemas/default.graphql` directly to Dgraph.
 *   `seed_data.py`: Populates the database with sample data.
 *   `query_graph.py`: Executes GraphQL queries.
+*   `drop_data.py`: Clears data from Dgraph.
 *   `export_graph.py`: Exports graph data to JSON.
 *   `visualize_mermaid.html`: Browser-based tool to view exported JSON using Mermaid.js.
 
@@ -217,8 +234,9 @@ This directory contains Python scripts for interacting with the Dgraph database 
 
 *   `/docs/architecture.md`: High-level system design.
 *   `/docs/schema_notes.md`: Notes related to the Dgraph schema.
-*   `/docs/api_endpoints.md`: API endpoint reference
-*   `/docs/deployment_guide.md`: Local and Render deployment instructions
+*   `/docs/api_endpoints.md`: API endpoint reference.
+*   `/docs/deployment_guide.md`: Local and Render deployment instructions.
+*   `/docs/ui-elements.md`: Specification for UI components.
 
 ## Future Work
 
@@ -226,8 +244,7 @@ This directory contains Python scripts for interacting with the Dgraph database 
 *   Expand API functionality (e.g., more complex traversals, advanced search).
 *   Enhance frontend UI/UX (e.g., better layout controls).
 *   Improve test coverage.
-*   Maintain documentation (e.g., `deployment_guide.md` and API reference).
-*   Remove redundant `setup_schema.py`.
+*   Maintain documentation (e.g., `deployment_guide.md`, API reference, UI specs).
 
 ## License
 

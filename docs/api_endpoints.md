@@ -49,6 +49,7 @@ type Node {
   …
 }
 ```
+*(Note: Example response is truncated)*
 **Response (500 Internal Server Error):**  
 ```json
 { "error": "Failed to fetch schema from Dgraph." }
@@ -94,7 +95,7 @@ type Node {
 { "addNode": { "node": [ { "id": "newId" } ] } }
 ```
 
-**Supported Mutations:**
+**Supported Dgraph GraphQL Mutations (passed via this endpoint):**
 - `addNode`: Create a new node.
 - `addEdge`: Create a new edge connecting nodes.
 - `updateNode`: Update properties of an existing node.

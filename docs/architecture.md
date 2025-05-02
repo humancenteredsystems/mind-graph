@@ -97,22 +97,24 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 - **Current Development:** Runs locally via Docker Compose (`docker-compose.yml`).
 - **Target Hosting:** Docker container on a private service (e.g., Render) with a persistent disk.
 
-### Schema Example (Reflects current `schema.graphql`)
+### Schema Example (Reflects current `schemas/default.graphql`)
 
 ```graphql
 type Node {
   id: String! @id # Must be String!, Int!, or Int64! for Dgraph @id
   label: String! @search(by: [term])
   type: String!
-  level: Int
-  status: String  # For future use (e.g., "pending", "approved")
-  branch: String  # For future use (contributor ID or branch name)
-  outgoing: [Edge] @hasInverse(field: "from") # Link to outgoing edges
+  level: Int @search
+  status: String
+  branch: String
+  outgoing: [Edge] @hasInverse(field: "from")
 }
 
 type Edge {
-  from: Node! @hasInverse(field: "outgoing") # Link back to source node
-  to: Node!
+  from: Node! @hasInverse(field: "outgoing")
+  fromId: String! @search(by: [hash])
+  to: Node
+  toId: String! @search(by: [hash])
   type: String!
 }
 ```

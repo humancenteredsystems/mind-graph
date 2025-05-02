@@ -24,10 +24,15 @@ This guide describes how to run the full stack locally for development and how t
    - Launch Dgraph (Zero, Alpha, Ratel) via Docker Compose.
    - Start the API server on port 3000.
    - Start the frontend dev server on port 5173.
-5. Push your GraphQL schema:
+5. Push your GraphQL schema (Recommended: Use API push):
    ```bash
-   python tools/push_schema.py
+   # Ensure conda environment is active if needed
+   # conda activate pointcloud
+   # Set your admin API key
+   export MIMS_ADMIN_API_KEY=your_secure_key 
+   python tools/api_push_schema.py --target local
    ```
+   (Legacy direct push: `python tools/push_schema.py`)
 6. (Optional) Seed sample data:
    ```bash
    python tools/seed_data.py
@@ -48,7 +53,7 @@ We deploy three separate services on Render:
 - **Service Type:** Docker  
 - **Dockerfile Path:** `Dockerfile.dgraph`  
 - **Build Context:** Repository root  
-- **Entrypoint:** Uses `docker/dgraph-entrypoint.sh` to launch Zero and Alpha, wait for GraphQL admin, and apply `schema.graphql`.  
+- **Entrypoint:** Uses `docker/dgraph-entrypoint.sh` to launch Zero and Alpha, wait for GraphQL admin, and apply `schemas/default.graphql`.  
 - **Persistent Volume:** Attach SSD to `/dgraph` for data persistence.  
 - **Auto-Deploy:** Enable on pushes to `main`.
 
@@ -65,7 +70,7 @@ We deploy three separate services on Render:
   ```
 - **Environment Variables:**  
   - `PORT` (e.g., 3000)  
-  - `DGRAPH_URL=http://mims-graph-dgraph:8080/graphql`  
+  - `DGRAPH_BASE_URL=http://mims-graph-dgraph:8080` # Base URL for Dgraph service
   - `CORS_ORIGIN=https://makeitmakesense.io`  
 - **Auto-Deploy:** Enable on pushes to `main`.
 

@@ -93,7 +93,7 @@ Component: `<NodeDrawer>` (in `/frontend/src/components/NodeDrawer.tsx`); contro
 
 ### Trigger
 
-• `openEditDrawer(nodeData)`
+• `openEditDrawer(nodeData)` (Typically triggered by double-clicking a node)
 
 ### Layout
 
