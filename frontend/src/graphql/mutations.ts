@@ -67,4 +67,13 @@ export const DELETE_NODE_MUTATION = `
   }
 `;
 
+export const DELETE_EDGE_MUTATION = `
+  mutation DeleteEdge($filter: EdgeFilter!) {
+    deleteEdge(filter: $filter) {
+      msg
+      numUids
+    }
+  }
+`;
+
 // Add other mutations here as needed

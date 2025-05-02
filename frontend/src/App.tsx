@@ -31,6 +31,8 @@ function App() {
     editNode,
     deleteNode,
     deleteNodes,
+    deleteEdge,
+    deleteEdges,
     hideNode,
     hideNodes,
     connectNodes,
@@ -100,6 +102,14 @@ return (
           onDeleteNodes={(ids) => {
             log('App', `Delete nodes requested for: ${ids}`);
             deleteNodes(ids);
+          }}
+          onDeleteEdge={(edgeId) => {
+            log('App', `Delete edge requested for: ${edgeId}`);
+            deleteEdge(edgeId);
+          }}
+          onDeleteEdges={(ids) => {
+            log('App', `Delete edges requested for: ${ids}`);
+            deleteEdges(ids);
           }}
           onHideNode={(nodeId) => {
             log('App', `Hide node requested for: ${nodeId}`);

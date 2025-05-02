@@ -61,6 +61,22 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({ childre
         break;
       }
 
+      case 'edge': {
+        const ids: string[] = payload.edgeIds || [];
+        menuItems = [
+          { id: 'delete-edge', label: 'Delete Edge', icon: '🗑️', shortcut: 'Del', action: () => payload.onDeleteEdge?.(ids[0]) },
+        ];
+        break;
+      }
+
+      case 'multi-edge': {
+        const ids: string[] = payload.edgeIds || [];
+        menuItems = [
+          { id: 'delete-edges', label: 'Delete Edges', icon: '🗑️', shortcut: 'Del', action: () => payload.onDeleteEdges?.(ids) },
+        ];
+        break;
+      }
+
       case 'multi-node': {
         const ids: string[] = payload.nodeIds || [];
         if (ids.length === 2 && payload.onConnect) {

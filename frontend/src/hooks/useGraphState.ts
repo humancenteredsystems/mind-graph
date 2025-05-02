@@ -10,7 +10,8 @@ import {
   ADD_NODE_MUTATION,
   ADD_EDGE_MUTATION,
   UPDATE_NODE_MUTATION,
-  DELETE_NODE_MUTATION
+  DELETE_NODE_MUTATION,
+  DELETE_EDGE_MUTATION
 } from '../graphql/mutations';
 
 interface UseGraphState {
@@ -27,6 +28,8 @@ interface UseGraphState {
   editNode: (nodeId: string, values: { label: string; type: string; level: number }) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<void>;
   deleteNodes: (nodeIds: string[]) => Promise<void>;
+  deleteEdge: (edgeId: string) => Promise<void>;
+  deleteEdges: (edgeIds: string[]) => Promise<void>;
   hideNode: (nodeId: string) => void;
   hideNodes: (nodeIds: string[]) => void;
   connectNodes: (fromId: string, toId: string) => Promise<EdgeData | undefined>;
@@ -305,6 +308,45 @@ export const useGraphState = (): UseGraphState => {
     }
   }, [executeMutation]); // Keep executeMutation dependency
 
+  // Function to delete a single edge
+  const deleteEdge = useCallback(async (edgeId: string) => {
+    if (!edgeId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const edge = edges.find(e => `${e.source}_${e.target}` === edgeId);
+      if (!edge) {
+        setError(`Edge ${edgeId} not found.`);
+        return;
+      }
+      const variables = { filter: { fromId: { eq: edge.source }, toId: { eq: edge.target } } };
+      await executeMutation(DELETE_EDGE_MUTATION, variables);
+      setEdges(prev => prev.filter(e => `${e.source}_${e.target}` !== edgeId));
+    } catch (err) {
+      log('useGraphState', `Error deleting edge ${edgeId}:`, err);
+      setError(`Failed to delete edge ${edgeId}.`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [edges, executeMutation]);
+
+  // Function to delete multiple edges
+  const deleteEdges = useCallback(async (edgeIds: string[]) => {
+    if (!edgeIds || edgeIds.length === 0) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      for (const id of edgeIds) {
+        await deleteEdge(id);
+      }
+    } catch (err) {
+      log('useGraphState', `Error deleting multiple edges:`, err);
+      setError(`Failed to delete edges ${edgeIds.join(',')}.`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [deleteEdge]);
+
   // Function to hide a node
   const hideNode = useCallback((nodeId: string) => {
     log('useGraphState', `Hiding node ${nodeId}`);
@@ -358,6 +400,8 @@ export const useGraphState = (): UseGraphState => {
     editNode,
     deleteNode,
     deleteNodes,
+    deleteEdge,
+    deleteEdges,
     hideNode,
     hideNodes,
     connectNodes,

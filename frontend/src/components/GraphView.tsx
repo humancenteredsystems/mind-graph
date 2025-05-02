@@ -21,6 +21,8 @@ interface GraphViewProps {
   onLoadCompleteGraph?: () => void;
   onDeleteNode?: (nodeId: string) => void;
   onDeleteNodes?: (nodeIds: string[]) => void;
+  onDeleteEdge?: (edgeId: string) => void;
+  onDeleteEdges?: (edgeIds: string[]) => void;
   onHideNode?: (nodeId: string) => void;
   onHideNodes?: (nodeIds: string[]) => void;
   onConnect?: (from: string, to: string) => void;
@@ -38,6 +40,8 @@ const GraphView: React.FC<GraphViewProps> = ({
   onLoadCompleteGraph,
   onDeleteNode,
   onDeleteNodes,
+  onDeleteEdge,
+  onDeleteEdges,
   onHideNode,
   onHideNodes,
   onConnect,
@@ -46,6 +50,8 @@ const GraphView: React.FC<GraphViewProps> = ({
   const { openMenu } = useContextMenu();
   const [selectedCount, setSelectedCount] = useState(0);
   const selectedOrderRef = useRef<string[]>([]);
+  const [selectedEdgesCount, setSelectedEdgesCount] = useState(0);
+  const selectedEdgesOrderRef = useRef<string[]>([]);
   // Refs for refined manual double-click detection
   const lastConfirmedClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 }); 
   const shortTermTapTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
@@ -71,7 +77,6 @@ const GraphView: React.FC<GraphViewProps> = ({
     {
       selector: 'node',
       style: {
-        selectable: 'yes',
         'background-color': '#888',
         label: 'data(label)',
         width: '40px',
@@ -106,6 +111,13 @@ const GraphView: React.FC<GraphViewProps> = ({
         'target-arrow-color': '#ccc',
         'target-arrow-shape': 'triangle',
         'curve-style': 'bezier',
+      },
+    },
+    {
+      selector: 'edge:selected',
+      style: {
+        'line-color': '#ff0000',
+        'width': 3,
       },
     },
     {
@@ -235,11 +247,24 @@ const GraphView: React.FC<GraphViewProps> = ({
     cy.on('tap', 'node', handleTap);
     cy.on('tap', handleTap); // Also listen on background to reset
 
+    // Listen for doubleTap event for direct double-click support
+    const handleDoubleTap = (e: any) => {
+      const nodeId = e.target.id();
+      if (onEditNode && nodeId) {
+        const nodeData = nodes.find(n => n.id === nodeId);
+        if (nodeData) {
+          onEditNode(nodeData);
+        }
+      }
+    };
+    cy.on('doubleTap', 'node', handleDoubleTap);
+
     // Clean up handlers and timeout on unmount
     return () => {
       log('GraphView', 'Cleaning up tap event handler and timeout');
       cy.off('tap', 'node', handleTap);
       cy.off('tap', handleTap);
+      cy.off('doubleTap', 'node', handleDoubleTap);
       if (shortTermTapTimeoutRef.current) {
        clearTimeout(shortTermTapTimeoutRef.current);
        }
@@ -263,6 +288,15 @@ const GraphView: React.FC<GraphViewProps> = ({
         openMenu('background', pos, { 
           onAddNode, 
           loadInitialGraph: onLoadCompleteGraph 
+        });
+      } else if (tgt.isEdge && tgt.isEdge()) {
+        console.log('GraphView cxttap on edge:', tgt.id());
+        const sel = selectedEdgesOrderRef.current;
+        const type = sel.length > 1 ? 'multi-edge' : 'edge';
+        openMenu(type, pos, {
+          edgeIds: sel,
+          onDeleteEdge,
+          onDeleteEdges,
         });
       } else if (tgt.isNode && tgt.isNode()) {
         // Node context menu
@@ -339,6 +373,28 @@ const GraphView: React.FC<GraphViewProps> = ({
     return () => {
       cy.off('select', 'node', onSelect);
       cy.off('unselect', 'node', onUnselect);
+    };
+  }, []);
+
+  // Track selection order for multi-edge operations
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const onEdgeSelect = (e: any) => {
+      const id = e.target.id();
+      selectedEdgesOrderRef.current.push(id);
+      setSelectedEdgesCount(selectedEdgesOrderRef.current.length);
+    };
+    const onEdgeUnselect = (e: any) => {
+      const id = e.target.id();
+      selectedEdgesOrderRef.current = selectedEdgesOrderRef.current.filter(x => x !== id);
+      setSelectedEdgesCount(selectedEdgesOrderRef.current.length);
+    };
+    cy.on('select', 'edge', onEdgeSelect);
+    cy.on('unselect', 'edge', onEdgeUnselect);
+    return () => {
+      cy.off('select', 'edge', onEdgeSelect);
+      cy.off('unselect', 'edge', onEdgeUnselect);
     };
   }, []);
 

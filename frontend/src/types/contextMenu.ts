@@ -1,4 +1,4 @@
-export type MenuType = 'background' | 'node' | 'multi-node';
+export type MenuType = 'background' | 'node' | 'multi-node' | 'edge' | 'multi-edge';
 
 export interface MenuItem {
   id: string;

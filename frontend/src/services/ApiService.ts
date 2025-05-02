@@ -114,7 +114,10 @@ export const executeMutation = async (mutation: string, variables?: Record<strin
     });
     // Return the mutation response data
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
+    if (error.response && error.response.data) {
+      console.error('[ApiService] Mutation error response data:', error.response.data);
+    }
     console.error('Error executing mutation:', error);
     throw error;
   }
