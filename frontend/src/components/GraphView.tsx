@@ -268,8 +268,24 @@ const GraphView: React.FC<GraphViewProps> = ({
         const sel = cy.nodes(':selected').map(el => el.id());
         const type = sel.length > 1 ? 'multi-node' : 'node';
         const data = tgt.data() as NodeData;
-        const canConnect = sel.length === 2 && !edges.some(edge => edge.source === sel[0] && edge.target === sel[1]);
-        
+        // Determine if an edge can be added in either direction
+        let canConnect = false;
+        let connectFrom: string | undefined;
+        let connectTo: string | undefined;
+        if (sel.length === 2 && onConnect) {
+          const [a, b] = sel;
+          const forwardExists = edges.some(edge => edge.source === a && edge.target === b);
+          const backwardExists = edges.some(edge => edge.source === b && edge.target === a);
+          canConnect = !forwardExists || !backwardExists;
+          if (!forwardExists) {
+            connectFrom = a;
+            connectTo = b;
+          } else if (!backwardExists) {
+            connectFrom = b;
+            connectTo = a;
+          }
+        }
+
         openMenu(type, pos, {
           node: data,
           nodeIds: sel,
@@ -282,6 +298,8 @@ const GraphView: React.FC<GraphViewProps> = ({
           onHideNodes,
           onConnect,
           canConnect,
+          connectFrom,
+          connectTo,
         });
       }
       
@@ -323,11 +341,6 @@ const GraphView: React.FC<GraphViewProps> = ({
 
   return (
     <div data-testid="graph-container" style={{ width: '100%', height: '100%', ...style }}>
-      {selectedCount > 0 && (
-        <div className="selection-indicator">
-          {selectedCount} node{selectedCount !== 1 ? 's' : ''} selected
-        </div>
-      )}
       <CytoscapeComponent
         elements={elements}
         stylesheet={stylesheet}

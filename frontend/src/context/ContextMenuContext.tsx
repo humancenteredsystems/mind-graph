@@ -66,7 +66,7 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({ childre
         if (ids.length === 2 && payload.onConnect) {
           if (payload.canConnect) {
             menuItems = [
-              { id: 'connect', label: 'Connect Nodes', icon: '🔗', shortcut: '', action: () => payload.onConnect(ids[0], ids[1]) },
+              { id: 'connect', label: 'Connect Nodes', icon: '🔗', shortcut: '', action: () => payload.onConnect?.(payload.connectFrom, payload.connectTo) },
             ];
           } else {
             menuItems = [
