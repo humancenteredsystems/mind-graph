@@ -45,6 +45,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   const cyRef = useRef<Core | null>(null);
   const { openMenu } = useContextMenu();
   const [selectedCount, setSelectedCount] = useState(0);
+  const selectedOrderRef = useRef<string[]>([]);
   // Refs for refined manual double-click detection
   const lastConfirmedClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 }); 
   const shortTermTapTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
@@ -265,25 +266,18 @@ const GraphView: React.FC<GraphViewProps> = ({
         });
       } else if (tgt.isNode && tgt.isNode()) {
         // Node context menu
-        const sel = cy.nodes(':selected').map(el => el.id());
+        const sel = selectedOrderRef.current;
         const type = sel.length > 1 ? 'multi-node' : 'node';
         const data = tgt.data() as NodeData;
-        // Determine if an edge can be added in either direction
         let canConnect = false;
         let connectFrom: string | undefined;
         let connectTo: string | undefined;
         if (sel.length === 2 && onConnect) {
-          const [a, b] = sel;
-          const forwardExists = edges.some(edge => edge.source === a && edge.target === b);
-          const backwardExists = edges.some(edge => edge.source === b && edge.target === a);
-          canConnect = !forwardExists || !backwardExists;
-          if (!forwardExists) {
-            connectFrom = a;
-            connectTo = b;
-          } else if (!backwardExists) {
-            connectFrom = b;
-            connectTo = a;
-          }
+          const [from, to] = sel;
+          const exists = edges.some(edge => edge.source === from && edge.target === to);
+          canConnect = !exists;
+          connectFrom = from;
+          connectTo = to;
         }
 
         openMenu(type, pos, {
@@ -326,16 +320,25 @@ const GraphView: React.FC<GraphViewProps> = ({
     } as any).run();
   }, [elements]);
 
+    // Track selection order for multi-node operations
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const updateSelection = () => {
-      const count = cy.nodes(':selected').length;
-      setSelectedCount(count);
+    const onSelect = (e: any) => {
+      const id = e.target.id();
+      selectedOrderRef.current.push(id);
+      setSelectedCount(selectedOrderRef.current.length);
     };
-    cy.on('select unselect', 'node', updateSelection);
+    const onUnselect = (e: any) => {
+      const id = e.target.id();
+      selectedOrderRef.current = selectedOrderRef.current.filter(x => x !== id);
+      setSelectedCount(selectedOrderRef.current.length);
+    };
+    cy.on('select', 'node', onSelect);
+    cy.on('unselect', 'node', onUnselect);
     return () => {
-      cy.off('select unselect', 'node', updateSelection);
+      cy.off('select', 'node', onSelect);
+      cy.off('unselect', 'node', onUnselect);
     };
   }, []);
 
