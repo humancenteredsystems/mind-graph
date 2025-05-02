@@ -164,11 +164,15 @@ app.post('/api/traverse', async (req, res) => {
   }
 
   // Validate fields
-  const allowedFields = ['id', 'label', 'type', 'status', 'branch']; // Include all schema fields
+  const allowedFields = ['id', 'label', 'type', 'level', 'status', 'branch']; // Include all schema fields
   const safeFields = Array.isArray(fields) && fields.length > 0
     ? fields.filter(f => allowedFields.includes(f))
     : allowedFields; // Default to allowed fields if none provided or invalid
 
+  // Ensure 'level' is included if currentLevel is used for filtering
+  if (currentLevel !== undefined && !safeFields.includes('level')) {
+    safeFields.push('level');
+  }
 
   if (safeFields.length === 0) {
     // This case should ideally not happen if default is allowedFields, but good to check
@@ -180,7 +184,7 @@ app.post('/api/traverse', async (req, res) => {
 
   // Construct the 'to' block conditionally
   const toBlock = targetLevel !== null
-    ? `to (filter: { hierarchyAssignments: { levelNumber: { eq: ${targetLevel} } } }) {\n      ${fieldBlock}\n    }` // Note indentation
+    ? `to (filter: { level: { eq: ${targetLevel} } }) {\n      ${fieldBlock}\n    }` // Note indentation
     : `to {\n      ${fieldBlock}\n    }`; // Note indentation
 
   // Construct the full query using array join for clarity and safety
