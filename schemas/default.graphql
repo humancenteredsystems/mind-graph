@@ -6,6 +6,7 @@ type Node {
   status: String
   branch: String
   outgoing: [Edge] @hasInverse(field: "from")
+  hierarchyAssignments: [HierarchyAssignment] @hasInverse(field: "node")
 }
 
 type Edge {
@@ -14,4 +15,31 @@ type Edge {
   to: Node
   toId: String! @search(by: [hash])
   type: String!
+}
+
+type Hierarchy {
+  id: ID!
+  name: String! @search(by: [exact])
+  levels: [HierarchyLevel] @hasInverse(field: "hierarchy")
+}
+
+type HierarchyLevel {
+  id: ID!
+  hierarchy: Hierarchy!
+  levelNumber: Int! @search
+  label: String
+  allowedTypes: [HierarchyLevelType] @hasInverse(field: "level")
+}
+
+type HierarchyLevelType {
+  id: ID!
+  level: HierarchyLevel!
+  typeName: String! @search(by: [exact])
+}
+
+type HierarchyAssignment {
+  id: ID!
+  node: Node!
+  hierarchy: Hierarchy!
+  levelNumber: Int!
 }
