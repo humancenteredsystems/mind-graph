@@ -1,6 +1,5 @@
 - Different node shapes for different levels
-- Display full graph on initial loading
-- Get rid of 'Show Debugger' button and function
+- Connect two nodes
 - Ability to implement a structured node hierarchy
     - New standalone nodes default to level 1
     - New connected nodes default to parent + 1
