@@ -29,7 +29,7 @@ interface UseGraphState {
   deleteNodes: (nodeIds: string[]) => Promise<void>;
   hideNode: (nodeId: string) => void;
   hideNodes: (nodeIds: string[]) => void;
-  connectNodes: (fromId: string, toId: string) => Promise<EdgeData>;
+  connectNodes: (fromId: string, toId: string) => Promise<EdgeData | undefined>;
   // Add resetGraph later if needed
 }
 
@@ -335,9 +335,14 @@ export const useGraphState = (): UseGraphState => {
   }, [executeMutation]);
 
   // Connect two selected nodes
-  const connectNodes = useCallback(async (fromId: string, toId: string): Promise<EdgeData> => {
-    return await createEdge(fromId, toId);
-  }, [createEdge]);
+  const connectNodes = useCallback(async (fromId: string, toId: string): Promise<EdgeData | undefined> => {
+    // Prevent duplicate edge creation
+    if (edges.some(e => e.source === fromId && e.target === toId)) {
+      log('useGraphState', `Duplicate edge prevented: ${fromId} -> ${toId}`);
+      return;
+    }
+    return createEdge(fromId, toId);
+  }, [createEdge, edges]);
 
   return {
     nodes,

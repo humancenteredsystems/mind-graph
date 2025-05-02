@@ -48,14 +48,16 @@ const ContextMenu: React.FC = () => {
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: '4px 8px',
-            cursor: 'pointer',
+            cursor: item.disabled ? 'not-allowed' : 'pointer',
+            color: item.disabled ? '#ccc' : 'inherit',
           }}
           onClick={() => {
+            if (item.disabled) return;
             item.action();
             closeMenu();
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !item.disabled) {
               item.action();
               closeMenu();
             }

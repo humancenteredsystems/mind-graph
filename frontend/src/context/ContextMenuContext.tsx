@@ -64,9 +64,15 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({ childre
       case 'multi-node': {
         const ids: string[] = payload.nodeIds || [];
         if (ids.length === 2 && payload.onConnect) {
-          menuItems = [
-            { id: 'connect', label: 'Connect Nodes', icon: '🔗', shortcut: '', action: () => payload.onConnect(ids[0], ids[1]) },
-          ];
+          if (payload.canConnect) {
+            menuItems = [
+              { id: 'connect', label: 'Connect Nodes', icon: '🔗', shortcut: '', action: () => payload.onConnect(ids[0], ids[1]) },
+            ];
+          } else {
+            menuItems = [
+              { id: 'connect', label: 'Connect Nodes', icon: '🔗', shortcut: '', action: () => {}, disabled: true },
+            ];
+          }
         } else {
           menuItems = [
             { id: 'add-multi', label: 'Add Connected Nodes', icon: '➕', shortcut: 'A', action: () => ids.forEach(id => ui.openAddModal(id)) },

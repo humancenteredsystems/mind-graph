@@ -268,19 +268,21 @@ const GraphView: React.FC<GraphViewProps> = ({
         const sel = cy.nodes(':selected').map(el => el.id());
         const type = sel.length > 1 ? 'multi-node' : 'node';
         const data = tgt.data() as NodeData;
+        const canConnect = sel.length === 2 && !edges.some(edge => edge.source === sel[0] && edge.target === sel[1]);
         
         openMenu(type, pos, {
           node: data,
-        nodeIds: sel,
-        onAddNode,
-        onNodeExpand,
-        onEditNode,
-        onDeleteNode,
-        onDeleteNodes,
-        onHideNode,
-        onHideNodes,
-        onConnect,
-      });
+          nodeIds: sel,
+          onAddNode,
+          onNodeExpand,
+          onEditNode,
+          onDeleteNode,
+          onDeleteNodes,
+          onHideNode,
+          onHideNodes,
+          onConnect,
+          canConnect,
+        });
       }
       
       orig.preventDefault();
@@ -291,7 +293,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     return () => {
       cy.off('cxttap', handler);
     };
-  }, [openMenu, onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect]);
+  }, [openMenu, onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, edges]);
 
   // Layout on elements update
   useEffect(() => {

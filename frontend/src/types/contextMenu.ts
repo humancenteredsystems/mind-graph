@@ -6,4 +6,5 @@ export interface MenuItem {
   icon: string;
   shortcut?: string;
   action: () => void;
+  disabled?: boolean;
 }
