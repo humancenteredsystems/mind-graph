@@ -22,22 +22,27 @@ if not API_KEY:
     sys.exit(1)
 
 def fetch_nodes_with_levels():
-    """Fetch all existing nodes and their legacy level."""
-    query = """
-    query {
-      queryNode {
+    """Fetch all existing nodes and their legacy level via DQL predicate query."""
+    import requests
+    DGRAPH_URL = os.environ.get("DGRAPH_URL", "http://localhost:8080")
+    dql_query = """
+    {
+      nodes(func: has(level)) {
         id
         level
       }
     }
     """
-    response = call_api(API_BASE, "/query", API_KEY, method="POST", payload={"query": query})
-    if not response["success"]:
-        print("❌ Failed to fetch nodes:", response["error"])
+    try:
+        res = requests.post(f"{DGRAPH_URL}/query", json={"query": dql_query})
+        res.raise_for_status()
+        data = res.json()
+    except Exception as e:
+        print("❌ Failed to fetch nodes with DQL:", str(e))
         sys.exit(1)
-    nodes = response["data"].get("queryNode", [])
-    print(f"Fetched {len(nodes)} nodes with legacy levels.")
-    return nodes
+    nodes = data.get("nodes", [])
+    print(f"Fetched {len(nodes)} nodes with legacy levels via DQL.")
+    return [{"id": n.get("id"), "level": n.get("level", 1)} for n in nodes]
 
 def create_hierarchy(name="Legacy Hierarchy"):
     """Create a default hierarchy and return its new ID."""

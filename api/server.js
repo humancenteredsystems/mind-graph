@@ -150,13 +150,16 @@ app.post('/api/mutate', async (req, res) => {
   } // End catch block
 }); // End app.post('/api/mutate')
 
-// Stable version using string concatenation
-app.post('/api/traverse', async (req, res) => {
-  const { rootId, currentLevel, fields } = req.body;
+ // Stable version using string concatenation
+ app.post('/api/traverse', async (req, res) => {
+   const { rootId, hierarchyId, currentLevel, fields } = req.body;
 
   if (!rootId) {
-    return res.status(400).json({ error: 'Missing required field: rootId' });
-  }
+      return res.status(400).json({ error: 'Missing required field: rootId' });
+    }
+    if (!hierarchyId) {
+      return res.status(400).json({ error: 'Missing required field: hierarchyId' });
+    }
 
   // Validate currentLevel
   if (currentLevel !== undefined && (typeof currentLevel !== 'number' || currentLevel < 0)) {
@@ -184,7 +187,7 @@ app.post('/api/traverse', async (req, res) => {
 
   // Construct the 'to' block conditionally
   const toBlock = targetLevel !== null
-    ? `to (filter: { level: { eq: ${targetLevel} } }) {\n      ${fieldBlock}\n    }` // Note indentation
+    ? `to (filter: { hierarchyAssignments: { some: { hierarchy: { id: { eq: "${hierarchyId}" } }, levelNumber: { eq: ${targetLevel} } } } }) {\n      ${fieldBlock}\n    }`
     : `to {\n      ${fieldBlock}\n    }`; // Note indentation
 
   // Construct the full query using array join for clarity and safety
@@ -645,6 +648,9 @@ app.post('/api/deleteNodeCascade', async (req, res) => {
 });
 
 // Export the app instance for testing purposes
+const hierarchyRoutes = require('./hierarchyRoutes');
+app.use('/api', hierarchyRoutes);
+
 module.exports = app;
 
 // Start the server only if this file is run directly (e.g. node server.js or via nodemon)
