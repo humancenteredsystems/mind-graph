@@ -7,17 +7,15 @@ import { log } from './utils/logger';
 import { useUIContext } from './context/UIContext';
 import NodeFormModal from './components/NodeFormModal';
 import NodeDrawer from './components/NodeDrawer';
-import CytoscapeDebugger from './components/CytoscapeDebugger';
+// CytoscapeDebugger import removed as it's no longer used
+// import CytoscapeDebugger from './components/CytoscapeDebugger';
 
 function App() {
-  // Debug toggle
-  const [showDebugger, setShowDebugger] = useState(false);
-  
-  // Toggle debugger mode
-  const toggleDebugger = useCallback(() => {
-    setShowDebugger(prev => !prev);
-  }, []);
-  // rootId and loadingRoot state removed
+  // Debug toggle state and function removed
+  // const [showDebugger, setShowDebugger] = useState(false);
+  // const toggleDebugger = useCallback(() => {
+  //   setShowDebugger(prev => !prev);
+  // }, []);
 
   const {
     nodes,
@@ -58,29 +56,13 @@ function App() {
 
 return (
     <div className="App">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>MakeItMakeSense.io Graph</h1>
-        <button 
-          onClick={toggleDebugger}
-          style={{
-            background: showDebugger ? '#e74c3c' : '#3498db',
-            color: 'white',
-            padding: '5px 15px',
-            borderRadius: '4px',
-            border: 'none',
-            cursor: 'pointer'
-          }}
-        >
-          {showDebugger ? 'Show Real App' : 'Show Debugger'}
-        </button>
-      </div>
-      {/* Show either the debugger or the main application */}
-      {showDebugger ? (
-        <CytoscapeDebugger />
-      ) : (
-        <>
-          {/* Use isLoading for initial load indicator */}
-          {(isLoading || isExpanding) && <p>Loading graph data...</p>}
+      {/* Removed div containing the toggle button */}
+      <h1>MakeItMakeSense.io Graph</h1>
+      
+      {/* Removed conditional rendering for debugger */}
+      <>
+        {/* Use isLoading for initial load indicator */}
+        {(isLoading || isExpanding) && <p>Loading graph data...</p>}
           {error && <p style={{ color: 'red' }}>Error: {error}</p>}
           {/* Render GraphView once initial loading is complete */}
           {!isLoading && (
@@ -127,9 +109,9 @@ return (
             hideNodes(ids);
           }}
         />
-          )}
-        </>
-      )}
+        )}
+      </>
+      {/* End of removed conditional rendering */}
       <NodeFormModal
         open={addModalOpen}
         parentId={addParentId}
