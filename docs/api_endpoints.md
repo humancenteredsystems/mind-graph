@@ -128,16 +128,16 @@ mutation {
 ## POST /api/traverse
 
 **Path:** `/api/traverse`  
-**Description:** Fetches a node and its immediate neighbors.  
+**Description:** Fetches a node and its immediate neighbors within a specified hierarchy.
 **Request Body:**  
 ```json
 {
   "rootId": "node1",
-  "currentLevel": 0,          // optional
-  "fields": ["id","label"]    // optional
+  "hierarchyId": "hierarchy1", // ID of the hierarchy to traverse
+  "fields": ["id","label"]    // optional, defaults to id, label, type, status, branch, and hierarchyAssignments
 }
 ```
-**Allowed Fields:** `id`, `label`, `type`, `level`, `status`, `branch`
+**Allowed Fields:** `id`, `label`, `type`, `status`, `branch`, `hierarchyAssignments` (and its subfields like `level { levelNumber }`)
 **Response (200 OK):**  
 ```json
 {
@@ -146,8 +146,16 @@ mutation {
       {
         "id": "node1",
         "label": "Root",
+        "hierarchyAssignments": [{ "hierarchy": { "id": "hierarchy1" }, "level": { "levelNumber": 1 } }],
         "outgoing": [
-          { "type": "child", "to": { "id": "node2", "label": "Child" } }
+          { 
+            "type": "child", 
+            "to": { 
+              "id": "node2", 
+              "label": "Child",
+              "hierarchyAssignments": [{ "hierarchy": { "id": "hierarchy1" }, "level": { "levelNumber": 2 } }]
+            } 
+          }
         ]
       }
     ]
@@ -155,7 +163,7 @@ mutation {
 }
 ```
 **Error Responses:**  
-- 400 Bad Request if `rootId` is missing or invalid parameters supplied.  
+- 400 Bad Request if `rootId` or `hierarchyId` is missing, or invalid parameters supplied.
 - 400 GraphQL error if Dgraph returns errors.  
 - 500 Server error on unexpected failures.
 

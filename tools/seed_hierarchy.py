@@ -12,6 +12,7 @@ import os
 import sys
 import json
 from pathlib import Path
+from typing import List # Import List for type hinting
 
 # Ensure project root on Python path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -32,27 +33,32 @@ def drop_all_data():
         sys.exit(1)
     print("✅ All data dropped.")
 
-def create_hierarchies(names):
-    """Create hierarchies and return a dict name->id."""
-    ids = {}
-    for name in names:
+def create_hierarchies(hierarchies_to_create: List[tuple[int, str]]):
+    """
+    Create hierarchies and return a dict name->id.
+    hierarchies_to_create: list of tuples (id, name)
+    """
+    created_hierarchies_info = {}  # Stores name -> id
+    for hier_id, name in hierarchies_to_create:
         mutation = f'''
         mutation {{
-          addHierarchy(input: [{{ name: "{name}" }}]) {{
+          addHierarchy(input: [{{ id: {hier_id}, name: "{name}" }}]) {{
             hierarchy {{ id name }}
           }}
         }}
         '''
         resp = call_api(API_BASE, "/mutate", API_KEY, method="POST", payload={"mutation": mutation})
         if not resp["success"]:
-            print(f"❌ Failed to create hierarchy '{name}':", resp["error"])
+            print(f"❌ Failed to create hierarchy '{name}' (id: {hier_id}):", resp["error"])
             if resp.get("details"):
                 print("Details:", resp["details"])
             sys.exit(1)
         hier = resp["data"]["addHierarchy"]["hierarchy"][0]
-        ids[name] = hier["id"]
+        # Dgraph returns the ID it stored; it should match hier_id if the input was respected.
+        # Storing by name for consistency with how it was used later.
+        created_hierarchies_info[name] = int(hier["id"]) 
         print(f"Created hierarchy '{name}' (id: {hier['id']})")
-    return ids
+    return created_hierarchies_info
 
 def create_levels(hierarchy_id, levels):
     """
@@ -64,7 +70,7 @@ def create_levels(hierarchy_id, levels):
     for level_num, label in levels:
         mutation = f'''
         mutation {{
-          addHierarchyLevel(input: [{{ hierarchy: {{ id: "{hierarchy_id}" }}, levelNumber: {level_num}, label: "{label}" }}]) {{
+          addHierarchyLevel(input: [{{ hierarchy: {{ id: {hierarchy_id} }}, levelNumber: {level_num}, label: "{label}" }}]) {{  # Use hierarchy_id as int
             hierarchyLevel {{ id levelNumber label }}
           }}
         }}
@@ -115,17 +121,18 @@ def main():
     print("✅ Schema pushed.")
 
     # 2. Create hierarchies
-    hierarchy_names = ["hierarchy1", "hierarchy2"]
-    hier_ids = create_hierarchies(hierarchy_names)
+    # Provide explicit integer IDs for hierarchies
+    hierarchies_to_seed = [(1, "hierarchy1"), (2, "hierarchy2")] 
+    hier_ids_map = create_hierarchies(hierarchies_to_seed)
 
     # 3. Create levels with labels
     # hierarchy1: levels 1->"1.1", 2->"1.2", 3->"1.3"
     levels_h1 = [(1, "1.1"), (2, "1.2"), (3, "1.3")]
-    h1_level_ids = create_levels(hier_ids["hierarchy1"], levels_h1)
+    h1_level_ids = create_levels(hier_ids_map["hierarchy1"], levels_h1)
 
     # hierarchy2: levels 1->"2.1", 2->"2.2", 3->"2.3"
     levels_h2 = [(1, "2.1"), (2, "2.2"), (3, "2.3")]
-    h2_level_ids = create_levels(hier_ids["hierarchy2"], levels_h2)
+    h2_level_ids = create_levels(hier_ids_map["hierarchy2"], levels_h2)
 
     # 4. Create level types
     # For hierarchy1 level 1 -> types ["type1a", "type1b"]

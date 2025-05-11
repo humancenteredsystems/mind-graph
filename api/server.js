@@ -157,9 +157,15 @@ app.post('/api/mutate', async (req, res) => {
   if (!rootId) {
       return res.status(400).json({ error: 'Missing required field: rootId' });
     }
-    if (!hierarchyId) {
-      return res.status(400).json({ error: 'Missing required field: hierarchyId' });
-    }
+  if (hierarchyId === undefined) { // Check for undefined as 0 is a valid ID
+    return res.status(400).json({ error: 'Missing required field: hierarchyId' });
+  }
+
+  // Validate hierarchyId is an integer
+  if (!Number.isInteger(hierarchyId)) {
+    return res.status(400).json({ error: 'Invalid hierarchyId: must be an integer' });
+  }
+  console.log('[TRAVERSE] Validated hierarchyId:', hierarchyId, 'Type:', typeof hierarchyId);
 
   // Validate currentLevel
   if (currentLevel !== undefined && (typeof currentLevel !== 'number' || currentLevel < 0)) {
@@ -167,15 +173,16 @@ app.post('/api/mutate', async (req, res) => {
   }
 
   // Validate fields
-  const allowedFields = ['id', 'label', 'type', 'level', 'status', 'branch']; // Include all schema fields
+  const allowedFields = ['id', 'label', 'type', 'status', 'branch']; // Removed 'level'
   const safeFields = Array.isArray(fields) && fields.length > 0
     ? fields.filter(f => allowedFields.includes(f))
     : allowedFields; // Default to allowed fields if none provided or invalid
 
-  // Ensure 'level' is included if currentLevel is used for filtering
-  if (currentLevel !== undefined && !safeFields.includes('level')) {
-    safeFields.push('level');
-  }
+  // Ensure 'level' is included if currentLevel is used for filtering - This logic is no longer needed as 'level' is not a direct field.
+  // Hierarchy level filtering is handled by the 'to (filter: { hierarchyAssignments: ... levelNumber ... } })' part of the query.
+  // if (currentLevel !== undefined && !safeFields.includes('level')) {
+  //   safeFields.push('level');
+  // }
 
   if (safeFields.length === 0) {
     // This case should ideally not happen if default is allowedFields, but good to check
@@ -186,8 +193,9 @@ app.post('/api/mutate', async (req, res) => {
   const targetLevel = currentLevel !== undefined ? currentLevel + 1 : null;
 
   // Construct the 'to' block conditionally
+  // Use hierarchyId directly as an integer in the GraphQL query
   const toBlock = targetLevel !== null
-    ? `to (filter: { hierarchyAssignments: { some: { hierarchy: { id: { eq: "${hierarchyId}" } }, levelNumber: { eq: ${targetLevel} } } } }) {\n      ${fieldBlock}\n    }`
+    ? `to (filter: { hierarchyAssignments: { some: { hierarchy: { id: { eq: ${hierarchyId} } }, levelNumber: { eq: ${targetLevel} } } } }) {\n      ${fieldBlock}\n    }`
     : `to {\n      ${fieldBlock}\n    }`; // Note indentation
 
   // Construct the full query using array join for clarity and safety
@@ -207,8 +215,10 @@ app.post('/api/mutate', async (req, res) => {
 
   try {
     console.log(`[TRAVERSE] Attempting query for rootId: ${rootId}, targetLevel: ${targetLevel ?? 'N/A'}`);
-    console.log(`[TRAVERSE] Query:\n${query}`);
-    console.log(`[TRAVERSE] Variables:`, variables);
+    // console.log(`[TRAVERSE] Query:\n${query}`); // Original log, replaced by more detailed one below
+    // console.log(`[TRAVERSE] Variables:`, variables); // Original log, replaced by more detailed one below
+    console.log('[TRAVERSE] Constructed GraphQL Query:\n', query);
+    console.log('[TRAVERSE] Query Variables:', JSON.stringify(variables, null, 2));
     const result = await executeGraphQL(query, variables);
 
     // Apply the filterValidOutgoingEdges helper function to the results

@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
-import { fetchTraversalData, deleteNodeCascade, executeQuery, executeMutation } from '../services/ApiService';
-import { transformTraversalData, transformAllGraphData } from '../utils/graphUtils';
+import { useHierarchyContext } from '../context/HierarchyContext';
+import { fetchAllNodeIds, fetchTraversalData, deleteNodeCascade, executeMutation } from '../services/ApiService';
+import { transformTraversalData } from '../utils/graphUtils';
 import { NodeData, EdgeData } from '../types/graph';
 import { log } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
-import { GET_ALL_NODES_AND_EDGES_QUERY } from '../graphql/queries';
 import {
   ADD_NODE_MUTATION,
   ADD_EDGE_MUTATION,
@@ -20,6 +20,7 @@ interface UseGraphState {
   isExpanding: boolean;
   error: string | null;
   hiddenNodeIds: Set<string>;
+  loadInitialGraph: (rootId: string) => Promise<void>;
   loadCompleteGraph: () => Promise<void>;
   expandNode: (nodeId: string) => Promise<void>;
   addNode: (values: { label: string; type: string }, parentId?: string) => Promise<void>;
@@ -33,7 +34,9 @@ interface UseGraphState {
   connectNodes: (fromId: string, toId: string) => Promise<EdgeData | undefined>;
 }
 
-export const useGraphState = (hierarchyId: string = 'hierarchy1'): UseGraphState => {
+export const useGraphState = (): UseGraphState => {
+  const { hierarchyId } = useHierarchyContext(); // hierarchyId is now a number
+  // const hierarchyNum = parseInt(hierarchyId, 10); // No longer needed
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -42,41 +45,75 @@ export const useGraphState = (hierarchyId: string = 'hierarchy1'): UseGraphState
   const expandedNodeIds = useRef<Set<string>>(new Set());
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
 
-  const loadCompleteGraph = useCallback(async () => {
-    log('useGraphState', 'Loading complete graph');
+  const loadInitialGraph = useCallback(async (rootId: string) => {
+    log('useGraphState', `Loading initial graph for ${rootId} in hierarchy ${hierarchyId}`);
     setIsLoading(true);
     setError(null);
     try {
-      const rawData = await executeQuery(GET_ALL_NODES_AND_EDGES_QUERY);
-      const { nodes: allNodes, edges: allEdges } = transformAllGraphData(rawData);
+      const rawData = await fetchTraversalData(rootId, hierarchyId); // Pass hierarchyId directly
+      const { nodes: initNodes, edges: initEdges } = transformTraversalData(rawData);
+      setNodes(initNodes);
+      setEdges(initEdges);
+      setHiddenNodeIds(new Set());
+      expandedNodeIds.current.clear();
+    } catch (err) {
+      log('useGraphState', `Error loading initial graph for ${rootId}`, err);
+      setError('Failed to load initial graph data.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hierarchyId]); // Removed loadInitialGraph from dependencies
+
+  const loadCompleteGraph = useCallback(async () => {
+    log('useGraphState', `Loading complete graph for hierarchy ${hierarchyId}`);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const ids = await fetchAllNodeIds();
+      const allNodes: NodeData[] = [];
+      const allEdges: EdgeData[] = [];
+      for (const id of ids) {
+        const rawData = await fetchTraversalData(id, hierarchyId); // Pass hierarchyId directly
+        const { nodes: nNodes, edges: nEdges } = transformTraversalData(rawData);
+        nNodes.forEach(n => {
+          if (!allNodes.some(existing => existing.id === n.id)) {
+            allNodes.push(n);
+          }
+        });
+        nEdges.forEach(e => {
+          if (!allEdges.some(existing => existing.source === e.source && existing.target === e.target && existing.type === e.type)) {
+            allEdges.push(e);
+          }
+        });
+      }
       setNodes(allNodes);
       setEdges(allEdges);
       setHiddenNodeIds(new Set());
       expandedNodeIds.current.clear();
     } catch (err) {
       log('useGraphState', 'Error loading complete graph', err);
-      setError('Failed to load graph data.');
+      setError('Failed to load initial graph data.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [hierarchyId]);
 
   const expandNode = useCallback(async (nodeId: string) => {
     if (isExpanding || isLoading || expandedNodeIds.current.has(nodeId)) return;
     const clickedNode = nodes.find(n => n.id === nodeId);
-    if (!clickedNode || !clickedNode.assignments || clickedNode.assignments.length === 0) {
-      setError(`Cannot expand node ${nodeId}: missing assignment`);
+    if (!clickedNode) {
+      setError(`Cannot expand node ${nodeId}: node not found`);
       return;
     }
     setIsExpanding(true);
     setError(null);
     try {
-      const rawData = await fetchTraversalData(nodeId, hierarchyId);
+      const rawData = await fetchTraversalData(nodeId, hierarchyId); // Pass hierarchyId directly
       const { nodes: newNodes, edges: newEdges } = transformTraversalData(rawData);
       const existingNodeIds = new Set(nodes.map(n => n.id));
-      const existingEdgeIds = new Set(edges.map(e => `${e.source}-${e.target}-${e.type}`));
+      const existingEdgeKeys = new Set(edges.map(e => `${e.source}-${e.target}-${e.type}`));
       const uniqueNodes = newNodes.filter(n => !existingNodeIds.has(n.id));
-      const uniqueEdges = newEdges.filter(e => !existingEdgeIds.has(`${e.source}-${e.target}-${e.type}`));
+      const uniqueEdges = newEdges.filter(e => !existingEdgeKeys.has(`${e.source}-${e.target}-${e.type}`));
       if (uniqueNodes.length || uniqueEdges.length) {
         setNodes(prev => [...prev, ...uniqueNodes]);
         setEdges(prev => [...prev, ...uniqueEdges]);
@@ -88,7 +125,7 @@ export const useGraphState = (hierarchyId: string = 'hierarchy1'): UseGraphState
     } finally {
       setIsExpanding(false);
     }
-  }, [nodes, edges, isLoading, isExpanding]);
+  }, [nodes, edges, isLoading, isExpanding, hierarchyId]);
 
   const addNode = useCallback(async (values: { label: string; type: string }, parentId?: string) => {
     const newId = uuidv4();
@@ -142,9 +179,9 @@ export const useGraphState = (hierarchyId: string = 'hierarchy1'): UseGraphState
         }
       }
     };
-      try {
-        const res = await executeMutation(UPDATE_NODE_MUTATION, variables);
-        const updated: any = res.updateNode?.node?.[0];
+    try {
+      const res = await executeMutation(UPDATE_NODE_MUTATION, variables);
+      const updated: any = res.updateNode?.node?.[0];
       if (updated) {
         setNodes(prev => prev.map(n => n.id === updated.id ? {
           id: updated.id,
@@ -241,6 +278,7 @@ export const useGraphState = (hierarchyId: string = 'hierarchy1'): UseGraphState
     isExpanding,
     error,
     hiddenNodeIds,
+    loadInitialGraph,
     loadCompleteGraph,
     expandNode,
     addNode,

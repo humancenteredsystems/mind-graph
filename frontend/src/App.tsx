@@ -5,12 +5,13 @@ import { useGraphState } from './hooks/useGraphState';
 // fetchAllNodeIds no longer needed here
 import { log } from './utils/logger';
 import { useUIContext } from './context/UIContext';
+import { HierarchyProvider } from './context/HierarchyContext';
 import NodeFormModal from './components/NodeFormModal';
 import NodeDrawer from './components/NodeDrawer';
 // CytoscapeDebugger import removed as it's no longer used
 // import CytoscapeDebugger from './components/CytoscapeDebugger';
 
-function App() {
+function AppInner() {
   // Debug toggle state and function removed
   // const [showDebugger, setShowDebugger] = useState(false);
   // const toggleDebugger = useCallback(() => {
@@ -36,7 +37,7 @@ function App() {
     hideNode,
     hideNodes,
     connectNodes,
-  } = useGraphState('hierarchy1');
+  } = useGraphState();
 
   // useEffect to load the complete graph on initial mount
   useEffect(() => {
@@ -152,5 +153,11 @@ return (
 </div>
   );
 }
+
+const App = () => (
+  <HierarchyProvider>
+    <AppInner />
+  </HierarchyProvider>
+);
 
 export default App;

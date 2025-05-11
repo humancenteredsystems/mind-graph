@@ -21,11 +21,11 @@ DEFAULT_API_BASE = "http://localhost:3000/api"
 # Sample test data
 DEFAULT_TEST_DATA = {
     "nodes": [
-        {"id": "node1", "label": "Concept 1", "type": "concept", "level": 1, "status": "approved", "branch": "main"},
-        {"id": "node2", "label": "Concept 2", "type": "concept", "level": 1, "status": "approved", "branch": "main"},
-        {"id": "node3", "label": "Concept 3", "type": "concept", "level": 2, "status": "approved", "branch": "main"},
-        {"id": "node4", "label": "Example 1", "type": "example", "level": 2, "status": "approved", "branch": "main"},
-        {"id": "node5", "label": "Question 1", "type": "question", "level": 3, "status": "pending", "branch": "user1"}
+        {"id": "node1", "label": "Concept 1", "type": "concept", "status": "approved", "branch": "main"},
+        {"id": "node2", "label": "Concept 2", "type": "concept", "status": "approved", "branch": "main"},
+        {"id": "node3", "label": "Concept 3", "type": "concept", "status": "approved", "branch": "main"},
+        {"id": "node4", "label": "Example 1", "type": "example", "status": "approved", "branch": "main"},
+        {"id": "node5", "label": "Question 1", "type": "question", "status": "pending", "branch": "user1"}
     ],
     "edges": [
         # Note: Dgraph GraphQL requires 'from' and 'to' to be objects with 'id'

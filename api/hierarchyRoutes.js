@@ -35,9 +35,15 @@ router.get('/hierarchy', async (req, res) => {
 
 // Get hierarchy by ID
 router.get('/hierarchy/:id', async (req, res) => {
-  const { id } = req.params;
+  const idParam = req.params.id;
+  const id = parseInt(idParam, 10);
+
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid hierarchy ID: must be an integer.' });
+  }
+
   const query = `
-    query ($id: ID!) {
+    query ($id: Int!) { # Changed from ID! to Int!
       queryHierarchy(filter: { id: { eq: $id } }) {
         id
         name
@@ -45,7 +51,7 @@ router.get('/hierarchy/:id', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(query, { id });
+    const data = await executeGraphQL(query, { id }); // id is now an integer
     const hier = data.queryHierarchy[0];
     if (!hier) {
       return res.status(404).json({ error: 'Hierarchy not found' });
@@ -83,14 +89,19 @@ router.post('/hierarchy', async (req, res) => {
 
 // Update an existing hierarchy
 router.put('/hierarchy/:id', async (req, res) => {
-  const { id } = req.params;
+  const idParam = req.params.id;
+  const id = parseInt(idParam, 10);
   const { name } = req.body;
+
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid hierarchy ID: must be an integer.' });
+  }
   if (!name) {
     return res.status(400).json({ error: 'Missing required field: name' });
   }
   const mutation = `
-    mutation {
-      updateHierarchy(input: { filter: { id: { eq: "${id}" } }, set: { name: "${name}" } }) {
+    mutation ($id: Int!, $name: String!) { # Parameterize query
+      updateHierarchy(input: { filter: { id: { eq: $id } }, set: { name: $name } }) {
         hierarchy {
           id
           name
@@ -99,7 +110,7 @@ router.put('/hierarchy/:id', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(mutation);
+    const data = await executeGraphQL(mutation, { id, name }); // Pass id as integer
     const hier = data.updateHierarchy.hierarchy[0];
     return res.json(hier);
   } catch (err) {
@@ -109,17 +120,22 @@ router.put('/hierarchy/:id', async (req, res) => {
 
 // Delete a hierarchy
 router.delete('/hierarchy/:id', async (req, res) => {
-  const { id } = req.params;
+  const idParam = req.params.id;
+  const id = parseInt(idParam, 10);
+
+  if (isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid hierarchy ID: must be an integer.' });
+  }
   const mutation = `
-    mutation {
-      deleteHierarchy(filter: { id: { eq: "${id}" } }) {
+    mutation ($id: Int!) { # Parameterize query
+      deleteHierarchy(filter: { id: { eq: $id } }) {
         msg
         numUids
       }
     }
   `;
   try {
-    const data = await executeGraphQL(mutation);
+    const data = await executeGraphQL(mutation, { id }); // Pass id as integer
     return res.json(data.deleteHierarchy);
   } catch (err) {
     return res.status(500).json({ error: err.message });

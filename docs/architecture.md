@@ -101,13 +101,13 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 
 ```graphql
 type Node {
-  id: String! @id # Must be String!, Int!, or Int64! for Dgraph @id
+  id: String! @id
   label: String! @search(by: [term])
   type: String!
-  level: Int @search
   status: String
   branch: String
   outgoing: [Edge] @hasInverse(field: "from")
+  hierarchyAssignments: [HierarchyAssignment] @hasInverse(field: "node")
 }
 
 type Edge {
@@ -116,6 +116,34 @@ type Edge {
   to: Node
   toId: String! @search(by: [hash])
   type: String!
+}
+
+type Hierarchy {
+  id: ID!
+  name: String! @search(by: [exact])
+  levels: [HierarchyLevel] @hasInverse(field: "hierarchy")
+}
+
+type HierarchyLevel {
+  id: ID!
+  hierarchy: Hierarchy!
+  levelNumber: Int! @search
+  label: String
+  allowedTypes: [HierarchyLevelType] @hasInverse(field: "level")
+  assignments: [HierarchyAssignment] @hasInverse(field: "level")
+}
+
+type HierarchyLevelType {
+  id: ID!
+  level: HierarchyLevel!
+  typeName: String! @search(by: [exact])
+}
+
+type HierarchyAssignment {
+  id: ID!
+  node: Node!
+  hierarchy: Hierarchy!
+  level: HierarchyLevel! @hasInverse(field: "assignments")
 }
 ```
 
@@ -159,14 +187,15 @@ type Edge {
 
 ---
 
-## 🚀 Example Workflow (Current Implementation - Initial Load)
+## 🚀 Example Workflow (Current Implementation - Graph Load with Hierarchy)
 
 1. User visits the frontend application in their browser.
-2. Frontend (`App.tsx` -> `useGraphState.ts`) calls the backend API (`POST /api/query`) with a GraphQL query to fetch all nodes and edges.
-3. Backend API executes the GraphQL query against Dgraph.
-4. Backend API returns the complete graph data (all nodes and edges) to the frontend.
-5. Frontend (`graphUtils.ts`) transforms the data into the format required by Cytoscape.
-6. Frontend renders the complete graph via react-cytoscapejs.
+2. Frontend loads the available hierarchies and sets the active hierarchy (either from user selection or default).
+3. Frontend (`App.tsx` -> `useGraphState.ts` -> `HierarchyContext.tsx`) calls the backend API with a GraphQL query that filters by the selected hierarchy.
+4. Backend API executes the GraphQL query against Dgraph.
+5. Frontend transforms the data into the format required by Cytoscape.
+6. Frontend renders the graph via react-cytoscapejs, with nodes positioned according to their level in the active hierarchy.
+7. User can switch hierarchies via the UI to view alternate organizational structures of the same knowledge graph.
 
 ## 🚀 Example Workflow (Future Goal - Branching/Merging)
 

@@ -154,7 +154,9 @@ const GraphView: React.FC<GraphViewProps> = ({
     
     // Completely disable selection
     cy.autounselectify(false);
-    cy.boxSelectionEnabled(true);
+    if (typeof (cy as any).boxSelectionEnabled === 'function') {
+      (cy as any).boxSelectionEnabled(true);
+    }
     log('GraphView', 'Multi-select enabled: autounselectify(false) and boxSelectionEnabled(true)');
     
     // Refined manual double-click detection logic
@@ -202,7 +204,7 @@ const GraphView: React.FC<GraphViewProps> = ({
           const nodeData = nodes.find(n => n.id === nodeId);
           if (nodeData) {
             // log('GraphView', `[handleTap] Calling onEditNode for node: ${nodeId}`); // Removed log
-            onEditNode(nodeData);
+            onEditNode(nodeId);
           } else {
             log('GraphView', `[handleTap] Warning: Node data not found for ID: ${nodeId}`);
           }
@@ -253,7 +255,7 @@ const GraphView: React.FC<GraphViewProps> = ({
       if (onEditNode && nodeId) {
         const nodeData = nodes.find(n => n.id === nodeId);
         if (nodeData) {
-          onEditNode(nodeData);
+          onEditNode(nodeId);
         }
       }
     };

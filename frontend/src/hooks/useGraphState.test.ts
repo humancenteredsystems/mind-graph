@@ -15,7 +15,16 @@ describe('useGraphState', () => {
     const addNodePayload = {
       addNode: {
         node: [
-          { id: 'n1', label: 'L', type: 't', level: 1, status: 'pending', branch: 'main' }
+          {
+            id: 'n1',
+            label: 'L',
+            type: 't',
+            status: 'pending',
+            branch: 'main',
+            hierarchyAssignments: [
+              { level: { id: 'lvl1' } }
+            ]
+          }
         ]
       }
     };
@@ -28,7 +37,12 @@ describe('useGraphState', () => {
 
     expect(result.current.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'n1', label: 'L', type: 't', level: 1 })
+        expect.objectContaining({
+          id: 'n1',
+          label: 'L',
+          type: 't',
+          assignments: ['lvl1']
+        })
       ])
     );
     expect(result.current.edges).toEqual([]);
@@ -38,7 +52,16 @@ describe('useGraphState', () => {
     const addNodePayload = {
       addNode: {
         node: [
-          { id: 'n2', label: 'L2', type: 't2', level: 2, status: 'pending', branch: 'main' }
+          {
+            id: 'n2',
+            label: 'L2',
+            type: 't2',
+            status: 'pending',
+            branch: 'main',
+            hierarchyAssignments: [
+              { level: { id: 'lvl2' } }
+            ]
+          }
         ]
       }
     };
@@ -60,7 +83,12 @@ describe('useGraphState', () => {
 
     expect(result.current.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'n2', label: 'L2', type: 't2', level: 2 })
+        expect.objectContaining({
+          id: 'n2',
+          label: 'L2',
+          type: 't2',
+          assignments: ['lvl2']
+        })
       ])
     );
     expect(result.current.edges).toEqual(
@@ -69,16 +97,17 @@ describe('useGraphState', () => {
   });
 
   it('edits a node', async () => {
-    // Seed initial node via loadInitialGraph stub
     const rawData = {
       queryNode: [
         {
           id: 'n1',
           label: 'L',
           type: 't',
-          level: 1,
           status: 'pending',
           branch: 'main',
+          hierarchyAssignments: [
+            { level: { id: 'lvl0' } }
+          ],
           outgoing: []
         }
       ]
@@ -87,7 +116,16 @@ describe('useGraphState', () => {
     const updatePayload = {
       updateNode: {
         node: [
-          { id: 'n1', label: 'New', type: 't', level: 2, status: 'pending', branch: 'main' }
+          {
+            id: 'n1',
+            label: 'New',
+            type: 't',
+            status: 'pending',
+            branch: 'main',
+            hierarchyAssignments: [
+              { level: { id: 'lvl1' } }
+            ]
+          }
         ]
       }
     };
@@ -96,12 +134,16 @@ describe('useGraphState', () => {
     const { result } = renderHook(() => useGraphState());
     await act(async () => {
       await result.current.loadInitialGraph('n1');
-      await result.current.editNode('n1', { label: 'New', type: 't', level: 2 });
+      await result.current.editNode('n1', { label: 'New', type: 't' });
     });
 
     expect(result.current.nodes).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'n1', label: 'New', level: 2 })
+        expect.objectContaining({
+          id: 'n1',
+          label: 'New',
+          assignments: ['lvl1']
+        })
       ])
     );
   });
@@ -111,9 +153,9 @@ describe('useGraphState', () => {
 
     const { result } = renderHook(() => useGraphState());
     await act(async () => {
-      await result.current.editNode('n1', { label: 'L', type: 't', level: 1 });
+      await result.current.editNode('n1', { label: 'L', type: 't' });
     });
 
-    expect(result.current.error).toMatch(/Failed to update node n1/);
+    expect(result.current.error).toMatch(/Failed to edit node n1/);
   });
 });
