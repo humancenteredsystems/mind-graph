@@ -161,9 +161,9 @@ app.post('/api/mutate', async (req, res) => {
     return res.status(400).json({ error: 'Missing required field: hierarchyId' });
   }
 
-  // Validate hierarchyId is an integer
-  if (!Number.isInteger(hierarchyId)) {
-    return res.status(400).json({ error: 'Invalid hierarchyId: must be an integer' });
+  // Validate hierarchyId is a non-empty string
+  if (typeof hierarchyId !== 'string' || !hierarchyId.trim()) {
+    return res.status(400).json({ error: 'Invalid hierarchyId: must be a non-empty string' });
   }
   console.log('[TRAVERSE] Validated hierarchyId:', hierarchyId, 'Type:', typeof hierarchyId);
 

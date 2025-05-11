@@ -17,7 +17,7 @@ type Edge {
 }
 
 type Hierarchy {
-  id: Int! @search
+  id: ID! @id
   name: String! @search(by: [exact])
   levels: [HierarchyLevel] @hasInverse(field: "hierarchy")
 }

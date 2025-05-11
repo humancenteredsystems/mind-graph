@@ -16,7 +16,7 @@ export interface EdgeData {
 
 // Represents a Hierarchy
 export interface HierarchyData {
-  id: number; // Corresponds to Hierarchy.id, now an integer
+  id: string; // Corresponds to Hierarchy.id, now ID!
   name: string;
   // Potentially other fields like 'levels' if you fetch them
 }
@@ -24,7 +24,7 @@ export interface HierarchyData {
 // Represents a level within a hierarchy
 export interface HierarchyLevelData {
   id: string; // Corresponds to HierarchyLevel.id (assuming this remains string or ID)
-  hierarchyId: number; // ID of the parent Hierarchy, now an integer
+  hierarchyId: string; // ID of the parent Hierarchy, now ID!
   levelNumber: number;
   label?: string;
   // Potentially other fields
@@ -34,7 +34,7 @@ export interface HierarchyLevelData {
 export interface HierarchyAssignmentData {
   id: string; // Corresponds to HierarchyAssignment.id
   nodeId: string;
-  hierarchyId: number; // ID of the Hierarchy, now an integer
+  hierarchyId: string; // ID of the Hierarchy, now ID!
   levelId: string; // ID of the HierarchyLevel
   // Potentially other fields
 }

@@ -11,6 +11,7 @@ Usage:
 import os
 import sys
 import json
+import time # Import time module for sleep
 from pathlib import Path
 from typing import List # Import List for type hinting
 
@@ -33,34 +34,33 @@ def drop_all_data():
         sys.exit(1)
     print("✅ All data dropped.")
 
-def create_hierarchies(hierarchies_to_create: List[tuple[int, str]]):
+def create_hierarchies(hierarchies_to_create: List[tuple[str, str]]):
     """
     Create hierarchies and return a dict name->id.
-    hierarchies_to_create: list of tuples (id, name)
+    hierarchies_to_create: list of tuples (id_string, name)
     """
     created_hierarchies_info = {}  # Stores name -> id
-    for hier_id, name in hierarchies_to_create:
+    for hier_id_str, name in hierarchies_to_create:
         mutation = f'''
         mutation {{
-          addHierarchy(input: [{{ id: {hier_id}, name: "{name}" }}]) {{
+          addHierarchy(input: [{{ id: "{hier_id_str}", name: "{name}" }}]) {{
             hierarchy {{ id name }}
           }}
         }}
         '''
         resp = call_api(API_BASE, "/mutate", API_KEY, method="POST", payload={"mutation": mutation})
         if not resp["success"]:
-            print(f"❌ Failed to create hierarchy '{name}' (id: {hier_id}):", resp["error"])
+            print(f"❌ Failed to create hierarchy '{name}' (id: {hier_id_str}):", resp["error"])
             if resp.get("details"):
                 print("Details:", resp["details"])
             sys.exit(1)
         hier = resp["data"]["addHierarchy"]["hierarchy"][0]
-        # Dgraph returns the ID it stored; it should match hier_id if the input was respected.
-        # Storing by name for consistency with how it was used later.
-        created_hierarchies_info[name] = int(hier["id"]) 
+        # Dgraph returns the ID it stored; it should match hier_id_str if the input was respected.
+        created_hierarchies_info[name] = hier["id"] # ID is now a string
         print(f"Created hierarchy '{name}' (id: {hier['id']})")
     return created_hierarchies_info
 
-def create_levels(hierarchy_id, levels):
+def create_levels(hierarchy_id: str, levels): # hierarchy_id is now a string
     """
     Create levels for a given hierarchy.
     levels: list of tuples (levelNumber, label)
@@ -70,7 +70,7 @@ def create_levels(hierarchy_id, levels):
     for level_num, label in levels:
         mutation = f'''
         mutation {{
-          addHierarchyLevel(input: [{{ hierarchy: {{ id: {hierarchy_id} }}, levelNumber: {level_num}, label: "{label}" }}]) {{  # Use hierarchy_id as int
+          addHierarchyLevel(input: [{{ hierarchy: {{ id: "{hierarchy_id}" }}, levelNumber: {level_num}, label: "{label}" }}]) {{ # Use hierarchy_id as string
             hierarchyLevel {{ id levelNumber label }}
           }}
         }}
@@ -119,10 +119,12 @@ def main():
             print("Details:", resp["details"])
         sys.exit(1)
     print("✅ Schema pushed.")
+    print("Waiting a few seconds for Dgraph to process the schema...")
+    time.sleep(15) # Wait for 15 seconds
 
     # 2. Create hierarchies
-    # Provide explicit integer IDs for hierarchies
-    hierarchies_to_seed = [(1, "hierarchy1"), (2, "hierarchy2")] 
+    # Provide explicit string IDs for hierarchies
+    hierarchies_to_seed = [("h1", "hierarchy1"), ("h2", "hierarchy2")]
     hier_ids_map = create_hierarchies(hierarchies_to_seed)
 
     # 3. Create levels with labels

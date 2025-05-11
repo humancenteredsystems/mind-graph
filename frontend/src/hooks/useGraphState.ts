@@ -35,7 +35,7 @@ interface UseGraphState {
 }
 
 export const useGraphState = (): UseGraphState => {
-  const { hierarchyId } = useHierarchyContext(); // hierarchyId is now a number
+  const { hierarchyId } = useHierarchyContext(); // hierarchyId is now a string
   // const hierarchyNum = parseInt(hierarchyId, 10); // No longer needed
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
@@ -50,7 +50,7 @@ export const useGraphState = (): UseGraphState => {
     setIsLoading(true);
     setError(null);
     try {
-      const rawData = await fetchTraversalData(rootId, hierarchyId); // Pass hierarchyId directly
+      const rawData = await fetchTraversalData(rootId, hierarchyId); // hierarchyId is a string
       const { nodes: initNodes, edges: initEdges } = transformTraversalData(rawData);
       setNodes(initNodes);
       setEdges(initEdges);
@@ -73,7 +73,7 @@ export const useGraphState = (): UseGraphState => {
       const allNodes: NodeData[] = [];
       const allEdges: EdgeData[] = [];
       for (const id of ids) {
-        const rawData = await fetchTraversalData(id, hierarchyId); // Pass hierarchyId directly
+        const rawData = await fetchTraversalData(id, hierarchyId); // hierarchyId is a string
         const { nodes: nNodes, edges: nEdges } = transformTraversalData(rawData);
         nNodes.forEach(n => {
           if (!allNodes.some(existing => existing.id === n.id)) {
@@ -108,7 +108,7 @@ export const useGraphState = (): UseGraphState => {
     setIsExpanding(true);
     setError(null);
     try {
-      const rawData = await fetchTraversalData(nodeId, hierarchyId); // Pass hierarchyId directly
+      const rawData = await fetchTraversalData(nodeId, hierarchyId); // hierarchyId is a string
       const { nodes: newNodes, edges: newEdges } = transformTraversalData(rawData);
       const existingNodeIds = new Set(nodes.map(n => n.id));
       const existingEdgeKeys = new Set(edges.map(e => `${e.source}-${e.target}-${e.type}`));

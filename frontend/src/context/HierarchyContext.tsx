@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 interface HierarchyContextType {
-  hierarchyId: number;  // Change from string to number
-  setHierarchyId: (id: number) => void;  // Change parameter type
+  hierarchyId: string;  // Change from number to string
+  setHierarchyId: (id: string) => void;  // Change parameter type
 }
 
 const HierarchyContext = createContext<HierarchyContextType>({
-  hierarchyId: 1,  // Change from '1' to 1
+  hierarchyId: "h1",  // Change from 1 to a string ID, e.g., "h1" or a meaningful default
   setHierarchyId: () => {},
 });
 
@@ -17,7 +17,7 @@ interface ProviderProps {
 }
 
 export const HierarchyProvider = ({ children }: ProviderProps) => {
-  const [hierarchyId, setHierarchyId] = useState<number>(1);  // Change from string to number
+  const [hierarchyId, setHierarchyId] = useState<string>("h1");  // Change from number to string
   return (
     <HierarchyContext.Provider value={{ hierarchyId, setHierarchyId }}>
       {children}

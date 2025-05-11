@@ -40,16 +40,16 @@ interface HealthStatus {
  */
 export const fetchTraversalData = async (
   rootId: string,
-  hierarchyId: number  // Explicitly type as number
+  hierarchyId: string  // Changed from number to string
 ): Promise<TraversalResponse> => {
-  if (!rootId || hierarchyId === undefined) { // Check for undefined as 0 is a valid ID
+  if (!rootId || !hierarchyId) { // Check for falsy hierarchyId (empty string or undefined)
     console.warn('[ApiService] fetchTraversalData skipped: missing rootId or hierarchyId');
     return { queryNode: [] };
   }
   try {
     const response = await axios.post<{ data: TraversalResponse }>(
       `${API_BASE_URL}/traverse`,
-      { rootId, hierarchyId }  // hierarchyId is now a number
+      { rootId, hierarchyId }  // hierarchyId is now a string
     );
     return response.data.data;
   } catch (error) {
