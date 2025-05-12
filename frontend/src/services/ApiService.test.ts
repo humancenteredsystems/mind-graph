@@ -1,7 +1,7 @@
 // Test file for ApiService.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
-import { fetchTraversalData, executeQuery, executeMutation, fetchSchema, fetchHealth, deleteNodeCascade } from './ApiService';
+import { fetchTraversalData, executeQuery, executeMutation, fetchSchema, fetchHealth, deleteNodeCascade, fetchHierarchies, API_BASE_URL } from './ApiService';
 
 // Mock the axios module
 vi.mock('axios');
@@ -160,6 +160,24 @@ describe('ApiService', () => {
       const errorMessage = 'Failed to delete node.'; // Match the error message thrown by the function
       (axios.post as any).mockRejectedValue(new Error('Network Error')); // Mock a network error from axios
       await expect(deleteNodeCascade('testNodeId')).rejects.toThrow(errorMessage);
+    });
+  });
+
+  describe('fetchHierarchies', () => {
+    it('should call axios.get with correct parameters for hierarchy', async () => {
+      const mockResponse = { data: [{ id: 'h1', name: 'Hierarchy 1' }] };
+      (axios.get as any).mockResolvedValue(mockResponse);
+
+      const result = await fetchHierarchies();
+      expect(axios.get).toHaveBeenCalledWith(`${API_BASE_URL}/hierarchy`);
+      expect(result).toEqual(mockResponse.data);
+    });
+
+    it('should throw error on failed fetchHierarchies call', async () => {
+      const errorMessage = 'Network Error';
+      (axios.get as any).mockRejectedValue(new Error(errorMessage));
+
+      await expect(fetchHierarchies()).rejects.toThrow(errorMessage);
     });
   });
 });

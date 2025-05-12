@@ -5,7 +5,7 @@ import { useGraphState } from './hooks/useGraphState';
 // fetchAllNodeIds no longer needed here
 import { log } from './utils/logger';
 import { useUIContext } from './context/UIContext';
-import { HierarchyProvider } from './context/HierarchyContext';
+import { HierarchyProvider, useHierarchyContext } from './context/HierarchyContext';
 import NodeFormModal from './components/NodeFormModal';
 import NodeDrawer from './components/NodeDrawer';
 // CytoscapeDebugger import removed as it's no longer used
@@ -58,10 +58,21 @@ function AppInner() {
   setEditNode, // Get the new function from context
 } = useUIContext();
 
+  const { hierarchies, hierarchyId, setHierarchyId } = useHierarchyContext();
+
 return (
     <div className="App">
       {/* Removed div containing the toggle button */}
       <h1>MakeItMakeSense.io Graph</h1>
+      <select
+        value={hierarchyId}
+        onChange={e => setHierarchyId(e.target.value)}
+        style={{ margin: '1rem 0' }}
+      >
+        {hierarchies.map(h => (
+          <option key={h.id} value={h.id}>{h.name}</option>
+        ))}
+      </select>
       
       {/* Removed conditional rendering for debugger */}
       <>

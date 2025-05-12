@@ -2,7 +2,13 @@ export interface NodeData {
   id: string;
   label?: string;
   type?: string;
-  assignments?: string[]; // This might need to be number[] if it refers to HierarchyLevel IDs that become numbers
+  assignments?: {
+    hierarchyId: string;
+    hierarchyName: string;
+    levelId: string;
+    levelNumber: number;
+    levelLabel?: string;
+  }[];
   status?: string;
   branch?: string;
 }

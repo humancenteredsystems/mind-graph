@@ -203,6 +203,10 @@ app.post('/api/mutate', async (req, res) => {
     'query TraverseGraph($rootId: String!) {',
     '  queryNode(filter: { id: { eq: $rootId } }) {',
     `    ${fieldBlock}`, // Fields for the root node
+    '    hierarchyAssignments {',
+    '      hierarchy { id name }',
+    '      level { id levelNumber label }',
+    '    }',
     '    outgoing {',
     '      type',
     `      ${toBlock}`, // The conditionally constructed 'to' block

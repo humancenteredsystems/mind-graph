@@ -4,6 +4,7 @@ import cytoscape, { Core, ElementDefinition, StylesheetCSS } from 'cytoscape';
 import klay from 'cytoscape-klay';
 import { NodeData, EdgeData } from '../types/graph';
 import { useContextMenu } from '../context/ContextMenuContext';
+import { useHierarchyContext } from '../context/HierarchyContext';
 import { log } from '../utils/logger';
 
 // Register Cytoscape plugins ONCE at module load
@@ -48,6 +49,7 @@ const GraphView: React.FC<GraphViewProps> = ({
 }) => {
   const cyRef = useRef<Core | null>(null);
   const { openMenu } = useContextMenu();
+  const { hierarchyId } = useHierarchyContext();
   const [selectedCount, setSelectedCount] = useState(0);
   const selectedOrderRef = useRef<string[]>([]);
   const [selectedEdgesCount, setSelectedEdgesCount] = useState(0);
@@ -60,9 +62,23 @@ const GraphView: React.FC<GraphViewProps> = ({
   // Build elements: filter hidden nodes and edges
   const elements = useMemo<ElementDefinition[]>(() => {
     const visible = nodes.filter(n => !hiddenNodeIds.has(n.id));
-    const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => ({
-      data: { id, label: label ?? id, type, assignments, status, branch },
-    }));
+    const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => {
+      const assignmentForCurrent = Array.isArray(assignments) ? assignments.find(a => a.hierarchyId === hierarchyId) : undefined;
+      const levelLabel = assignmentForCurrent?.levelLabel ?? assignmentForCurrent?.levelNumber;
+      const displayLabel = levelLabel ? `${levelLabel}: ${label ?? id}` : (label ?? id);
+      return {
+        data: {
+          id,
+          label: displayLabel,
+          type,
+          assignments,
+          status,
+          branch,
+          levelNumber: assignmentForCurrent?.levelNumber,
+          levelLabel: assignmentForCurrent?.levelLabel,
+        },
+      };
+    });
     const validIds = new Set(visible.map(n => n.id));
     const edgeEls = edges
       .filter(e => validIds.has(e.source) && validIds.has(e.target))

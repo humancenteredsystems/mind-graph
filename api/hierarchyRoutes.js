@@ -11,7 +11,6 @@ const authenticateAdmin = (req, res, next) => {
   next();
 };
 
-router.use(authenticateAdmin);
 
 // --- Hierarchy CRUD ---
 
@@ -32,6 +31,8 @@ router.get('/hierarchy', async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+router.use(authenticateAdmin);
 
 // Get hierarchy by ID
 router.get('/hierarchy/:id', async (req, res) => {

@@ -10,8 +10,14 @@ export const GET_ALL_NODES_AND_EDGES_QUERY = `
       status # Assuming status might be needed
       branch # Assuming branch might be needed
       hierarchyAssignments {
+        hierarchy {
+          id
+          name
+        }
         level {
           id
+          levelNumber
+          label
         }
       }
       outgoing {

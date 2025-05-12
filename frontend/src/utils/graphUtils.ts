@@ -47,7 +47,15 @@ export const transformTraversalData = (data: any): { nodes: NodeData[], edges: E
         id: node.id,
         label: node.label || node.id, // Use label or ID
         type: node.type,
-        assignments: Array.isArray(node.hierarchyAssignments) ? node.hierarchyAssignments.map((a: any) => a.level.id) : [],
+        assignments: Array.isArray(node.hierarchyAssignments)
+        ? (node.hierarchyAssignments as any[]).map(a => ({
+            hierarchyId: a.hierarchy.id,
+            hierarchyName: a.hierarchy.name,
+            levelId: a.level.id,
+            levelNumber: a.level.levelNumber,
+            levelLabel: a.level.label,
+          }))
+        : [],
         // Add other relevant properties from node
       });
 
@@ -117,7 +125,15 @@ export const transformAllGraphData = (data: AllGraphDataResponse): { nodes: Node
       id: node.id,
       label: node.label || node.id, // Fallback label
       type: node.type,
-      assignments: Array.isArray(node.hierarchyAssignments) ? (node.hierarchyAssignments as any[]).map(a => a.level.id) : [],
+      assignments: Array.isArray(node.hierarchyAssignments)
+        ? (node.hierarchyAssignments as any[]).map(a => ({
+            hierarchyId: a.hierarchy.id,
+            hierarchyName: a.hierarchy.name,
+            levelId: a.level.id,
+            levelNumber: a.level.levelNumber,
+            levelLabel: a.level.label,
+          }))
+        : [],
       status: node.status,
       branch: node.branch,
     };

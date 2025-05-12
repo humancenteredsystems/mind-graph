@@ -4,7 +4,7 @@ import { GET_ALL_NODE_IDS_QUERY } from '../graphql/queries';
 
 // Base URL for API endpoint loaded from Vite environment or fallback
 const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
-const API_BASE_URL = envUrl && envUrl.length > 0 ? envUrl.replace(/\/$/, '') : '/api';
+export const API_BASE_URL = envUrl && envUrl.length > 0 ? envUrl.replace(/\/$/, '') : '/api';
 
 interface TraversalResponse {
   queryNode: NodeData[];
@@ -123,6 +123,16 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
     return response.data;
   } catch (error) {
     console.error('[ApiService] Error fetching health status:', error);
+    throw error;
+  }
+};
+
+export const fetchHierarchies = async (): Promise<{ id: string; name: string }[]> => {
+  try {
+    const response = await axios.get<{ id: string; name: string }[]>(`${API_BASE_URL}/hierarchy`);
+    return response.data;
+  } catch (error) {
+    console.error('[ApiService] Error fetching hierarchies:', error);
     throw error;
   }
 };
