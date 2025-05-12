@@ -1,41 +1,30 @@
 #!/usr/bin/env python3
 """
-Seed the Dgraph database with test data.
+Seed the Dgraph database with a complete, clean graph.
 
-This tool adds test nodes and edges to the graph database using GraphQL mutations.
+This tool performs the following actions:
+1. Drops all existing data and schema from Dgraph.
+2. Pushes the GraphQL schema (schemas/default.graphql).
+3. Creates a single, predefined hierarchy with levels and level types.
+4. Adds sample nodes and edges.
+5. Assigns these nodes to the created hierarchy and its levels.
 """
 import argparse
-import os # Import os to read environment variables
+import os
 import sys
 import json
+import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Tuple, Optional
 
 # Add the parent directory to the Python path to be able to import tools
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 from tools.api_client import call_api # Import the shared API client
 
 # Default API base URL (override with MIMS_API_URL env var)
 DEFAULT_API_BASE = "http://localhost:3000/api"
-
-# Sample test data
-DEFAULT_TEST_DATA = {
-    "nodes": [
-        {"id": "node1", "label": "Concept 1", "type": "concept", "status": "approved", "branch": "main"},
-        {"id": "node2", "label": "Concept 2", "type": "concept", "status": "approved", "branch": "main"},
-        {"id": "node3", "label": "Concept 3", "type": "concept", "status": "approved", "branch": "main"},
-        {"id": "node4", "label": "Example 1", "type": "example", "status": "approved", "branch": "main"},
-        {"id": "node5", "label": "Question 1", "type": "question", "status": "pending", "branch": "user1"}
-    ],
-    "edges": [
-        # Note: Dgraph GraphQL requires 'from' and 'to' to be objects with 'id'
-        # Also include fromId and toId scalar fields
-        {"from": {"id": "node1"}, "fromId": "node1", "to": {"id": "node2"}, "toId": "node2", "type": "related"},
-        {"from": {"id": "node1"}, "fromId": "node1", "to": {"id": "node3"}, "toId": "node3", "type": "parent"},
-        {"from": {"id": "node2"}, "fromId": "node2", "to": {"id": "node4"}, "toId": "node4", "type": "has_example"},
-        {"from": {"id": "node3"}, "fromId": "node3", "to": {"id": "node5"}, "toId": "node5", "type": "has_question"}
-    ]
-}
+DEFAULT_HIERARCHY_ID = "h1"
+DEFAULT_HIERARCHY_NAME = "Primary Knowledge Graph"
 
 # GraphQL mutation templates
 ADD_NODE_MUTATION = """
@@ -44,6 +33,7 @@ mutation AddNode($input: [AddNodeInput!]!) {
     node {
       id
       label
+      type
     }
   }
 }
@@ -63,114 +53,305 @@ mutation AddEdge($input: [AddEdgeInput!]!) {
 }
 """
 
-def add_nodes(nodes: List[Dict[str, Any]], api_base: str, api_key: str) -> bool:
-    """Add nodes to the graph database via the API."""
-    print(f"Adding {len(nodes)} nodes via API at {api_base}...")
-    payload = {
-        "mutation": ADD_NODE_MUTATION,
-        "variables": {"input": nodes}
+ADD_HIERARCHY_ASSIGNMENT_MUTATION = """
+mutation AddHierarchyAssignment($input: [AddHierarchyAssignmentInput!]!) {
+  addHierarchyAssignment(input: $input) {
+    hierarchyAssignment {
+      id
+      node { id label }
+      hierarchy { id name }
+      level { id label levelNumber }
     }
-    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload)
+  }
+}
+"""
 
+# --- Functions adapted from seed_hierarchy.py ---
+def drop_all_data(api_base: str, api_key: str) -> bool:
+    """Drop all existing data via admin endpoint."""
+    print("Dropping all data...")
+    resp = call_api(api_base, "/admin/dropAll", api_key, method="POST", payload={"target": "local"})
+    if not resp["success"]:
+        print(f"❌ dropAll failed: {resp['error']}")
+        if resp.get("details"): print(f"Details: {resp['details']}")
+        return False
+    print("✅ All data dropped.")
+    return True
+
+def push_schema(api_base: str, api_key: str) -> bool:
+    """Push GraphQL schema to Dgraph."""
+    print("Pushing GraphQL schema to Dgraph...")
+    schema_file_path = Path(__file__).resolve().parent.parent / "schemas" / "default.graphql"
+    try:
+        schema_text = schema_file_path.read_text()
+    except Exception as e:
+        print(f"❌ Failed to read schema file {schema_file_path}: {str(e)}")
+        return False
+
+    resp = call_api(api_base, "/admin/schema", api_key, method="POST", payload={"schema": schema_text, "target": "local"})
+    if not resp["success"]:
+        print(f"❌ Failed to push GraphQL schema: {resp['error']}")
+        if resp.get("details"): print(f"Details: {resp['details']}")
+        return False
+    print("✅ Schema pushed.")
+    return True
+
+def create_single_hierarchy(api_base: str, api_key: str, hierarchy_id: str, hierarchy_name: str) -> Optional[str]:
+    """Create a single hierarchy and return its ID."""
+    print(f"Creating hierarchy '{hierarchy_name}' (id: {hierarchy_id})...")
+    mutation = f'''
+    mutation {{
+      addHierarchy(input: [{{ id: "{hierarchy_id}", name: "{hierarchy_name}" }}]) {{
+        hierarchy {{ id name }}
+      }}
+    }}
+    '''
+    resp = call_api(api_base, "/mutate", api_key, method="POST", payload={"mutation": mutation})
+    if not resp["success"]:
+        print(f"❌ Failed to create hierarchy '{hierarchy_name}': {resp['error']}")
+        if resp.get("details"): print(f"Details: {resp['details']}")
+        return None
+    try:
+        created_hier_id = resp["data"]["addHierarchy"]["hierarchy"][0]["id"]
+        print(f"✅ Created hierarchy '{hierarchy_name}' (id: {created_hier_id})")
+        return created_hier_id
+    except (KeyError, IndexError) as e:
+        print(f"❌ Error parsing hierarchy creation response: {e}")
+        print(f"Full response: {json.dumps(resp, indent=2)}")
+        return None
+
+
+def create_levels_for_hierarchy(api_base: str, api_key: str, hierarchy_id_str: str, levels_data: List[Tuple[int, str]]) -> Dict[int, str]:
+    """Create levels for a given hierarchy and return a dict levelNumber->id."""
+    level_ids_map = {}  # Stores levelNumber -> id
+    print(f"Creating levels for hierarchy ID '{hierarchy_id_str}'...")
+    for level_num, label in levels_data:
+        mutation = f'''
+        mutation {{
+          addHierarchyLevel(input: [{{ hierarchy: {{ id: "{hierarchy_id_str}" }}, levelNumber: {level_num}, label: "{label}" }}]) {{
+            hierarchyLevel {{ id levelNumber label }}
+          }}
+        }}
+        '''
+        resp = call_api(api_base, "/mutate", api_key, method="POST", payload={"mutation": mutation})
+        if not resp["success"]:
+            print(f"❌ Failed to create level {label} (num: {level_num}): {resp['error']}")
+            if resp.get("details"): print(f"Details: {resp['details']}")
+            # Continue trying to create other levels
+            continue
+        try:
+            lvl = resp["data"]["addHierarchyLevel"]["hierarchyLevel"][0]
+            level_ids_map[level_num] = lvl["id"]
+            print(f"✅ Created level '{label}' (levelNumber={level_num}, id={lvl['id']}) for hierarchy {hierarchy_id_str}")
+        except (KeyError, IndexError) as e:
+            print(f"❌ Error parsing level creation response for {label}: {e}")
+            print(f"Full response: {json.dumps(resp, indent=2)}")
+    return level_ids_map
+
+def create_level_types_for_level(api_base: str, api_key: str, level_id_str: str, type_names: List[str]) -> bool:
+    """Create HierarchyLevelType entries for a given level."""
+    print(f"Creating level types for level ID '{level_id_str}'...")
+    success = True
+    for type_name in type_names:
+        mutation = f'''
+        mutation {{
+          addHierarchyLevelType(input: [{{ level: {{ id: "{level_id_str}" }}, typeName: "{type_name}" }}]) {{
+            hierarchyLevelType {{ id typeName }}
+          }}
+        }}
+        '''
+        resp = call_api(api_base, "/mutate", api_key, method="POST", payload={"mutation": mutation})
+        if not resp["success"]:
+            print(f"❌ Failed to create levelType '{type_name}' for level {level_id_str}: {resp['error']}")
+            if resp.get("details"): print(f"Details: {resp['details']}")
+            success = False
+            continue # Continue trying other types
+        try:
+            lt = resp["data"]["addHierarchyLevelType"]["hierarchyLevelType"][0]
+            print(f"✅ Created levelType '{type_name}' (id: {lt['id']}) for level {level_id_str}")
+        except (KeyError, IndexError) as e:
+            print(f"❌ Error parsing level type creation response for {type_name}: {e}")
+            print(f"Full response: {json.dumps(resp, indent=2)}")
+            success = False
+    return success
+# --- End of functions adapted from seed_hierarchy.py ---
+
+
+# --- Functions for seeding graph data (nodes, edges, assignments) ---
+def add_nodes(api_base: str, api_key: str, nodes: List[Dict[str, Any]]) -> bool:
+    """Add nodes to the graph database via the API."""
+    if not nodes: return True
+    print(f"Adding {len(nodes)} nodes...")
+    payload = {"mutation": ADD_NODE_MUTATION, "variables": {"input": nodes}}
+    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload)
     if response["success"]:
         added_nodes = response.get("data", {}).get("addNode", {}).get("node", [])
         print(f"✅ Added {len(added_nodes)} nodes.")
+        # for node in added_nodes: print(f"  - Node ID: {node.get('id')}, Label: {node.get('label')}")
         return True
     else:
         print(f"❌ Failed to add nodes: {response['error']}")
-        if response.get("details"):
-            print("Details:", response["details"])
+        if response.get("details"): print(f"Details: {response['details']}")
         return False
 
-def add_edges(edges: List[Dict[str, Any]], api_base: str, api_key: str) -> bool:
+def add_edges(api_base: str, api_key: str, edges: List[Dict[str, Any]]) -> bool:
     """Add edges to the graph database via the API."""
-    print(f"Adding {len(edges)} edges via API at {api_base}...")
-    payload = {
-        "mutation": ADD_EDGE_MUTATION,
-        "variables": {"input": edges}
-    }
+    if not edges: return True
+    print(f"Adding {len(edges)} edges...")
+    payload = {"mutation": ADD_EDGE_MUTATION, "variables": {"input": edges}}
     response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload)
-
     if response["success"]:
         added_edges = response.get("data", {}).get("addEdge", {}).get("edge", [])
         print(f"✅ Added {len(added_edges)} edges.")
         return True
     else:
         print(f"❌ Failed to add edges: {response['error']}")
-        if response.get("details"):
-            print("Details:", response["details"])
+        if response.get("details"): print(f"Details: {response['details']}")
         return False
+
+def add_hierarchy_assignments(api_base: str, api_key: str, assignments: List[Dict[str, Any]]) -> bool:
+    """Add hierarchy assignments via the API."""
+    if not assignments: return True
+    print(f"Adding {len(assignments)} hierarchy assignments...")
+    payload = {"mutation": ADD_HIERARCHY_ASSIGNMENT_MUTATION, "variables": {"input": assignments}}
+    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload)
+    if response["success"]:
+        added_assignments = response.get("data", {}).get("addHierarchyAssignment", {}).get("hierarchyAssignment", [])
+        print(f"✅ Added {len(added_assignments)} hierarchy assignments.")
+        return True
+    else:
+        print(f"❌ Failed to add hierarchy assignments: {response['error']}")
+        if response.get("details"): print(f"Details: {response['details']}")
+        return False
+# --- End of functions for seeding graph data ---
+
+def get_seed_data_payload(hierarchy_id_str: str, level_ids_map: Dict[int, str]) -> Dict[str, List[Dict[str, Any]]]:
+    """Generate the data payload for nodes, edges, and assignments."""
+    
+    nodes = [
+        {"id": "dom1", "label": "Software Engineering", "type": "DomainNode", "status": "approved", "branch": "main"},
+        {"id": "dom2", "label": "Data Science", "type": "DomainNode", "status": "approved", "branch": "main"},
+        {"id": "con1", "label": "API Design", "type": "ConceptNode", "status": "approved", "branch": "main"},
+        {"id": "con2", "label": "Microservices", "type": "ConceptNode", "status": "approved", "branch": "main"},
+        {"id": "con3", "label": "Machine Learning", "type": "ConceptNode", "status": "approved", "branch": "main"},
+        {"id": "ex1", "label": "REST API Best Practices", "type": "ExampleNode", "status": "approved", "branch": "main"},
+        {"id": "ex2", "label": "Event Sourcing Pattern", "type": "ExampleNode", "status": "approved", "branch": "main"},
+        {"id": "ex3", "label": "Regression Analysis Example", "type": "ExampleNode", "status": "approved", "branch": "main"}
+    ]
+
+    edges = [
+        {"from": {"id": "dom1"}, "fromId": "dom1", "to": {"id": "con1"}, "toId": "con1", "type": "has_concept"},
+        {"from": {"id": "dom1"}, "fromId": "dom1", "to": {"id": "con2"}, "toId": "con2", "type": "has_concept"},
+        {"from": {"id": "dom2"}, "fromId": "dom2", "to": {"id": "con3"}, "toId": "con3", "type": "has_concept"},
+        {"from": {"id": "con1"}, "fromId": "con1", "to": {"id": "ex1"}, "toId": "ex1", "type": "has_example"},
+        {"from": {"id": "con2"}, "fromId": "con2", "to": {"id": "ex2"}, "toId": "ex2", "type": "has_example"},
+        {"from": {"id": "con3"}, "fromId": "con3", "to": {"id": "ex3"}, "toId": "ex3", "type": "has_example"},
+        {"from": {"id": "con1"}, "fromId": "con1", "to": {"id": "con2"}, "toId": "con2", "type": "related_concept"}
+    ]
+
+    hierarchy_assignments = []
+    if level_ids_map.get(1) and level_ids_map.get(2) and level_ids_map.get(3):
+        hierarchy_assignments = [
+            {"node": {"id": "dom1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[1]}},
+            {"node": {"id": "dom2"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[1]}},
+            {"node": {"id": "con1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[2]}},
+            {"node": {"id": "con2"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[2]}},
+            {"node": {"id": "con3"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[2]}},
+            {"node": {"id": "ex1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}},
+            {"node": {"id": "ex2"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}},
+            {"node": {"id": "ex3"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}}
+        ]
+    else:
+        print("⚠️ Warning: Not all level IDs were found. Hierarchy assignments will be incomplete or skipped.")
+        if not level_ids_map.get(1): print("  - Missing ID for level 1 (Domains)")
+        if not level_ids_map.get(2): print("  - Missing ID for level 2 (Key Concepts)")
+        if not level_ids_map.get(3): print("  - Missing ID for level 3 (Detailed Examples)")
+
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "hierarchyAssignments": hierarchy_assignments
+    }
 
 def main():
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(description="Seed the Dgraph database with test data via API")
-    parser.add_argument(
-        "--data", "-d",
-        help="Path to JSON file with test data (default: use built-in test data)"
-    )
-    parser.add_argument(
-        "--target", "-t",
-        choices=["local", "remote"], # Initially support local and remote
-        required=True, # Target is now required
-        help="Target environment to seed data to ('local' or 'remote')"
-    )
+    parser = argparse.ArgumentParser(description="Seed Dgraph with a clean, single-hierarchy graph via API")
     parser.add_argument(
         "--api-base", "-b",
         default=os.environ.get("MIMS_API_URL", DEFAULT_API_BASE),
-        help=f"API base URL for the target environment (default: {DEFAULT_API_BASE})"
+        help=f"API base URL (default: {DEFAULT_API_BASE})"
     )
     parser.add_argument(
         "--api-key", "-k",
         default=os.environ.get("MIMS_ADMIN_API_KEY", ""),
         help="Admin API Key (default: from MIMS_ADMIN_API_KEY environment variable)"
     )
+    # --target argument is removed as we always target 'local' for this consolidated script.
     
     args = parser.parse_args()
 
-    # Check for API key
     if not args.api_key:
         print("❌ Error: Admin API key is required. Set MIMS_ADMIN_API_KEY environment variable or use --api-key.")
-        return 1
+        sys.exit(1)
 
-    # Determine API base URL based on target (if not explicitly provided)
-    # If --api-base is provided, it overrides the default based on target.
     api_base_url = args.api_base
-    # Note: A more sophisticated approach might involve looking up URLs based on target
-    # from a config file or environment variables specific to local/remote APIs.
-    # For now, we rely on the user providing the correct --api-base for the target.
+    api_key_val = args.api_key
 
-    # Load test data
-    if args.data:
-        try:
-            data_path = Path(args.data).resolve()
-            with open(data_path, "r", encoding="utf-8") as f:
-                test_data = json.load(f)
-            print(f"Loaded test data from {data_path}")
-        except Exception as e:
-            print(f"❌ Failed to load test data file '{args.data}': {str(e)}")
-            return 1
-    else:
-        test_data = DEFAULT_TEST_DATA
-        print("Using built-in test data")
+    # 1. Drop all existing data and schema
+    if not drop_all_data(api_base_url, api_key_val):
+        sys.exit(1)
 
-    # Add nodes
-    nodes_to_add = test_data.get("nodes", [])
-    if nodes_to_add:
-        if not add_nodes(nodes_to_add, api_base_url, args.api_key):
-            return 1
-    else:
-        print("No nodes found in test data.")
+    # 2. Push GraphQL schema
+    if not push_schema(api_base_url, api_key_val):
+        sys.exit(1)
+    
+    print("Waiting 15 seconds for Dgraph to process the schema...")
+    time.sleep(15)
 
-    # Add edges
-    edges_to_add = test_data.get("edges", [])
-    if edges_to_add:
-        if not add_edges(edges_to_add, api_base_url, args.api_key):
-            return 1
-    else:
-        print("No edges found in test data.")
+    # 3. Create a single hierarchy
+    hierarchy_id = create_single_hierarchy(api_base_url, api_key_val, DEFAULT_HIERARCHY_ID, DEFAULT_HIERARCHY_NAME)
+    if not hierarchy_id:
+        print("❌ Failed to create the primary hierarchy. Aborting.")
+        sys.exit(1)
 
-    print("✅ Test data seeding process completed.")
-    return 0
+    # 4. Create levels for this hierarchy
+    levels_data = [
+        (1, "Domains"),
+        (2, "Key Concepts"),
+        (3, "Detailed Examples")
+    ]
+    level_ids_map = create_levels_for_hierarchy(api_base_url, api_key_val, hierarchy_id, levels_data)
+    if len(level_ids_map) != len(levels_data):
+        print("⚠️ Warning: Not all hierarchy levels were created successfully. Assignments might be affected.")
+    
+    # 5. (Optional) Create level types for these levels
+    if level_ids_map.get(1):
+        create_level_types_for_level(api_base_url, api_key_val, level_ids_map[1], ["DomainNode"])
+    if level_ids_map.get(2):
+        create_level_types_for_level(api_base_url, api_key_val, level_ids_map[2], ["ConceptNode"])
+    if level_ids_map.get(3):
+        create_level_types_for_level(api_base_url, api_key_val, level_ids_map[3], ["ExampleNode"])
+
+    # 6. Get data payload (nodes, edges, assignments)
+    seed_payload = get_seed_data_payload(hierarchy_id, level_ids_map)
+
+    # 7. Add nodes
+    if not add_nodes(api_base_url, api_key_val, seed_payload["nodes"]):
+        # Non-fatal, try to continue if possible
+        print("⚠️ Warning: Node creation failed or partially failed.")
+    
+    # 8. Add edges
+    if not add_edges(api_base_url, api_key_val, seed_payload["edges"]):
+        # Non-fatal
+        print("⚠️ Warning: Edge creation failed or partially failed.")
+
+    # 9. Add hierarchy assignments
+    if not add_hierarchy_assignments(api_base_url, api_key_val, seed_payload["hierarchyAssignments"]):
+        print("⚠️ Warning: Hierarchy assignment creation failed or partially failed.")
+
+    print("✅ Full seeding process completed.")
+    sys.exit(0)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
