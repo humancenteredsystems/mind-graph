@@ -323,7 +323,8 @@ def main():
     ]
     level_ids_map = create_levels_for_hierarchy(api_base_url, api_key_val, hierarchy_id, levels_data)
     if len(level_ids_map) != len(levels_data):
-        print("⚠️ Warning: Not all hierarchy levels were created successfully. Assignments might be affected.")
+        print("❌ Error: Failed to create all hierarchy levels. Aborting.")
+        sys.exit(1)
     
     # 5. (Optional) Create level types for these levels
     if level_ids_map.get(1):

@@ -7,6 +7,13 @@ import { useContextMenu } from '../context/ContextMenuContext';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { log } from '../utils/logger';
 
+// Helper to compute a distinct color per level
+const getLevelColor = (level?: number): string => {
+  if (level === undefined || level < 1) return '#888';
+  const hue = (level * 40) % 360;
+  return `hsl(${hue}, 60%, 60%)`;
+};
+
 // Register Cytoscape plugins ONCE at module load
 cytoscape.use(klay);
 
@@ -77,6 +84,10 @@ const GraphView: React.FC<GraphViewProps> = ({
           levelNumber: assignmentForCurrent?.levelNumber,
           levelLabel: assignmentForCurrent?.levelLabel,
         },
+        style: {
+          'background-color': getLevelColor(assignmentForCurrent?.levelNumber),
+          'border-color': '#555',
+        },
       };
     });
     const validIds = new Set(visible.map(n => n.id));
@@ -106,18 +117,6 @@ const GraphView: React.FC<GraphViewProps> = ({
         'border-width': 1,
         'border-color': '#555',
       },
-    },
-    {
-      selector: "node[type='concept']",
-      style: { 'background-color': '#3498db', 'border-color': '#2980b9' },
-    },
-    {
-      selector: "node[type='example']",
-      style: { 'background-color': '#2ecc71', 'border-color': '#27ae60' },
-    },
-    {
-      selector: "node[type='question']",
-      style: { 'background-color': '#f1c40f', 'border-color': '#f39c12' },
     },
     {
       selector: 'edge',

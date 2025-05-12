@@ -195,8 +195,8 @@ app.post('/api/mutate', async (req, res) => {
   // Construct the 'to' block conditionally
   // Use hierarchyId directly as an integer in the GraphQL query
   const toBlock = targetLevel !== null
-    ? `to (filter: { hierarchyAssignments: { some: { hierarchy: { id: { eq: ${hierarchyId} } }, levelNumber: { eq: ${targetLevel} } } } }) {\n      ${fieldBlock}\n    }`
-    : `to {\n      ${fieldBlock}\n    }`; // Note indentation
+    ? `to (filter: { hierarchyAssignments: { some: { hierarchy: { id: { eq: ${hierarchyId} } }, levelNumber: { eq: ${targetLevel} } } } }) {\n      ${fieldBlock}\n      hierarchyAssignments {\n        hierarchy { id name }\n        level { id levelNumber label }\n      }\n    }`
+    : `to {\n      ${fieldBlock}\n      hierarchyAssignments {\n        hierarchy { id name }\n        level { id levelNumber label }\n      }\n    }`; // Note indentation
 
   // Construct the full query using array join for clarity and safety
   const query = [

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useHierarchyContext } from '../context/HierarchyContext';
 import { NodeData } from '../types/graph';
 
 type NodeEditValues = {
@@ -19,10 +20,13 @@ type Tab = typeof TABS[number];
 
 const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<Tab>('Info');
+  const { hierarchyId } = useHierarchyContext();
+  const assignmentForCurrent = node?.assignments?.find(a => a.hierarchyId === hierarchyId);
+
   const [formValues, setFormValues] = useState<NodeEditValues>({
     label: node?.label || '',
     type: node?.type || 'concept',
-    level: node?.level || 1,
+    level: assignmentForCurrent?.levelNumber ?? 1,
   });
 
   React.useEffect(() => {
@@ -30,11 +34,11 @@ const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) 
       setFormValues({
         label: node.label || '',
         type: node.type || 'concept',
-        level: node.level || 1,
+        level: assignmentForCurrent?.levelNumber ?? 1,
       });
       setActiveTab('Info');
     }
-  }, [open, node]);
+  }, [open, node, hierarchyId]);
 
   if (!open || !node) return null;
 
@@ -100,13 +104,18 @@ const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) 
               disabled
               style={{ width: '100%', marginBottom: 12, padding: 4 }}
             />
+            <label style={{ display: 'block', marginBottom: 4 }}>Hierarchy</label>
+            <input
+              type="text"
+              value={assignmentForCurrent?.hierarchyName ?? ''}
+              disabled
+              style={{ width: '100%', marginBottom: 12, padding: 4 }}
+            />
             <label style={{ display: 'block', marginBottom: 4 }}>Level</label>
             <input
-              type="number"
-              value={formValues.level}
-              onChange={(e) =>
-                setFormValues({ ...formValues, level: Number(e.target.value) })
-              }
+              type="text"
+              value={assignmentForCurrent?.levelLabel ?? assignmentForCurrent?.levelNumber ?? ''}
+              disabled
               style={{ width: '100%', marginBottom: 12, padding: 4 }}
             />
             <label style={{ display: 'block', marginBottom: 4 }}>Label</label>

@@ -40,11 +40,14 @@ function AppInner() {
   } = useGraphState();
 
   // useEffect to load the complete graph on initial mount
+  const { hierarchies, hierarchyId, setHierarchyId } = useHierarchyContext();
+
   useEffect(() => {
-    log('App', 'Initial mount: Loading complete graph...');
-    loadCompleteGraph();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array ensures this runs only once on mount
+    if (hierarchyId) {
+      log('App', `Hierarchy set to ${hierarchyId}: loading full graph`);
+      loadCompleteGraph();
+    }
+  }, [hierarchyId]);
 
   const {
   addModalOpen,
@@ -57,8 +60,6 @@ function AppInner() {
   closeEditDrawer,
   setEditNode, // Get the new function from context
 } = useUIContext();
-
-  const { hierarchies, hierarchyId, setHierarchyId } = useHierarchyContext();
 
 return (
     <div className="App">
