@@ -73,6 +73,7 @@ Current client and server logic use two distinct mutations (`addNode` + `addHier
         ];
         ```
    - Pass the enriched `variables` into `executeGraphQL(mutation, variables)`.
+   - Extract the level determination logic (parent-level + default-level lookup) into a small helper function (`getLevelIdForNode`) within `api/server.js` to keep the handler concise.
 
 4. Single GraphQL Call  
    - Execute one nested mutation; Dgraph will create the node and its assignment atomically.
