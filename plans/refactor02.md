@@ -77,9 +77,10 @@ Current client and server logic use two distinct mutations (`addNode` + `addHier
 4. Single GraphQL Call  
    - Execute one nested mutation; Dgraph will create the node and its assignment atomically.
 
-5. Frontend Usage  
-   - In `useGraphState.addNode`, switch to using `ADD_NODE_WITH_HIERARCHY`.  
-   - Send `X-Hierarchy-Id` header with each `/api/mutate` request (sourced from `HierarchyContext.hierarchyId`).  
+5. Frontend Usage
+   - In `useGraphState.addNode`, switch to using `ADD_NODE_WITH_HIERARCHY`.
+   - Send `X-Hierarchy-Id` header with each `/api/mutate` request (sourced from `HierarchyContext.hierarchyId`):
+     - Implement this in `frontend/src/services/ApiService.ts` by adding an axios request interceptor (or extending `executeMutation`) that retrieves the current `hierarchyId` from `HierarchyContext` and injects the header for all mutate calls.
    - No further client-side assignment mutations.
 
 6. Testing  
