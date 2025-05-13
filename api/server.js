@@ -35,7 +35,7 @@ async function getLevelIdForNode(parentId, hierarchyId) {
         }
       `;
       const parentResp = await executeGraphQL(parentQuery, { nodeId: parentId, h: hierarchyId });
-      const assignments = parentResp.data.queryNode[0]?.hierarchyAssignments;
+      const assignments = parentResp.queryNode[0]?.hierarchyAssignments;
       if (assignments && assignments.length) {
         targetLevelNumber = assignments[0].level.levelNumber + 1;
       }
@@ -52,7 +52,7 @@ async function getLevelIdForNode(parentId, hierarchyId) {
     }
   `;
   const levelsResp = await executeGraphQL(levelsQuery, { h: hierarchyId });
-  const levels = levelsResp.data.queryHierarchy[0].levels;
+  const levels = levelsResp.queryHierarchy[0].levels;
   const level = levels.find(l => l.levelNumber === targetLevelNumber);
   if (!level) {
     throw new Error(`Level ${targetLevelNumber} not found for hierarchy ${hierarchyId}`);
@@ -180,7 +180,7 @@ app.post('/api/mutate', async (req, res) => {
       let hierarchyIdVal = req.headers['x-hierarchy-id'];
       if (!hierarchyIdVal) {
         const hierRes = await executeGraphQL(`query { queryHierarchy { id } }`, {});
-        hierarchyIdVal = hierRes.data.queryHierarchy[0].id;
+        hierarchyIdVal = hierRes.queryHierarchy[0].id;
       }
       const enrichedInputs = [];
       for (const inputObj of variables.input) {
@@ -212,20 +212,22 @@ app.post('/api/mutate', async (req, res) => {
 
  // Stable version using string concatenation
  app.post('/api/traverse', async (req, res) => {
-   const { rootId, hierarchyId, currentLevel, fields } = req.body;
+  const { rootId, currentLevel, fields } = req.body;
+  // Determine hierarchyId for traversal (header or fallback)
+  let hierarchyId = req.headers['x-hierarchy-id'] || req.body.hierarchyId;
+  if (!hierarchyId) {
+    const hierRes = await executeGraphQL(`query { queryHierarchy { id } }`, {});
+    hierarchyId = hierRes.queryHierarchy[0].id;
+  }
 
   if (!rootId) {
       return res.status(400).json({ error: 'Missing required field: rootId' });
     }
-  if (hierarchyId === undefined) { // Check for undefined as 0 is a valid ID
-    return res.status(400).json({ error: 'Missing required field: hierarchyId' });
-  }
+  // Removed explicit hierarchyId missing check; using fallback instead
 
   // Validate hierarchyId is a non-empty string
-  if (typeof hierarchyId !== 'string' || !hierarchyId.trim()) {
-    return res.status(400).json({ error: 'Invalid hierarchyId: must be a non-empty string' });
-  }
-  console.log('[TRAVERSE] Validated hierarchyId:', hierarchyId, 'Type:', typeof hierarchyId);
+  // Removed validation for hierarchyId type since it's guaranteed
+  console.log('[TRAVERSE] Using hierarchyId:', hierarchyId);
 
   // Validate currentLevel
   if (currentLevel !== undefined && (typeof currentLevel !== 'number' || currentLevel < 0)) {
