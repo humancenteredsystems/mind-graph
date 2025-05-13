@@ -137,7 +137,7 @@ mutation {
   "fields": ["id","label"]    // optional, defaults to id, label, type, status, branch, and hierarchyAssignments
 }
 ```
-**Allowed Fields:** `id`, `label`, `type`, `status`, `branch`, `hierarchyAssignments` (and its subfields like `level { levelNumber }`)
+**Allowed Fields:** `id`, `label`, `type`, `status`, `branch`, and `hierarchyAssignments` (with subfields: `hierarchy { id name }` and `level { id levelNumber label }`)
 **Response (200 OK):**  
 ```json
 {
@@ -393,6 +393,9 @@ type Node {
 - `target` (required): This parameter is now primarily for the calling script's reference and does not affect which Dgraph instance the API drops data from. Accepted values: `"local"`, `"remote"`, or `"both"`.
 
 **Response (200 OK):**
+> Responses include a `hierarchyAssignments` array on both the root and each neighbor, containing:
+> - `hierarchy`: `{ id, name }`
+> - `level`: `{ id, levelNumber, label }`
 ```json
 {
   "success": true,

@@ -35,8 +35,13 @@ This guide describes how to run the full stack locally for development and how t
    (Legacy direct push: `python tools/push_schema.py`)
 6. (Optional) Seed sample data:
    ```bash
+   # Ensure conda environment is active if needed
+   # conda activate pointcloud
+   export MIMS_API_URL="http://localhost:3000/api"
+   export MIMS_ADMIN_API_KEY="your_admin_key"
    python tools/seed_data.py
    ```
+   > The script now aborts immediately if any hierarchy level fails to create.
 7. Access services:
    - Frontend: http://localhost:5173  
    - API health check: http://localhost:3000/api/health  

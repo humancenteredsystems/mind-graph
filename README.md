@@ -167,12 +167,15 @@ The easiest way to start the full development environment (Dgraph database, back
     python tools/api_push_schema.py --target both
     ```
 7.  **Seed Data (Optional):**
-    In a separate terminal:
-    ```bash
-    # Ensure conda environment is active if needed
-    # conda activate pointcloud
-    python tools/seed_data.py
-    ```
+   In a separate terminal:
+   ```bash
+   # Ensure conda environment is active if needed
+   # conda activate pointcloud
+   export MIMS_API_URL="http://localhost:3000/api"
+   export MIMS_ADMIN_API_KEY="your_admin_key"
+   python tools/seed_data.py
+   ```
+   > The script now aborts immediately if any hierarchy level fails to create.
 8.  **Stopping:**
     *   Press `Ctrl+C` in the terminal where `npm run start-dev-env` is running to stop the API and frontend servers.
     *   To stop the Dgraph database containers, run:
