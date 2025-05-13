@@ -134,3 +134,41 @@ Context consumers: `ContextMenuContext`, `App`, and root in `main.tsx`
   - Verify context-menu → modal/drawer open/cancel/save for single & multi node scenarios
 
 > Keep this doc in sync: update here first, then adjust code and tests as needed.
+
+## 6. Hierarchy Selector
+
+The hierarchy selector is a dropdown in the application header that allows users to switch between available hierarchies.
+
+**Location:** `frontend/src/App.tsx`
+
+**Markup Example:**
+```tsx
+import { useHierarchyContext } from './context/HierarchyContext';
+
+function AppHeader() {
+  const { hierarchies, hierarchyId, setHierarchyId } = useHierarchyContext();
+
+  return (
+    <div className="app-header">
+      <label htmlFor="hierarchy-select">Hierarchy:</label>
+      <select
+        id="hierarchy-select"
+        value={hierarchyId}
+        onChange={e => setHierarchyId(e.target.value)}
+        aria-label="Select hierarchy"
+      >
+        {hierarchies.map(h => (
+          <option key={h.id} value={h.id}>
+            {h.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+```
+
+**Behavior:**
+- On mount, the dropdown lists all fetched `hierarchies`.
+- Changing selection calls `setHierarchyId`, updating context.
+- Graph view (`useGraphState`) listens to `hierarchyId` and reloads nodes/edges accordingly.
