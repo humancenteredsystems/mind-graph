@@ -23,7 +23,7 @@ interface UseGraphState {
   loadInitialGraph: (rootId: string) => Promise<void>;
   loadCompleteGraph: () => Promise<void>;
   expandNode: (nodeId: string) => Promise<void>;
-  addNode: (values: { label: string; type: string }, parentId?: string) => Promise<void>;
+  addNode: (values: { label: string; type: string; hierarchyId: string; levelId: string }, parentId?: string) => Promise<void>;
   editNode: (nodeId: string, values: { label: string; type: string }) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<void>;
   deleteNodes: (nodeIds: string[]) => Promise<void>;
@@ -127,12 +127,12 @@ export const useGraphState = (): UseGraphState => {
     }
   }, [nodes, edges, isLoading, isExpanding, hierarchyId]);
 
-  const addNode = useCallback(async (values: { label: string; type: string }, parentId?: string) => {
+  const addNode = useCallback(async (values: { label: string; type: string; hierarchyId: string; levelId: string }, parentId?: string) => {
     const newId = uuidv4();
-    const inputObj = { id: newId, label: values.label, type: values.type, parentId };
+    const inputObj = { id: newId, label: values.label, type: values.type, parentId, hierarchyId: values.hierarchyId, levelId: values.levelId };
     const variables = { input: [inputObj] };
     try {
-      const result = await executeMutation(ADD_NODE_WITH_HIERARCHY, variables, { 'X-Hierarchy-Id': hierarchyId });
+      const result = await executeMutation(ADD_NODE_WITH_HIERARCHY, variables);
       const added: any = result.addNode?.node?.[0];
         if (added) {
           setNodes(prev => [
