@@ -121,6 +121,57 @@ describe('Integration /api/mutate', () => {
 
     // Verify the response body contains the addNode.node array
     expect(res.body).toHaveProperty('addNode.node');
+
+    // New test for nested hierarchyAssignments support
+    it('should create a node with nested hierarchyAssignments', async () => {
+      const payload = {
+        mutation: `
+          mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) {
+            addNode(input: $input) {
+              node {
+                id
+                hierarchyAssignments {
+                  hierarchy { id name }
+                  level { id levelNumber label }
+                }
+              }
+            }
+          }
+        `,
+        variables: {
+          input: [
+            { id: "nested-id", label: "Nested", type: "t" }
+          ]
+        }
+      };
+      const mockExec = require('./dgraphClient').executeGraphQL;
+      mockExec.mockResolvedValueOnce({
+        addNode: {
+          node: [
+            {
+              id: 'nested-id',
+              hierarchyAssignments: [
+                { hierarchy: { id: 'hid', name: 'HierarchyName' }, level: { id: 'lid', levelNumber: 1, label: 'LevelLabel' } }
+              ]
+            }
+          ]
+        }
+      });
+      const resNested = await request(app)
+        .post('/api/mutate')
+        .set('X-Hierarchy-Id', 'hid')
+        .send(payload)
+        .expect('Content-Type', /json/)
+        .expect(200);
+      expect(resNested.body.addNode.node[0].hierarchyAssignments).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            hierarchy: { id: 'hid', name: 'HierarchyName' },
+            level: { id: 'lid', levelNumber: 1, label: 'LevelLabel' }
+          })
+        ])
+      );
+    });
     expect(Array.isArray(res.body.addNode.node)).toBe(true);
     expect(res.body.addNode.node[0]).toMatchObject({
       id: "it-test-id",

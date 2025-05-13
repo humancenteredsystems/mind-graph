@@ -27,18 +27,15 @@ async function getLevelIdForNode(parentId, hierarchyId) {
     if (parentId) {
       const parentQuery = `
         query ParentLevel($nodeId: String!, $h: String!) {
-          queryHierarchyAssignment(
-            filter: {
-              node:      { id: { eq: $nodeId } },
-              hierarchy: { id: { eq: $h } }
+          queryNode(filter: { id: { eq: $nodeId } }) {
+            hierarchyAssignments(filter: { hierarchy: { id: { eq: $h } } }) {
+              level { levelNumber }
             }
-          ) {
-            level { levelNumber }
           }
         }
       `;
       const parentResp = await executeGraphQL(parentQuery, { nodeId: parentId, h: hierarchyId });
-      const assignments = parentResp.data.queryHierarchyAssignment;
+      const assignments = parentResp.data.queryNode[0]?.hierarchyAssignments;
       if (assignments && assignments.length) {
         targetLevelNumber = assignments[0].level.levelNumber + 1;
       }

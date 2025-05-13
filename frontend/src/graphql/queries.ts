@@ -41,4 +41,23 @@ export const GET_ALL_NODE_IDS_QUERY = `
   }
 `;
 
+/**
+ * GraphQL query to fetch levels (including allowedTypes) for a given hierarchy.
+ */
+export const GET_LEVELS_FOR_HIERARCHY = `
+  query LevelsForHierarchy($h: String!) {
+    queryHierarchy(filter: { id: { eq: $h } }) {
+      levels {
+        id
+        levelNumber
+        label
+        allowedTypes {
+          id
+          typeName
+        }
+      }
+    }
+  }
+`;
+
 // Add other queries here as needed

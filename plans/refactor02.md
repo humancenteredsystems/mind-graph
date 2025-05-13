@@ -1,3 +1,17 @@
+---
+title: "refactor02: Nested Hierarchy Assignment in AddNode Mutation"
+files:
+  - schemas/default.graphql
+  - api/server.js
+  - frontend/src/graphql/mutations.ts
+  - frontend/src/hooks/useGraphState.ts
+  - frontend/src/services/ApiService.ts
+  - api/integration.test.js
+  - frontend/src/hooks/useGraphState.test.ts
+  - docs/api_endpoints.md
+  - /readme.md
+---
+
 # refactor02: Nested Hierarchy Assignment in AddNode Mutation
 
 ## Objective
@@ -15,7 +29,7 @@ Current client and server logic use two distinct mutations (`addNode` + `addHier
      ```
 
 2. Update Frontend Mutation  
-   - In `frontend/src/graphql/mutations.ts`, redefine `ADD_NODE_MUTATION`:
+   - In `frontend/src/graphql/mutations.ts`, ensure:
      ```ts
      export const ADD_NODE_WITH_HIERARCHY = `
        mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) {
@@ -36,64 +50,46 @@ Current client and server logic use two distinct mutations (`addNode` + `addHier
        }
      `;
      ```
-   - Remove any separate assignment calls in `useGraphState.addNode`.
+   - Remove or deprecate `ADD_NODE_MUTATION` if no longer needed.
 
-3. Enrich Mutation Variables on Server  
-   - In `api/server.js` `/api/mutate` handler:
+3. Refactor Client Logic  
+   - In `frontend/src/hooks/useGraphState.ts`:
+     - Switch `addNode` to call `ADD_NODE_WITH_HIERARCHY` with:
+       ```ts
+       const variables = { input: [ { id, label, type, parentId } ] };
+       const result = await executeMutation(ADD_NODE_WITH_HIERARCHY, variables, { 'X-Hierarchy-Id': hierarchyId });
+       ```
+     - Remove the separate `ADD_EDGE_MUTATION` step.
+     - Map returned `hierarchyAssignments` into `nodes` state.
+
+4. Enrich Mutation Variables on Server  
+   - In `api/server.js`, `/api/mutate` handler:
      1. Detect `addNode` mutations by inspecting `req.body.mutation`.
      2. Parse `variables.input` array. For each entry:
-        - Read `hierarchyId` from `X-Hierarchy-Id` header or fetch the first hierarchy via:
-          ```graphql
-          query { queryHierarchy { id } }
+        - Retrieve `hierarchyId` from `X-Hierarchy-Id` header or via fallback query.
+        - Determine `levelId` via helper `getLevelIdForNode(parentId, hierarchyId)`.
+        - Attach nested:
+          ```js
+          inputObj.hierarchyAssignments = [
+            { hierarchy: { id: hierarchyId }, level: { id: levelId } }
+          ];
           ```
-        - Determine `levelId`:
-          - If entry includes `parentId` metadata, query the parent’s assignment:
-            ```graphql
-            query ParentLevel($id: String!, $h: String!) {
-              queryNode(filter: { id: { eq: $id } }) {
-                hierarchyAssignments(filter: { hierarchy: { id: { eq: $h } } }) {
-                  level { levelNumber id }
-                }
-              }
-            }
-            ```
-            Then find the matching `HierarchyLevel.id` for `levelNumber + 1`.
-          - Otherwise, query the level 1 ID:
-            ```graphql
-            query DefaultLevel($h: String!) {
-              queryHierarchyLevel(filter: { hierarchy: { id: { eq: $h } }, levelNumber: { eq: 1 } }) {
-                id
-              }
-            }
-            ```
-     3. For each `input` object, attach:
-        ```js
-        inputObj.hierarchyAssignments = [
-          { hierarchy: { id: hierarchyId }, level: { id: levelId } }
-        ];
-        ```
-   - Pass the enriched `variables` into `executeGraphQL(mutation, variables)`.
-   - Extract the level determination logic (parent-level + default-level lookup) into a small helper function (`getLevelIdForNode`) within `api/server.js` to keep the handler concise.
+     3. Pass the enriched inputs into `executeGraphQL`.
 
-4. Single GraphQL Call  
-   - Execute one nested mutation; Dgraph will create the node and its assignment atomically.
-
-5. Frontend Usage
-   - In `useGraphState.addNode`, switch to using `ADD_NODE_WITH_HIERARCHY`.
-   - Send `X-Hierarchy-Id` header with each `/api/mutate` request (sourced from `HierarchyContext.hierarchyId`):
-     - Implement this in `frontend/src/services/ApiService.ts` by adding an axios request interceptor (or extending `executeMutation`) that retrieves the current `hierarchyId` from `HierarchyContext` and injects the header for all mutate calls.
-   - No further client-side assignment mutations.
+5. Service Layer Enhancement  
+   - In `frontend/src/services/ApiService.ts`, optionally add an Axios interceptor to automatically inject the `X-Hierarchy-Id` header from `HierarchyContext` for all mutation requests.
 
 6. Testing  
    - **API Integration** (`api/integration.test.js`):  
-     - POST `/api/mutate` with `addNode` payload and header `X-Hierarchy-Id`.  
+     - POST `/api/mutate` with `AddNodeWithHierarchy` payload and `X-Hierarchy-Id` header.  
      - Assert response contains `hierarchyAssignments` with correct `hierarchy.id` and `level.id`.  
-   - **Frontend Tests** (`GraphView` or `useGraphState.test.ts`):  
-     - Simulate creating a node. Verify updated `nodes` state includes non-empty `assignments`.
+   - **Frontend Unit** (`frontend/src/hooks/useGraphState.test.ts`):  
+     - Mock `executeMutation` to return nested assignments and verify `nodes` state updated accordingly.
 
 7. Documentation  
-   - Update `/docs/api_endpoints.md` specifying `addNode` supports nested `hierarchyAssignments`.  
-   - Note required header `X-Hierarchy-Id`.  
-   - Confirm `@id String!` usage in `/docs/schema_notes.md` for all `id` fields.
+   - Update `/docs/api_endpoints.md` to document:
+     - New `AddNodeWithHierarchy` mutation behavior.
+     - Required header `X-Hierarchy-Id` for `/api/mutate`.
+   - Confirm related notes in `/docs/schema_notes.md`.
 
 This nested-into-`addNode` approach aligns with the multi-hierarchy schema, reduces client complexity, and ensures atomic, consistent data writes.

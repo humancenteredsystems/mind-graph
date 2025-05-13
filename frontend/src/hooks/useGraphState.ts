@@ -6,7 +6,7 @@ import { NodeData, EdgeData } from '../types/graph';
 import { log } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  ADD_NODE_MUTATION,
+  ADD_NODE_WITH_HIERARCHY,
   ADD_EDGE_MUTATION,
   UPDATE_NODE_MUTATION,
   DELETE_NODE_MUTATION,
@@ -132,26 +132,20 @@ export const useGraphState = (): UseGraphState => {
     const inputObj = { id: newId, label: values.label, type: values.type, parentId };
     const variables = { input: [inputObj] };
     try {
-      const result = await executeMutation(ADD_NODE_MUTATION, variables, { 'X-Hierarchy-Id': hierarchyId });
+      const result = await executeMutation(ADD_NODE_WITH_HIERARCHY, variables, { 'X-Hierarchy-Id': hierarchyId });
       const added: any = result.addNode?.node?.[0];
-      if (added) {
-        setNodes(prev => [
-          ...prev,
-          {
-            id: added.id,
-            label: added.label,
-            type: added.type,
-            assignments: added.hierarchyAssignments.map((a: any) => ({
-              hierarchyId: a.hierarchy.id,
-              hierarchyName: a.hierarchy.name,
-              levelId: a.level.id,
-              levelNumber: a.level.levelNumber,
-              levelLabel: a.level.label
-            })),
-            status: added.status,
-            branch: added.branch
-          }
-        ]);
+        if (added) {
+          setNodes(prev => [
+            ...prev,
+            {
+              id: added.id,
+              label: added.label,
+              type: added.type,
+              assignments: added.hierarchyAssignments.map((a: any) => a.level.id),
+              status: added.status,
+              branch: added.branch
+            }
+          ]);
         if (parentId) {
           const edgeVars = {
             input: [{

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NodeData } from '../types/graph';
+import { useHierarchyContext } from '../context/HierarchyContext';
 
 export interface NodeFormValues {
   label: string;
@@ -23,6 +24,8 @@ const NodeFormModal: React.FC<NodeFormModalProps> = ({
   onSubmit,
   onCancel,
 }) => {
+  const { hierarchies, hierarchyId } = useHierarchyContext();
+  const currentHierarchy = hierarchies.find(h => h.id === hierarchyId);
   const [label, setLabel] = useState(initialValues?.label || '');
   const [type, setType] = useState(initialValues?.type || NODE_TYPES[0]);
 

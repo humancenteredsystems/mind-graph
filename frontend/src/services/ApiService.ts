@@ -1,4 +1,16 @@
 import axios from 'axios';
+
+// Axios interceptor to inject hierarchy header for all mutations
+axios.interceptors.request.use(config => {
+  if (config.data && config.data.mutation) {
+    const hierarchyId = localStorage.getItem('hierarchyId');
+    if (hierarchyId) {
+      config.headers = config.headers || {};
+      config.headers['X-Hierarchy-Id'] = hierarchyId;
+    }
+  }
+  return config;
+}, error => Promise.reject(error));
 import { NodeData } from '../types/graph';
 import { GET_ALL_NODE_IDS_QUERY } from '../graphql/queries';
 
