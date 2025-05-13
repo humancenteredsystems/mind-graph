@@ -129,19 +129,29 @@ export const useGraphState = (): UseGraphState => {
 
   const addNode = useCallback(async (values: { label: string; type: string }, parentId?: string) => {
     const newId = uuidv4();
-    const variables = { input: [{ id: newId, label: values.label, type: values.type }] };
+    const inputObj = { id: newId, label: values.label, type: values.type, parentId };
+    const variables = { input: [inputObj] };
     try {
-      const result = await executeMutation(ADD_NODE_MUTATION, variables);
+      const result = await executeMutation(ADD_NODE_MUTATION, variables, { 'X-Hierarchy-Id': hierarchyId });
       const added: any = result.addNode?.node?.[0];
       if (added) {
-        setNodes(prev => [...prev, {
-          id: added.id,
-          label: added.label,
-          type: added.type,
-          assignments: (added as any).hierarchyAssignments?.map((a: any) => a.level.id) ?? [],
-          status: added.status,
-          branch: added.branch
-        }]);
+        setNodes(prev => [
+          ...prev,
+          {
+            id: added.id,
+            label: added.label,
+            type: added.type,
+            assignments: added.hierarchyAssignments.map((a: any) => ({
+              hierarchyId: a.hierarchy.id,
+              hierarchyName: a.hierarchy.name,
+              levelId: a.level.id,
+              levelNumber: a.level.levelNumber,
+              levelLabel: a.level.label
+            })),
+            status: added.status,
+            branch: added.branch
+          }
+        ]);
         if (parentId) {
           const edgeVars = {
             input: [{
@@ -153,21 +163,17 @@ export const useGraphState = (): UseGraphState => {
             }]
           };
           const edgeRes = await executeMutation(ADD_EDGE_MUTATION, edgeVars);
-          const edge = edgeRes.addEdge?.edge?.[0];
-          if (edge) {
-            setEdges(prev => [...prev, {
-              source: edge.from?.id!,
-              target: edge.to?.id!,
-              type: edge.type
-            }]);
+          const newEdge = edgeRes.addEdge?.edge?.[0];
+          if (newEdge) {
+            setEdges(prev => [...prev, { source: parentId, target: added.id, type: newEdge.type }]);
           }
         }
       }
     } catch (err) {
       log('useGraphState', 'Error adding node', err);
-      setError(`Failed to add node.`);
+      setError('Failed to add node.');
     }
-  }, []);
+  }, [hierarchyId]);
 
   const editNode = useCallback(async (nodeId: string, values: { label: string; type: string }) => {
     const variables = {

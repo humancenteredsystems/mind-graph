@@ -69,7 +69,7 @@ describe('ApiService', () => {
       const mutation = 'mutation { addNode }';
       const variables = { label: 'test' };
       await executeMutation(mutation, variables);
-      expect(axios.post).toHaveBeenCalledWith('/api/mutate', { mutation, variables });
+      expect(axios.post).toHaveBeenCalledWith(`${API_BASE_URL}/mutate`, { mutation, variables }, undefined);
     });
 
     it('should return data on successful mutation call', async () => {

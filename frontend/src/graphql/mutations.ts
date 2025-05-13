@@ -1,6 +1,22 @@
-/**
- * GraphQL mutation to add one or more nodes.
- */
+export const ADD_NODE_WITH_HIERARCHY = `
+  mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) {
+    addNode(input: $input) {
+      node {
+        id
+        label
+        type
+        status
+        branch
+        hierarchyAssignments {
+          id
+          hierarchy { id name }
+          level { id levelNumber label }
+        }
+      }
+    }
+  }
+`;
+
 export const ADD_NODE_MUTATION = `
   mutation AddNode($input: [AddNodeInput!]!) {
     addNode(input: $input) {

@@ -21,6 +21,48 @@ process.on('unhandledRejection', (reason, promise) => {
 const express = require('express');
 const { executeGraphQL } = require('./dgraphClient'); // Import the client
 
+// Helper to determine levelId for a new node within a hierarchy
+async function getLevelIdForNode(parentId, hierarchyId) {
+  let targetLevelNumber = 1;
+    if (parentId) {
+      const parentQuery = `
+        query ParentLevel($nodeId: String!, $h: String!) {
+          queryHierarchyAssignment(
+            filter: {
+              node:      { id: { eq: $nodeId } },
+              hierarchy: { id: { eq: $h } }
+            }
+          ) {
+            level { levelNumber }
+          }
+        }
+      `;
+      const parentResp = await executeGraphQL(parentQuery, { nodeId: parentId, h: hierarchyId });
+      const assignments = parentResp.data.queryHierarchyAssignment;
+      if (assignments && assignments.length) {
+        targetLevelNumber = assignments[0].level.levelNumber + 1;
+      }
+    }
+  // Fetch all levels for the hierarchy and pick by levelNumber
+  const levelsQuery = `
+    query LevelsForHierarchy($h: String!) {
+      queryHierarchy(filter: { id: { eq: $h } }) {
+        levels {
+          id
+          levelNumber
+        }
+      }
+    }
+  `;
+  const levelsResp = await executeGraphQL(levelsQuery, { h: hierarchyId });
+  const levels = levelsResp.data.queryHierarchy[0].levels;
+  const level = levels.find(l => l.levelNumber === targetLevelNumber);
+  if (!level) {
+    throw new Error(`Level ${targetLevelNumber} not found for hierarchy ${hierarchyId}`);
+  }
+  return level.id;
+}
+
 const { v4: uuidv4 } = require('uuid'); // Import UUID generator
 const axios = require('axios'); // Import axios for /api/schema
 const { sendDgraphAdminRequest } = require('./utils/dgraphAdmin');
@@ -130,12 +172,33 @@ app.post('/api/query', async (req, res) => {
 
 // Endpoint to execute arbitrary GraphQL mutations
 app.post('/api/mutate', async (req, res) => {
-  const { mutation, variables } = req.body;
+  let { mutation, variables } = req.body;
   if (!mutation) {
     return res.status(400).json({ error: 'Missing required field: mutation' });
   }
   try {
-    // Note: Consider adding validation/sanitization here if needed
+    // Enrich addNode inputs with nested hierarchyAssignments
+    if (mutation.includes('mutation AddNode') && Array.isArray(variables.input)) {
+      // Determine hierarchyId from header or fallback to first hierarchy
+      let hierarchyIdVal = req.headers['x-hierarchy-id'];
+      if (!hierarchyIdVal) {
+        const hierRes = await executeGraphQL(`query { queryHierarchy { id } }`, {});
+        hierarchyIdVal = hierRes.data.queryHierarchy[0].id;
+      }
+      const enrichedInputs = [];
+      for (const inputObj of variables.input) {
+        const levelId = await getLevelIdForNode(inputObj.parentId, hierarchyIdVal);
+        enrichedInputs.push({
+          id: inputObj.id,
+          label: inputObj.label,
+          type: inputObj.type,
+          hierarchyAssignments: [
+            { hierarchy: { id: hierarchyIdVal }, level: { id: levelId } }
+          ]
+        });
+      }
+      variables = { ...variables, input: enrichedInputs };
+    }
     const result = await executeGraphQL(mutation, variables || {});
     console.log('[MUTATE] Dgraph result for addNode:', result);
     res.status(200).json(result); // Use 200 OK for mutations unless specifically creating (201)

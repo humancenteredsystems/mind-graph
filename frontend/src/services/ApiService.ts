@@ -82,13 +82,16 @@ export const executeQuery = async (
  */
 export const executeMutation = async (
   mutation: string,
-  variables?: Record<string, any>
+  variables?: Record<string, any>,
+  headers?: Record<string, string>
 ): Promise<MutateResponse> => {
   try {
-    const response = await axios.post<MutateResponse>(`${API_BASE_URL}/mutate`, {
-      mutation,
-      variables
-    });
+    const config = headers ? { headers } : undefined;
+    const response = await axios.post<MutateResponse>(
+      `${API_BASE_URL}/mutate`,
+      { mutation, variables },
+      config
+    );
     return response.data;
   } catch (error: any) {
     if (error.response && error.response.data) {
