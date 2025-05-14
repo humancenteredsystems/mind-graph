@@ -395,6 +395,28 @@ const GraphView: React.FC<GraphViewProps> = ({
     };
   }, []);
 
+  // Keep selection arrays in sync when nodes or edges are removed
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const handleNodeRemove = (e: any) => {
+      const removedId = e.target.id();
+      selectedOrderRef.current = selectedOrderRef.current.filter(id => id !== removedId);
+      setSelectedCount(selectedOrderRef.current.length);
+    };
+    const handleEdgeRemove = (e: any) => {
+      const removedId = e.target.id();
+      selectedEdgesOrderRef.current = selectedEdgesOrderRef.current.filter(id => id !== removedId);
+      setSelectedEdgesCount(selectedEdgesOrderRef.current.length);
+    };
+    cy.on('remove', 'node', handleNodeRemove);
+    cy.on('remove', 'edge', handleEdgeRemove);
+    return () => {
+      cy.off('remove', 'node', handleNodeRemove);
+      cy.off('remove', 'edge', handleEdgeRemove);
+    };
+  }, []);
+
   // Track selection order for multi-edge operations
   useEffect(() => {
     const cy = cyRef.current;

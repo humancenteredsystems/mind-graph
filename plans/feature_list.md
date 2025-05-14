@@ -1,5 +1,5 @@
 - Different node shapes for different levels
-- Delete edge
+- Fix bug: Delete Node A, then right click Node B, "Connect Nodes" context menu displays.
 - Make context menus congruent
 - Ability to implement a structured node hierarchy
     - New standalone nodes default to level 1
