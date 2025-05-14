@@ -98,18 +98,47 @@ export const executeMutation = async (
   headers?: Record<string, string>
 ): Promise<MutateResponse> => {
   try {
-    const config = headers ? { headers } : undefined;
+    // Log the mutation and variables for debugging
+    console.log('[ApiService] Executing mutation:', mutation);
+    console.log('[ApiService] Mutation variables:', JSON.stringify(variables, null, 2));
+    
+    // Use let instead of const for config so we can modify it
+    let config = headers ? { headers } : undefined;
+    if (config) {
+      console.log('[ApiService] Using custom headers:', config.headers);
+    }
+    
+    // Ensure hierarchyId header is set from localStorage if not provided
+    if (!headers?.['X-Hierarchy-Id']) {
+      const hierarchyId = localStorage.getItem('hierarchyId');
+      if (hierarchyId) {
+        console.log('[ApiService] Adding X-Hierarchy-Id header from localStorage:', hierarchyId);
+        if (!config) {
+          config = { headers: { 'X-Hierarchy-Id': hierarchyId } };
+        } else {
+          config.headers = { ...config.headers, 'X-Hierarchy-Id': hierarchyId };
+        }
+      }
+    }
+    
     const response = await axios.post<MutateResponse>(
       `${API_BASE_URL}/mutate`,
       { mutation, variables },
       config
     );
+    
+    console.log('[ApiService] Mutation response:', response.data);
     return response.data;
   } catch (error: any) {
     if (error.response && error.response.data) {
       console.error('[ApiService] Mutation error response data:', error.response.data);
     }
     console.error('[ApiService] Error executing mutation:', error);
+    
+    // Log additional details about the request that failed
+    console.error('[ApiService] Failed mutation:', mutation);
+    console.error('[ApiService] Failed variables:', JSON.stringify(variables, null, 2));
+    
     throw error;
   }
 };

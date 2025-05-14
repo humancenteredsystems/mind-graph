@@ -9,7 +9,9 @@ interface AllGraphDataResponse {
     status?: string;
     branch?: string;
     hierarchyAssignments?: {
-      level: { id: string };
+      id: string;
+      hierarchy: { id: string; name: string };
+      level: { id: string; levelNumber: number; label?: string };
     }[];
     outgoing?: {
       type?: string;

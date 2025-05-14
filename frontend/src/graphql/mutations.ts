@@ -67,9 +67,9 @@ export const UPDATE_NODE_MUTATION = `
         status
         branch
         hierarchyAssignments {
-          level {
-            id
-          }
+          id
+          hierarchy { id name }
+          level { id levelNumber label }
         }
       }
     }

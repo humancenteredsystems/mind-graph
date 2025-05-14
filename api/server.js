@@ -28,7 +28,7 @@ async function getLevelIdForNode(parentId, hierarchyId) {
       const parentQuery = `
         query ParentLevel($nodeId: String!, $h: String!) {
           queryNode(filter: { id: { eq: $nodeId } }) {
-            hierarchyAssignments(filter: { hierarchy: { id: { eq: $h } } }) {
+            hierarchyAssignments(filter: { level: { hierarchy: { id: { eq: $h } } } }) {
               level { levelNumber }
             }
           }
@@ -175,7 +175,9 @@ app.post('/api/mutate', async (req, res) => {
   }
   try {
     // Enrich addNode inputs with nested hierarchyAssignments
-    if (mutation.includes('mutation AddNode') && Array.isArray(variables.input)) {
+    // Focus on the operation being performed rather than specific mutation names
+    if (Array.isArray(variables.input) && 
+        (mutation.includes('addNode') || mutation.includes('AddNode'))) {
       // Determine hierarchyId from header or fallback to first hierarchy
       let hierarchyIdVal = req.headers['x-hierarchy-id'];
       if (!hierarchyIdVal) {
@@ -184,13 +186,25 @@ app.post('/api/mutate', async (req, res) => {
       }
       const enrichedInputs = [];
       for (const inputObj of variables.input) {
-        const levelId = await getLevelIdForNode(inputObj.parentId, hierarchyIdVal);
+        // Use client-provided levelId if available, otherwise look it up
+        let levelId;
+        if (inputObj.levelId) {
+          console.log(`[MUTATE] Using client-provided levelId: ${inputObj.levelId}`);
+          levelId = inputObj.levelId;
+        } else {
+          console.log(`[MUTATE] Looking up levelId for parentId: ${inputObj.parentId}`);
+          levelId = await getLevelIdForNode(inputObj.parentId, hierarchyIdVal);
+        }
+        
+        // Use client-provided hierarchyId if available, otherwise use the one from header/fallback
+        const finalHierarchyId = inputObj.hierarchyId || hierarchyIdVal;
+        
         enrichedInputs.push({
           id: inputObj.id,
           label: inputObj.label,
           type: inputObj.type,
           hierarchyAssignments: [
-            { hierarchy: { id: hierarchyIdVal }, level: { id: levelId } }
+            { hierarchy: { id: finalHierarchyId }, level: { id: levelId } }
           ]
         });
       }

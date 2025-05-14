@@ -141,7 +141,13 @@ export const useGraphState = (): UseGraphState => {
               id: added.id,
               label: added.label,
               type: added.type,
-              assignments: added.hierarchyAssignments.map((a: any) => a.level.id),
+              assignments: added.hierarchyAssignments.map((a: any) => ({
+                hierarchyId: a.hierarchy.id,
+                hierarchyName: a.hierarchy.name,
+                levelId: a.level.id,
+                levelNumber: a.level.levelNumber,
+                levelLabel: a.level.label
+              })),
               status: added.status,
               branch: added.branch
             }
@@ -187,7 +193,13 @@ export const useGraphState = (): UseGraphState => {
           id: updated.id,
           label: updated.label,
           type: updated.type,
-          assignments: (updated as any).hierarchyAssignments?.map((a: any) => a.level.id) ?? [],
+          assignments: (updated as any).hierarchyAssignments?.map((a: any) => ({
+            hierarchyId: a.hierarchy.id,
+            hierarchyName: a.hierarchy.name,
+            levelId: a.level.id,
+            levelNumber: a.level.levelNumber,
+            levelLabel: a.level.label
+          })) ?? [],
           status: updated.status,
           branch: updated.branch
         } : n));

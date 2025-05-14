@@ -84,7 +84,7 @@ type Node {
 **Path:** `/api/mutate`  
 **Description:** Executes an arbitrary GraphQL mutation.  
 **Headers:**  
-- `X-Hierarchy-Id` (required): ID of the active hierarchy for nested hierarchyAssignments.  
+- `X-Hierarchy-Id` (required): ID of the active hierarchy; used in nested filter on `level.hierarchy.id` for hierarchyAssignments.  
 **Request Body:**  
 ```json
 {
