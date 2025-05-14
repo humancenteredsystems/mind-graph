@@ -28,7 +28,7 @@ async function getLevelIdForNode(parentId, hierarchyId) {
       const parentQuery = `
         query ParentLevel($nodeId: String!, $h: String!) {
           queryNode(filter: { id: { eq: $nodeId } }) {
-            hierarchyAssignments(filter: { level: { hierarchy: { id: { eq: $h } } } }) {
+            hierarchyAssignments(filter: { hierarchy: { id: { eq: $h } } }) {
               level { levelNumber }
             }
           }
@@ -255,10 +255,6 @@ app.post('/api/mutate', async (req, res) => {
     : allowedFields; // Default to allowed fields if none provided or invalid
 
   // Ensure 'level' is included if currentLevel is used for filtering - This logic is no longer needed as 'level' is not a direct field.
-  // Hierarchy level filtering is handled by the 'to (filter: { hierarchyAssignments: ... levelNumber ... } })' part of the query.
-  // if (currentLevel !== undefined && !safeFields.includes('level')) {
-  //   safeFields.push('level');
-  // }
 
   if (safeFields.length === 0) {
     // This case should ideally not happen if default is allowedFields, but good to check

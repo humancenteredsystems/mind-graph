@@ -17,25 +17,6 @@ export const ADD_NODE_WITH_HIERARCHY = `
   }
 `;
 
-export const ADD_NODE_MUTATION = `
-  mutation AddNode($input: [AddNodeInput!]!) {
-    addNode(input: $input) {
-      node {
-        id
-        label
-        type
-        status
-        branch
-        hierarchyAssignments {
-          level {
-            id
-          }
-        }
-      }
-    }
-  }
-`;
-
 /**
  * GraphQL mutation to add one or more edges.
  * Note: Assumes 'simple' edge type for now, might need parameterization later.
