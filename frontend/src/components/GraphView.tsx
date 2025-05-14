@@ -219,9 +219,8 @@ const GraphView: React.FC<GraphViewProps> = ({
         // Trigger the action
         if (onEditNode) {
           const nodeData = nodes.find(n => n.id === nodeId);
-          if (nodeData) {
-            // log('GraphView', `[handleTap] Calling onEditNode for node: ${nodeId}`); // Removed log
-            onEditNode(nodeId);
+            if (nodeData) {
+              onEditNode(nodeData);
           } else {
             log('GraphView', `[handleTap] Warning: Node data not found for ID: ${nodeId}`);
           }
@@ -272,7 +271,7 @@ const GraphView: React.FC<GraphViewProps> = ({
       if (onEditNode && nodeId) {
         const nodeData = nodes.find(n => n.id === nodeId);
         if (nodeData) {
-          onEditNode(nodeId);
+          onEditNode(nodeData);
         }
       }
     };

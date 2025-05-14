@@ -234,7 +234,7 @@ describe('GraphView Component', () => {
     cyTrigger('doubleTap', 'n1');
     
     // Should call the handler with the node ID
-    expect(onEditNodeMock).toHaveBeenCalledWith('n1');
+    expect(onEditNodeMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'n1' }));
   });
 
   it('still does not call onEditNode after multiple single taps', () => {
