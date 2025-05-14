@@ -114,9 +114,13 @@ query GetNodesInHierarchyLevel {
 
 ### Creating Nodes with Hierarchy Assignments
 
-When creating a new `Node`, you typically also create its initial `HierarchyAssignment`(s) in the same mutation or a subsequent one.
+When creating a new `Node`, you can specify its hierarchy assignments in two ways:
 
-**Example: Add a new Node and assign it to level 1 of "hierarchy1"**
+#### 1. Nested Hierarchy Assignment (Recommended)
+
+The system supports nested hierarchy assignments directly in the `addNode` mutation. This is the recommended approach as it creates the node and its hierarchy assignment in a single atomic operation.
+
+**Example: Add a new Node with nested hierarchy assignment**
 ```graphql
 mutation AddNodeWithHierarchy {
   addNode(input: [{
@@ -133,14 +137,68 @@ mutation AddNodeWithHierarchy {
       label
       hierarchyAssignments {
         id
-        hierarchy { name }
-        level { levelNumber }
+        hierarchy { id name }
+        level { id levelNumber label }
       }
     }
   }
 }
 ```
-*Note: You would typically look up the `ID` for the `Hierarchy` and `HierarchyLevel` you want to assign to.*
+
+#### 2. Client-Provided Fields with Server-Side Enrichment
+
+The API also supports providing `hierarchyId` and `levelId` directly in the input, which the server will use to automatically create the appropriate hierarchy assignment:
+
+```graphql
+mutation AddNodeWithClientFields {
+  addNode(input: [{
+    id: "newNode456",
+    label: "Another Concept",
+    type: "Concept",
+    hierarchyId: "hierarchy1",  # Server will use this to create assignment
+    levelId: "level1_of_hierarchy1"  # Server will use this to create assignment
+  }]) {
+    node {
+      id
+      label
+      hierarchyAssignments {
+        id
+        hierarchy { id name }
+        level { id levelNumber label }
+      }
+    }
+  }
+}
+```
+
+#### 3. Parent-Based Level Assignment
+
+When creating a node connected to a parent, you can omit the `levelId` and the server will automatically determine the appropriate level based on the parent's level:
+
+```graphql
+mutation AddNodeWithParentBasedLevel {
+  addNode(input: [{
+    id: "childNode789",
+    label: "Child Concept",
+    type: "Concept",
+    parentId: "parentNodeId",  # Server will look up parent's level
+    hierarchyId: "hierarchy1"   # Server will use this hierarchy
+    # levelId is omitted - server will assign level = parent's level + 1
+  }]) {
+    node {
+      id
+      label
+      hierarchyAssignments {
+        id
+        hierarchy { id name }
+        level { id levelNumber label }
+      }
+    }
+  }
+}
+```
+
+*Note: The server-side enrichment happens in the API layer, not in Dgraph directly. The API transforms the input before sending it to Dgraph.*
 
 ### Key Constraints and Best Practices
 

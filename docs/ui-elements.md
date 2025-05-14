@@ -74,11 +74,21 @@ Component: `<NodeFormModal>` (in `/frontend/src/components/NodeFormModal.tsx`); 
 
 - **Label** (text input, required)  
 - **Type** (dropdown: concept, example, question)
+- **Hierarchy** (dropdown: list of available hierarchies)
+- **Level** (dropdown: list of levels for the selected hierarchy)
 
 ### Actions
 
-- **Save** → validate & call `onSubmit` (creates a new node and, if `parentId` is provided, also creates a connecting edge), close modal  
+- **Save** → validate & call `onSubmit` (creates a new node with hierarchy assignment and, if `parentId` is provided, also creates a connecting edge), close modal  
 - **Cancel** → call `onCancel`, close modal
+
+### Data Flow
+
+1. User selects hierarchy from dropdown (defaults to currently active hierarchy)
+2. Level dropdown is populated with levels for the selected hierarchy
+3. User selects level (or system determines appropriate level based on parent node)
+4. On submit, the node is created with the selected hierarchy and level information
+5. The API automatically creates the appropriate hierarchy assignment
 
 ### Accessibility/UI
 

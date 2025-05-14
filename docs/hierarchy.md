@@ -25,16 +25,48 @@ File: `frontend/src/context/HierarchyContext.tsx`
 Provides React Context with:
 - `hierarchies`: array of `{ id: string; name: string }`
 - `hierarchyId`: currently selected hierarchy ID (string)
+- `levels`: array of levels for the current hierarchy
 - `setHierarchyId(id: string): void` to change selection
 
 Implementation details:
 1. On mount, calls `fetchHierarchies()` (from `ApiService`) to load all hierarchies.
 2. Stores the fetched list in `hierarchies` state.
-3. Defaults `hierarchyId` to the first hierarchy’s ID.
-4. When `setHierarchyId` is called:
+3. Defaults `hierarchyId` to the first hierarchy's ID.
+4. Loads levels for the selected hierarchy.
+5. When `setHierarchyId` is called:
    - Updates `hierarchyId` in context.
    - Persists selection in local state (and optionally localStorage).
    - Triggers graph reload via `useGraphState`.
+   - Fetches and updates the levels for the newly selected hierarchy.
+
+## Automatic Hierarchy Assignment
+
+When creating new nodes, the system automatically handles hierarchy assignments:
+
+1. **Default Assignment**: New standalone nodes are assigned to the currently active hierarchy.
+
+2. **Parent-Based Assignment**: When creating a node connected to a parent:
+   - The node inherits the parent's hierarchy
+   - The node is assigned to the level one deeper than its parent
+   - Example: If parent is at level 2, the child will be at level 3
+
+3. **Manual Override**: Users can explicitly select a different hierarchy or level in the Add Node modal.
+
+## Server-Side Processing
+
+The server handles hierarchy assignment logic:
+
+1. When a node creation request includes `hierarchyId` and `levelId`, the server uses these values directly.
+
+2. When only `hierarchyId` is provided (without `levelId`):
+   - For standalone nodes: assigns to level 1 of the specified hierarchy
+   - For child nodes: looks up the parent's level and assigns to level+1
+
+3. When neither is provided:
+   - Uses the hierarchy from the `X-Hierarchy-Id` header
+   - Determines the appropriate level based on parent (if any)
+
+This logic is implemented in the `/api/mutate` endpoint in `api/server.js`.
 
 ## UI: Hierarchy Selector Dropdown
 

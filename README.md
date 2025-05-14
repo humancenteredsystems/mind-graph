@@ -13,6 +13,14 @@ This repository contains the core components for the MakeItMakeSense.io platform
 *   **Backend API:** A Node.js/Express server providing a GraphQL interface and other endpoints to interact with Dgraph.
 *   **Frontend:** A React/Vite application using Cytoscape.js for interactive graph visualization.
 *   **Utility Tools:** Python scripts for database management (schema push, seeding, querying, exporting) and a simple HTML/Mermaid.js visualizer for exported data.
+*   **Hierarchical Graph Structure:** A hybrid hierarchical and non-hierarchical graph structure with automatic hierarchy assignment for new nodes.
+
+### Key Features
+
+* **Multi-Hierarchy Support:** Nodes can be assigned to multiple hierarchies simultaneously, allowing for different organizational views of the same data.
+* **Automatic Hierarchy Assignment:** When creating new nodes, they are automatically assigned to the appropriate level in the active hierarchy.
+* **Parent-Child Relationships:** Child nodes are automatically assigned to a level one deeper than their parent node.
+* **Nested Mutations:** The system supports nested hierarchy assignments in GraphQL mutations, allowing for atomic operations when creating nodes.
 
 ## Tech Stack
 
