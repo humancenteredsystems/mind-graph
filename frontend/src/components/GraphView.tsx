@@ -72,7 +72,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => {
       const assignmentForCurrent = Array.isArray(assignments) ? assignments.find(a => a.hierarchyId === hierarchyId) : undefined;
       const levelLabel = assignmentForCurrent?.levelLabel ?? assignmentForCurrent?.levelNumber;
-      const displayLabel = levelLabel ? `${levelLabel}: ${label ?? id}` : (label ?? id);
+      const displayLabel = label ?? id;
       return {
         data: {
           id,
