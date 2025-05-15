@@ -166,9 +166,9 @@ def main():
     # Handle schema file option (default if nothing else specified)
     schema_path = args.schema
     if not schema_path:
-        # Default schema path relative to the script
+        # Default schema path relative to the project
         script_dir = Path(__file__).parent
-        schema_path = str(script_dir / "../schema.graphql")
+        schema_path = str(script_dir / "../schemas/default.graphql")
         
     # Resolve schema path
     resolved_path = Path(schema_path).resolve()

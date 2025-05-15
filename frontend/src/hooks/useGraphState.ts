@@ -129,7 +129,17 @@ export const useGraphState = (): UseGraphState => {
 
   const addNode = useCallback(async (values: { label: string; type: string; hierarchyId: string; levelId: string }, parentId?: string) => {
     const newId = uuidv4();
-    const inputObj = { id: newId, label: values.label, type: values.type, parentId, hierarchyId: values.hierarchyId, levelId: values.levelId };
+    let inputObj: any = {
+      id: newId,
+      label: values.label,
+      type: values.type,
+      hierarchyId: values.hierarchyId,
+    };
+    if (parentId) {
+      inputObj.parentId = parentId;
+    } else {
+      inputObj.levelId = values.levelId;
+    }
     const variables = { input: [inputObj] };
     try {
       const result = await executeMutation(ADD_NODE_WITH_HIERARCHY, variables);

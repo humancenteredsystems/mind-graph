@@ -69,9 +69,50 @@ const GraphView: React.FC<GraphViewProps> = ({
   // Build elements: filter hidden nodes and edges
   const elements = useMemo<ElementDefinition[]>(() => {
     const visible = nodes.filter(n => !hiddenNodeIds.has(n.id));
+    const levelCounters: Record<number, number> = {};
+    
+    // Debug: Log the current hierarchyId from context
+    console.log(`[GraphView] Current hierarchyId from context: ${hierarchyId}`);
+    
     const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => {
-      const assignmentForCurrent = Array.isArray(assignments) ? assignments.find(a => a.hierarchyId === hierarchyId) : undefined;
-      const levelLabel = assignmentForCurrent?.levelLabel ?? assignmentForCurrent?.levelNumber;
+      // Debug: Log assignments for this node
+      console.log(`[GraphView] Node ${id} assignments:`, assignments);
+      
+      // Find all matching assignments for this hierarchy
+      let matchingAssignments: any[] = [];
+      
+      if (Array.isArray(assignments)) {
+        // Try exact match
+        matchingAssignments = assignments.filter(a => a.hierarchyId === hierarchyId);
+        
+        // If none found, try with/without 'h' prefix
+        if (matchingAssignments.length === 0) {
+          if (hierarchyId.startsWith('h')) {
+            // Try without 'h' prefix
+            const numericId = hierarchyId.substring(1);
+            matchingAssignments = assignments.filter(a => a.hierarchyId === numericId);
+          } else {
+            // Try with 'h' prefix
+            const prefixedId = `h${hierarchyId}`;
+            matchingAssignments = assignments.filter(a => a.hierarchyId === prefixedId);
+          }
+        }
+      }
+      
+      // Sort by level number (descending) and take the highest level
+      matchingAssignments.sort((a, b) => b.levelNumber - a.levelNumber);
+      const assignmentForCurrent = matchingAssignments.length > 0 ? matchingAssignments[0] : undefined;
+      
+      // Debug: Log if assignment was found
+      if (!assignmentForCurrent) {
+        console.log(`[GraphView] No assignment found for node ${id} in hierarchy ${hierarchyId}`);
+      } else {
+        console.log(`[GraphView] Found assignment for node ${id}: level=${assignmentForCurrent.levelNumber} (highest of ${matchingAssignments.length} assignments)`);
+      }
+      
+      const levelNum = assignmentForCurrent?.levelNumber ?? 1;
+      const idx = levelCounters[levelNum] ?? 0;
+      levelCounters[levelNum] = idx + 1;
       const displayLabel = label ?? id;
       return {
         data: {
@@ -82,11 +123,12 @@ const GraphView: React.FC<GraphViewProps> = ({
           assignments,
           status,
           branch,
-          levelNumber: assignmentForCurrent?.levelNumber,
+          levelNumber: levelNum,
           levelLabel: assignmentForCurrent?.levelLabel,
         },
+        position: { x: levelNum * 200, y: idx * 100 },
         style: {
-          'background-color': getLevelColor(assignmentForCurrent?.levelNumber),
+          'background-color': getLevelColor(levelNum),
           'border-color': '#555',
         },
       };
@@ -359,17 +401,11 @@ const GraphView: React.FC<GraphViewProps> = ({
     };
   }, [openMenu, onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, edges]);
 
-  // Layout on elements update
+  // Layout on elements update: use preset positions based on level
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    
-    cy.layout({
-      name: 'klay',
-      klay: { spacing: 40, nodePlacement: 'LINEAR_SEGMENTS', layoutHierarchy: true },
-      animate: true,
-      animationDuration: 300,
-    } as any).run();
+    cy.layout({ name: 'preset', padding: 10 }).run();
   }, [elements]);
 
     // Track selection order for multi-node operations

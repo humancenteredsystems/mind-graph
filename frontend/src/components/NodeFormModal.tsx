@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NodeData } from '../types/graph';
 import { useHierarchyContext } from '../context/HierarchyContext';
+import { useGraphState } from '../hooks/useGraphState';
 
 export interface NodeFormValues {
   label: string;
@@ -27,6 +28,7 @@ const NodeFormModal: React.FC<NodeFormModalProps> = ({
   onCancel,
 }) => {
   const { hierarchies, hierarchyId, levels, setHierarchyId } = useHierarchyContext();
+  const { nodes } = useGraphState();
   const [label, setLabel] = useState(initialValues?.label || '');
   const [type, setType] = useState(initialValues?.type || NODE_TYPES[0]);
   const [selectedLevelId, setSelectedLevelId] = useState(levels[0]?.id || '');
@@ -35,16 +37,30 @@ const NodeFormModal: React.FC<NodeFormModalProps> = ({
     if (open) {
       setLabel(initialValues?.label || '');
       setType(initialValues?.type || NODE_TYPES[0]);
-      setSelectedLevelId(levels[0]?.id || '');
+      // Default level selection
+      let defaultLevelId: string | undefined;
+      if (initialValues && initialValues.assignments) {
+        const assign = initialValues.assignments.find(a => a.hierarchyId === hierarchyId);
+        defaultLevelId = assign?.levelId;
+      } else if (parentId) {
+        const parent = nodes.find(n => n.id === parentId);
+        const parentAssign = parent?.assignments?.find(a => a.hierarchyId === hierarchyId);
+        const parentLevelNum = parentAssign?.levelNumber;
+        const nextLevelNum = (parentLevelNum !== undefined) ? parentLevelNum + 1 : undefined;
+        defaultLevelId = levels.find(l => l.levelNumber === nextLevelNum)?.id;
+      }
+      if (!defaultLevelId) {
+        defaultLevelId = levels[0]?.id;
+      }
+      setSelectedLevelId(defaultLevelId);
     }
-  }, [open, initialValues, levels]);
+  }, [open, initialValues, levels, parentId, nodes, hierarchyId]);
 
   if (!open) return null;
 
-  // When user changes hierarchy, update level options
+  // When user changes hierarchy, update hierarchy selection
   const onHierarchyChange = (hierId: string) => {
     setHierarchyId(hierId);
-    setSelectedLevelId(levels[0]?.id || '');
   };
 
   return (

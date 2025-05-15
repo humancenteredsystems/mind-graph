@@ -10,7 +10,7 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  
   /* border: 1px dashed orange; /* Debug border - REMOVED */
   /* background-color: #fff8dc; /* Keep Debug background for now - REMOVED */
 }
@@ -56,10 +56,10 @@ button {
 button:hover {
   border-color: #646cff;
 }
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
+  button:focus,
+  button:focus-visible {
+    outline: 4px auto currentColor;
+  }
 
 @media (prefers-color-scheme: light) {
   :root {

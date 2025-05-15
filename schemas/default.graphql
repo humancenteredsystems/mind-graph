@@ -20,6 +20,7 @@ type Hierarchy {
   id: String! @id
   name: String! @search(by: [exact])
   levels: [HierarchyLevel] @hasInverse(field: "hierarchy")
+  hierarchyAssignments: [HierarchyAssignment] @hasInverse(field: "hierarchy")
 }
 
 type HierarchyLevel {
