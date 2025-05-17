@@ -133,12 +133,15 @@ export const useGraphState = (): UseGraphState => {
       id: newId,
       label: values.label,
       type: values.type,
-      hierarchyId: values.hierarchyId,
+      hierarchyAssignments: [
+        { 
+          hierarchy: { id: values.hierarchyId }, 
+          level: { id: values.levelId } 
+        }
+      ]
     };
     if (parentId) {
       inputObj.parentId = parentId;
-    } else {
-      inputObj.levelId = values.levelId;
     }
     const variables = { input: [inputObj] };
     try {

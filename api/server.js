@@ -23,23 +23,36 @@ const { executeGraphQL } = require('./dgraphClient'); // Import the client
 
 // Helper to determine levelId for a new node within a hierarchy
 async function getLevelIdForNode(parentId, hierarchyId) {
-  let targetLevelNumber = 1;
-    if (parentId) {
-      const parentQuery = `
-        query ParentLevel($nodeId: String!, $h: String!) {
-          queryNode(filter: { id: { eq: $nodeId } }) {
-            hierarchyAssignments(filter: { hierarchy: { id: { eq: $h } } }) {
-              level { levelNumber }
-            }
+  let targetLevelNumber = 1; // Default if no parent or no matching assignment
+
+  if (parentId) {
+    const parentQuery = `
+      query ParentLevel($nodeId: String!) {
+        queryNode(filter: { id: { eq: $nodeId } }) {
+          hierarchyAssignments {
+            hierarchy { id }
+            level { levelNumber }
           }
         }
-      `;
-      const parentResp = await executeGraphQL(parentQuery, { nodeId: parentId, h: hierarchyId });
-      const assignments = parentResp.queryNode[0]?.hierarchyAssignments;
-      if (assignments && assignments.length) {
-        targetLevelNumber = assignments[0].level.levelNumber + 1;
       }
+    `;
+    const parentResp = await executeGraphQL(parentQuery, { nodeId: parentId });
+    const allAssignments = parentResp.queryNode[0]?.hierarchyAssignments;
+    let relevantAssignment = null;
+
+    if (allAssignments && allAssignments.length > 0) {
+      relevantAssignment = allAssignments.find(asn => asn.hierarchy.id === hierarchyId);
     }
+
+    if (relevantAssignment) {
+      targetLevelNumber = relevantAssignment.level.levelNumber + 1;
+    } else {
+      // Parent node exists but is not in the target hierarchy, or has no assignments.
+      // Defaulting the new node to level 1 of the target hierarchy.
+      targetLevelNumber = 1; // Explicitly set, though it's the default
+      console.warn(`Parent node ${parentId} found, but has no assignment for hierarchy ${hierarchyId}. New node will be at level 1 of this hierarchy.`);
+    }
+  }
   // Fetch all levels for the hierarchy and pick by levelNumber
   const levelsQuery = `
     query LevelsForHierarchy($h: String!) {
@@ -209,9 +222,14 @@ app.post('/api/mutate', async (req, res) => {
         });
       }
       variables = { ...variables, input: enrichedInputs };
+      
+      // The problematic transformation block has been removed.
+      // The original mutation will now proceed to the executeGraphQL call below.
     }
+    
+    // For mutations that don't need transformation, or for addNode after input enrichment, execute normally
     const result = await executeGraphQL(mutation, variables || {});
-    console.log('[MUTATE] Dgraph result for addNode:', result);
+    console.log('[MUTATE] Dgraph result:', result);
     res.status(200).json(result); // Use 200 OK for mutations unless specifically creating (201)
   } catch (error) {
     console.error(`Error in /api/mutate endpoint:`, error);
@@ -267,7 +285,7 @@ app.post('/api/mutate', async (req, res) => {
   // Construct the 'to' block conditionally
   // Use hierarchyId directly as an integer in the GraphQL query
   const toBlock = targetLevel !== null
-    ? `to (filter: { hierarchyAssignments: { some: { hierarchy: { id: { eq: ${hierarchyId} } }, levelNumber: { eq: ${targetLevel} } } } }) {\n      ${fieldBlock}\n      hierarchyAssignments {\n        hierarchy { id name }\n        level { id levelNumber label }\n      }\n    }`
+    ? `to (filter: { hierarchyAssignments: { some: { hierarchyId: { eq: ${hierarchyId} }, levelNumber: { eq: ${targetLevel} } } } }) {\n      ${fieldBlock}\n      hierarchyAssignments {\n        hierarchy { id name }\n        level { id levelNumber label }\n      }\n    }`
     : `to {\n      ${fieldBlock}\n      hierarchyAssignments {\n        hierarchy { id name }\n        level { id levelNumber label }\n      }\n    }`; // Note indentation
 
   // Construct the full query using array join for clarity and safety
