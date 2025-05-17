@@ -1,102 +1,112 @@
 # MakeItMakeSense.io Graph Database Toolkit
 
-A collection of tools for managing and interacting with the MakeItMakeSense.io Dgraph database via the backend API.
+A collection of tools for managing and interacting with the MakeItMakeSense.io Dgraph database, primarily via the backend API.
 
 ## Toolkit Overview
 
 This directory contains Python scripts and an HTML visualizer to operate on the graph:
 
-- **api_client.py**: Shared module for making authenticated requests to the backend API.
-- **drop_data.py**: Drop all data from the Dgraph database via the backend API.
-- **api_push_schema.py**: Push your GraphQL schema via the backend API.
-- **seed_data.py**: Populate the database with sample or test data via the backend API.
-- **query_graph.py**: Run predefined or custom GraphQL queries (currently direct to Dgraph, consider refactoring to use API).
-- **export_graph.py**: Export the current graph to a JSON file (currently direct from Dgraph, consider refactoring to use API).
+- **`api_client.py`**: Shared Python module for making authenticated requests to the backend API. Used by other scripts.
+- **`drop_data.py`**: Drops all data from the Dgraph database via the backend API.
+- **`api_push_schema.py`**: Pushes your GraphQL schema (`schemas/default.graphql` or other specified files/registry IDs) to Dgraph via the backend API. This is the recommended way to update the schema.
+- **`seed_data.py`**: Populates the database with sample data (nodes, edges, hierarchies, assignments) via the backend API.
+- **`query_graph.py`**: Runs predefined or custom GraphQL queries. **Note:** This script currently connects *directly* to the Dgraph GraphQL endpoint, not via the backend API. Configuration for Dgraph URL might be required within the script or via environment variables it recognizes.
+- **`export_graph.py`**: Exports the current graph data to a JSON file. **Note:** This script currently connects *directly* to Dgraph, not via the backend API.
+- **`visualize_mermaid.html`**: A browser-based tool to load a JSON export (e.g., from `export_graph.py`) and visualize the graph using Mermaid.js.
 
 ## Prerequisites
 
-- Python 3.6+
-- `requests` library (`pip install requests`)
-- Backend API server running (required for `drop_data.py`, `api_push_schema.py`, and `seed_data.py`).
+- Python 3.7+ (Python 3.6+ was listed, but 3.7+ is a safer bet for modern practices)
+- `requests` Python library: Install via `pip install requests` (preferably within a virtual environment or Conda environment).
+- For tools interacting with the API (`drop_data.py`, `api_push_schema.py`, `seed_data.py`):
+    - The backend API server must be running and accessible.
+    - A valid Admin API Key.
+- For tools interacting directly with Dgraph (`query_graph.py`, `export_graph.py`):
+    - The Dgraph Alpha server must be running and its GraphQL port (usually 8080) accessible to the machine running the script.
+    - These scripts might require Dgraph connection details (e.g., URL) to be configured, potentially via environment variables they define or hardcoded defaults.
 
 ## Usage Examples
 
-The API-interacting tools (`drop_data.py`, `api_push_schema.py`, `seed_data.py`) now share common arguments for specifying the API and authentication.
+The API-interacting tools (`drop_data.py`, `api_push_schema.py`, `seed_data.py`) share common arguments for specifying the API endpoint and authentication:
 
-Common Arguments:
-- `--api-base <URL>` or `-b <URL>`: Backend API base URL (default: `http://localhost:3000/api`). Can also be set via `MIMS_API_URL` environment variable.
-- `--api-key <KEY>` or `-k <KEY>`: Admin API Key. Can also be set via `MIMS_ADMIN_API_KEY` environment variable.
-- `--target {local,remote}` or `-t {local,remote}`: Target environment for the operation. Note that the API instance itself is configured for a specific Dgraph instance (local or remote) via its `DGRAPH_BASE_URL`. The `--target` argument in these scripts is primarily for selecting which API instance (local or remote API) to call.
+**Common Arguments:**
+- `--api-base <URL>` or `-b <URL>`: Backend API base URL (default: `http://localhost:3000/api`). Can also be set via the `MIMS_API_URL` environment variable.
+- `--api-key <KEY>` or `-k <KEY>`: Admin API Key for the backend API. Can also be set via the `MIMS_ADMIN_API_KEY` environment variable.
+- `--target {local,remote}` or `-t {local,remote}`: This argument is primarily for the script's context (e.g., if you have different API instances for local and remote environments). The API service itself is configured with a specific `DGRAPH_BASE_URL` and will interact with that Dgraph instance regardless of this script's `--target` flag. The flag helps the script decide *which API URL to call*.
 
-### drop_data.py
+### `drop_data.py`
 
-Drop all data from the configured Dgraph instance via the API:
-
-```bash
-# Drop data from the local Dgraph (via local API)
-python drop_data.py --target local --api-key YOUR_ADMIN_API_KEY
-
-# Drop data from the remote Dgraph (via remote API)
-python drop_data.py --target remote --api-base https://your-remote-api.onrender.com/api --api-key YOUR_ADMIN_API_KEY
-```
-
-Note: The API endpoint `/api/admin/dropAll` now drops data from the Dgraph instance configured by the API's `DGRAPH_BASE_URL`. The `--target` argument in the script determines which API instance you call.
-
-### api_push_schema.py
-
-Push a schema file or registry schema via the API:
+Drops all data from the Dgraph instance targeted by the configured API service.
 
 ```bash
-# Push a local schema file to the local Dgraph (via local API)
-python api_push_schema.py --schema ../schema.graphql --target local --api-key YOUR_ADMIN_API_KEY
+# Example: Drop data using the local API instance
+python tools/drop_data.py --api-key YOUR_ADMIN_API_KEY 
+# (Assumes local API at http://localhost:3000/api)
 
-# Push a schema by ID from the registry to the remote Dgraph (via remote API)
-python api_push_schema.py --schema-id default --target remote --api-base https://your-remote-api.onrender.com/api --api-key YOUR_ADMIN_API_KEY
-
-# List available schemas in the registry (via local API)
-python api_push_schema.py --list --api-key YOUR_ADMIN_API_KEY
+# Example: Drop data using a remote API instance
+python tools/drop_data.py --api-base https://your-remote-api.onrender.com/api --api-key YOUR_ADMIN_API_KEY
 ```
 
-Note: The API endpoints `/api/schemas/:id/push` and `/api/admin/schema` now push schema to the Dgraph instance configured by the API's `DGRAPH_BASE_URL`. The `--target` argument in the script determines which API instance you call.
+### `api_push_schema.py`
 
-### seed_data.py
-
-Populate the database with sample data via the API:
+Pushes a schema file or a schema from the API's registry to the Dgraph instance targeted by the configured API service.
 
 ```bash
-# Seed data to the local Dgraph (via local API)
-python seed_data.py --target local --api-key YOUR_ADMIN_API_KEY
+# Example: Push the default schema file using the local API
+python tools/api_push_schema.py --schema schemas/default.graphql --api-key YOUR_ADMIN_API_KEY
 
-# Seed data to the remote Dgraph (via remote API)
-python seed_data.py --target remote --api-base https://your-remote-api.onrender.com/api --api-key YOUR_ADMIN_API_KEY
+# Example: Push a schema by ID from the registry using a remote API
+python tools/api_push_schema.py --schema-id default --api-base https://your-remote-api.onrender.com/api --api-key YOUR_ADMIN_API_KEY
 
-# Use a custom data file
-python seed_data.py --target local --api-key YOUR_ADMIN_API_KEY --data my_test_data.json
+# Example: List available schemas in the registry via the local API
+python tools/api_push_schema.py --list --api-key YOUR_ADMIN_API_KEY
 ```
 
-Note: The API endpoint `/api/mutate` is used for seeding data. The `--target` argument in the script determines which API instance you call.
+### `seed_data.py`
 
-### query_graph.py
-
-Run predefined queries or supply a custom query file:
+Populates the database with sample data via the API.
 
 ```bash
-python query_graph.py --query all_nodes
-python query_graph.py --file custom_query.graphql
+# Example: Seed data using the local API
+python tools/seed_data.py --api-key YOUR_ADMIN_API_KEY
+
+# Example: Seed data using a remote API
+python tools/seed_data.py --api-base https://your-remote-api.onrender.com/api --api-key YOUR_ADMIN_API_KEY
+
+# Example: Use a custom data file for seeding (via local API)
+python tools/seed_data.py --api-key YOUR_ADMIN_API_KEY --data path/to/my_custom_data.json
 ```
 
-### export_graph.py
+### `query_graph.py`
 
-Export graph data to JSON:
+Runs GraphQL queries directly against a Dgraph instance.
+(Ensure Dgraph is accessible and check script for configuration of Dgraph endpoint).
 
 ```bash
-python export_graph.py --output graph_backup.json
+# Example: Run a predefined query named 'all_nodes' (if defined in the script)
+python tools/query_graph.py --query all_nodes
+
+# Example: Run a query from a file
+python tools/query_graph.py --file path/to/your_query.graphql
 ```
 
-### visualize_mermaid.html
+### `export_graph.py`
 
-Open this file in a browser, load a JSON export, and visualize your graph.
+Exports graph data to a JSON file directly from a Dgraph instance.
+(Ensure Dgraph is accessible and check script for configuration of Dgraph endpoint).
+
+```bash
+# Example: Export data to graph_export.json
+python tools/export_graph.py --output graph_export.json
+```
+
+### `visualize_mermaid.html`
+
+1. Generate a JSON export of your graph data (e.g., using `export_graph.py`).
+2. Open `tools/visualize_mermaid.html` in your web browser.
+3. Use the file input to load the JSON file.
+4. The graph will be rendered using Mermaid.js.
 
 ## Extending the Toolkit
 
-For new scripts that interact with the backend API, import and use the `call_api` function from `tools/api_client.py` to handle authenticated API requests. This promotes code reuse and consistency.
+For new Python scripts that need to interact with the backend API, import and use the `call_api` function from `tools/api_client.py`. This helps maintain consistency in how API requests are made and authenticated. Consider adopting command-line arguments (`--api-base`, `--api-key`) and environment variable support (`MIMS_API_URL`, `MIMS_ADMIN_API_KEY`) for configuration.
