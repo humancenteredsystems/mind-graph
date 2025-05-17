@@ -70,7 +70,7 @@ mutation AddHierarchyAssignment($input: [AddHierarchyAssignmentInput!]!) {
 def drop_all_data(api_base: str, api_key: str) -> bool:
     """Drop all existing data via admin endpoint."""
     print("Dropping all data...")
-    resp = call_api(api_base, "/admin/dropAll", api_key, method="POST", payload={"target": "local"})
+    resp = call_api(api_base, "/admin/dropAll", api_key, method="POST", payload={"target": "remote"})
     if not resp["success"]:
         print(f"❌ dropAll failed: {resp['error']}")
         if resp.get("details"): print(f"Details: {resp['details']}")
@@ -88,7 +88,7 @@ def push_schema(api_base: str, api_key: str) -> bool:
         print(f"❌ Failed to read schema file {schema_file_path}: {str(e)}")
         return False
 
-    resp = call_api(api_base, "/admin/schema", api_key, method="POST", payload={"schema": schema_text, "target": "local"})
+    resp = call_api(api_base, "/admin/schema", api_key, method="POST", payload={"schema": schema_text, "target": "remote"})
     if not resp["success"]:
         print(f"❌ Failed to push GraphQL schema: {resp['error']}")
         if resp.get("details"): print(f"Details: {resp['details']}")
