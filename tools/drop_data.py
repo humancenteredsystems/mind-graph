@@ -14,8 +14,8 @@ from tools.api_client import call_api # Import the shared API client
 
 # --- Constants (API base derived from env) ---
 env_api_base = os.environ.get("MIMS_API_URL")
-if not env_api_base and os.environ.get("DGRAPH_URL"):
-    env_api_base = os.environ["DGRAPH_URL"].replace("/graphql", "/api")
+if not env_api_base and os.environ.get("DGRAPH_BASE_URL"):
+    env_api_base = os.environ["DGRAPH_BASE_URL"].replace("/graphql", "/api")
 DEFAULT_API_BASE_URL = env_api_base or "http://localhost:3000/api"
 # --- End Constants ---
 

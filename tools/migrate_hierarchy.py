@@ -24,7 +24,7 @@ if not API_KEY:
 def fetch_nodes_with_levels():
     """Fetch all existing nodes and their legacy level via DQL predicate query."""
     import requests
-    DGRAPH_URL = os.environ.get("DGRAPH_URL", "http://localhost:8080")
+    DGRAPH_BASE_URL = os.environ.get("DGRAPH_BASE_URL", "http://localhost:8080")
     dql_query = """
     {
       nodes(func: has(level)) {
@@ -34,7 +34,7 @@ def fetch_nodes_with_levels():
     }
     """
     try:
-        res = requests.post(f"{DGRAPH_URL}/query", json={"query": dql_query})
+        res = requests.post(f"{DGRAPH_BASE_URL}/query", json={"query": dql_query})
         res.raise_for_status()
         data = res.json()
     except Exception as e:
