@@ -1,24 +1,28 @@
 # API Endpoints Reference
 
-This document describes each backend API endpoint, including paths, methods, request parameters, and example responses. All endpoints are prefixed with `/api` except the root health check.
+This document describes each backend API endpoint, including paths, methods, request parameters, and example responses. All endpoints are prefixed with `/api` except the root path.
+
+**Note on Admin Operations:** Endpoints marked as requiring admin authentication operate on the Dgraph instance configured by the API service's `DGRAPH_BASE_URL` environment variable. Parameters like `target` in some admin requests are validated by the API but do not change which Dgraph instance the API interacts with; they are primarily for the calling script's reference or future use.
 
 ---
 
-## GET /
+## General Endpoints
+
+### GET /
 
 **Path:** `/`  
 **Description:** API root. Verifies that the Express server is running.  
-**Response:**  
+**Authentication:** None  
+**Response (200 OK):**  
 ```
 MakeItMakeSense.io API is running!
 ```
 
----
-
-## GET /api/health
+### GET /api/health
 
 **Path:** `/api/health`  
 **Description:** Checks connectivity between the API and Dgraph.  
+**Authentication:** None  
 **Response (200 OK):**  
 ```json
 {
@@ -31,36 +35,19 @@ MakeItMakeSense.io API is running!
 {
   "apiStatus": "OK",
   "dgraphStatus": "Error",
-  "error": "Error message"
+  "error": "Error message detailing Dgraph communication failure"
 }
 ```
 
 ---
 
-## GET /api/schema
+## GraphQL Interaction Endpoints
 
-**Path:** `/api/schema`  
-**Description:** Retrieves the current GraphQL schema from Dgraph’s admin API as plain text.  
-**Response (200 OK):**  
-```
-type Node {
-  id: String! @id
-  label: String! @search(by: [term])
-  …
-}
-```
-*(Note: Example response is truncated)*
-**Response (500 Internal Server Error):**  
-```json
-{ "error": "Failed to fetch schema from Dgraph." }
-```
-
----
-
-## POST /api/query
+### POST /api/query
 
 **Path:** `/api/query`  
 **Description:** Executes an arbitrary GraphQL query against Dgraph.  
+**Authentication:** None  
 **Request Body:**  
 ```json
 {
@@ -74,17 +61,15 @@ type Node {
 ```
 **Error Responses:**  
 - 400 Bad Request if `query` field is missing.  
-- 400 GraphQL error if Dgraph returns errors.  
-- 500 Server error on unexpected failures.
+- 400/500 errors if Dgraph returns errors or on unexpected failures.
 
----
-
-## POST /api/mutate
+### POST /api/mutate
 
 **Path:** `/api/mutate`  
-**Description:** Executes an arbitrary GraphQL mutation.  
+**Description:** Executes an arbitrary GraphQL mutation. For `addNode` mutations, the API can automatically enrich input with hierarchy assignments.  
+**Authentication:** None  
 **Headers:**  
-- `X-Hierarchy-Id` (required): ID of the active hierarchy; used in nested filter on `level.hierarchy.id` for hierarchyAssignments.  
+- `X-Hierarchy-Id` (optional): ID of the active hierarchy. If provided for `addNode`, used for automatic hierarchy assignment. If not provided, the system may default to the first available hierarchy.  
 **Request Body:**  
 ```json
 {
@@ -96,360 +81,290 @@ type Node {
 ```json
 { "addNode": { "node": [ { "id": "newId" } ] } }
 ```
-
-**Supported Dgraph GraphQL Mutations (passed via this endpoint):**
-- `addNode`: Create a new node.
-- `addEdge`: Create a new edge connecting nodes.
-- `updateNode`: Update properties of an existing node.
-- `deleteNode`: Delete nodes matching specified filter.
-
-**Example: Create Edge**
-```graphql
-mutation {
-  addEdge(input: [{ from: { id: "parentId" }, to: { id: "childId" }, type: "simple" }]) {
-    edge { from { id } to { id } type }
-  }
-}
-```
-
-**Example: Update Node**
-```graphql
-mutation {
-  updateNode(input: { filter: { id: { eq: "nodeId" } }, set: { label: "New Label" } }) {
-    node { id label type level status branch }
-  }
-}
-```
 **Error Responses:**  
 - 400 Bad Request if `mutation` field is missing.  
-- 400 GraphQL error if Dgraph returns errors.  
-- 500 Server error on unexpected failures.
+- 400/500 errors if Dgraph returns errors or on unexpected failures.
 
 ---
 
-## POST /api/traverse
+## Graph Traversal & Search Endpoints
+
+### POST /api/traverse
 
 **Path:** `/api/traverse`  
-**Description:** Fetches a node and its immediate neighbors within a specified hierarchy.
+**Description:** Fetches a node and its immediate neighbors.  
+**Authentication:** None  
+**Headers:**  
+- `X-Hierarchy-Id` (optional): Can be used instead of `hierarchyId` in the request body.  
 **Request Body:**  
 ```json
 {
   "rootId": "node1",
-  "hierarchyId": "hierarchy1", // ID of the hierarchy to traverse
-  "fields": ["id","label"]    // optional, defaults to id, label, type, status, branch, and hierarchyAssignments
+  "hierarchyId": "hierarchy1", // Optional: ID of a hierarchy for context; falls back to first hierarchy if not provided here or in header.
+  "fields": ["id","label"]    // Optional: defaults to id, label, type, status, branch, and hierarchyAssignments.
 }
 ```
-**Allowed Fields:** `id`, `label`, `type`, `status`, `branch`, and `hierarchyAssignments` (with subfields: `hierarchy { id name }` and `level { id levelNumber label }`)
-**Response (200 OK):**  
+**Response (200 OK):** (Example structure)
 ```json
 {
   "data": {
     "queryNode": [
       {
-        "id": "node1",
-        "label": "Root",
+        "id": "node1", "label": "Root", /* ...other fields... */
         "hierarchyAssignments": [{ "hierarchy": { "id": "hierarchy1" }, "level": { "levelNumber": 1 } }],
-        "outgoing": [
-          { 
-            "type": "child", 
-            "to": { 
-              "id": "node2", 
-              "label": "Child",
-              "hierarchyAssignments": [{ "hierarchy": { "id": "hierarchy1" }, "level": { "levelNumber": 2 } }]
-            } 
-          }
-        ]
+        "outgoing": [ /* ...neighbor nodes... */ ]
       }
     ]
   }
 }
 ```
 **Error Responses:**  
-- 400 Bad Request if `rootId` or `hierarchyId` is missing, or invalid parameters supplied.
-- 400 GraphQL error if Dgraph returns errors.  
-- 500 Server error on unexpected failures.
+- 400 Bad Request if `rootId` is missing or invalid parameters.  
+- 400/500 errors on GraphQL or server failures.
 
----
+### GET /api/search
 
-## GET /api/search
-
-**Path:** `/api/search?term={term}&field={field}`  
-**Description:** Searches nodes by text term on an indexed field.  
+**Path:** `/api/search`  
+**Description:** Searches nodes by a text term on an indexed field.  
+**Authentication:** None  
 **Query Parameters:**  
-- `term` (required): search string  
-- `field` (optional, default `label`): field to search  
+- `term` (required): Search string.  
+- `field` (optional, default `label`): Field to search (currently only `label` is supported).  
 **Response (200 OK):**  
 ```json
-{ "queryNode": [ { "id": "node1", "label": "Match", "type": "concept" } ] }
+{ "queryNode": [ { "id": "node1", "label": "Matching Label", "type": "ConceptNode" } ] }
 ```
 **Error Responses:**  
 - 400 Bad Request if `term` is missing or `field` is invalid.  
-- 500 Server error on unexpected failures.
+- 400/500 errors on GraphQL or server failures.
 
 ---
 
-## GET /api/debug/dgraph
+## Node Management Endpoints
+
+### POST /api/deleteNodeCascade
+
+**Path:** `/api/deleteNodeCascade`
+**Description:** Performs cascade deletion of a node and all its associated edges.
+**Authentication:** None (Consider if this should be admin-protected)
+**Request Body:**
+```json
+{ "nodeId": "node-to-delete-id" }
+```
+**Request Body Parameters:**
+- `nodeId` (required): The ID of the node to delete.
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "deletedNode": "node-to-delete-id",
+  "deletedEdgesCount": 3,
+  "deletedNodesCount": 1
+}
+```
+**Response (404 Not Found):** If the node doesn't exist.
+```json
+{
+  "error": "Node node-to-delete-id not found or not deleted.",
+  "deletedEdgesCount": 0
+}
+```
+**Error Responses:**
+- 400 Bad Request if `nodeId` is missing.
+- 500 Internal Server Error on unexpected failures.
+
+---
+
+## Admin & Schema Endpoints
+
+**Authentication:** All endpoints in this section require a valid admin API key via the `X-Admin-API-Key` header, unless otherwise noted.
+
+### GET /api/schema
+
+**Path:** `/api/schema`  
+**Description:** Retrieves the current GraphQL schema text directly from the Dgraph instance.  
+**Authentication:** None (Consider if this should be admin-protected, though often useful for clients)
+**Response (200 OK):** Plain text GraphQL schema.
+**Response (500 Internal Server Error):**  
+```json
+{ "error": "Failed to fetch schema from Dgraph." }
+```
+
+### POST /api/admin/schema
+
+**Path:** `/api/admin/schema`  
+**Description:** Pushes a GraphQL schema (provided directly or by ID from registry) to the Dgraph instance.  
+**Request Body:**  
+```json
+{
+  "schema": "type Node { id: String! @id ... }", // Option 1: Direct schema content
+  "schemaId": "default",                          // Option 2: Schema ID from registry
+  "target": "remote"                              // Validated but ignored by API for target selection. For script use.
+}
+```
+**Response (200 OK):**  
+```json
+{
+  "success": true,
+  "results": { /* Result from the Dgraph push operation */ }
+}
+```
+**Error Responses:**  
+- 400 Bad Request for missing parameters or invalid `target`.
+- 500 Internal Server Error if schema push fails.
+
+### POST /api/admin/dropAll
+
+**Path:** `/api/admin/dropAll`
+**Description:** Clears all data from the Dgraph instance.
+**Request Body:**
+```json
+{
+  "target": "remote" // Validated but ignored by API for target selection. For script use.
+}
+```
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Drop all data operation completed successfully for configured Dgraph instance",
+  "data": { /* Result from the Dgraph drop operation */ }
+}
+```
+**Error Responses:**
+- 400 Bad Request if `target` field is missing or invalid.
+- 500 Internal Server Error if the drop operation fails.
+
+### GET /api/debug/dgraph
 
 **Path:** `/api/debug/dgraph`  
-**Description:** Diagnostic endpoint to test DNS resolution, HTTP admin reachability, and GraphQL introspection on Dgraph.  
+**Description:** Diagnostic endpoint for Dgraph connectivity.  
+**Authentication:** None (Consider if this should be admin-protected)
 **Response (200 OK):**  
 ```json
 {
   "dns": { "host": "10.0.1.5", "lookupMs": 12 },
   "httpAdmin": "reachable",
   "graphql": { "__schema": { "queryType": { "name": "Query" } } }
-```
-**Error Response (500 Internal Server Error):**  
-```json
-{
-  "dnsError": "ENOTFOUND",
-  "httpError": 503,
-  "graphqlError": null
 }
 ```
 
 ---
 
-# Schema Management Endpoints
+## Schema Registry Management Endpoints (Admin-Protected)
 
-## GET /api/schemas
+**Authentication:** All endpoints in this section require a valid admin API key via the `X-Admin-API-Key` header.
+
+### GET /api/schemas
 
 **Path:** `/api/schemas`  
-**Description:** Lists all available schemas in the registry.  
-**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
-**Response (200 OK):**  
-```json
-[
-  {
-    "id": "default",
-    "name": "Default Schema",
-    "description": "The main production schema",
-    "owner": "system",
-    "created_at": "2025-04-20T00:00:00Z",
-    "is_production": true
-  },
-  {
-    "id": "simple",
-    "name": "Simple Template",
-    "description": "A simplified schema for basic graphs",
-    "owner": "admin",
-    "created_at": "2025-04-21T00:00:00Z",
-    "is_production": false
-  }
-]
-```
+**Description:** Lists metadata for all schemas in the registry.  
+**Response (200 OK):** Array of schema metadata objects.
 
-## GET /api/schemas/:id
+### GET /api/schemas/:id
 
 **Path:** `/api/schemas/:id`  
 **Description:** Gets metadata for a specific schema by ID.  
-**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
-**Response (200 OK):**  
-```json
-{
-  "id": "default",
-  "name": "Default Schema",
-  "description": "The main production schema",
-  "owner": "system",
-  "created_at": "2025-04-20T00:00:00Z",
-  "is_production": true
-}
-```
+**Response (200 OK):** Schema metadata object.
 
-## GET /api/schemas/:id/content
+### GET /api/schemas/:id/content
 
 **Path:** `/api/schemas/:id/content`  
-**Description:** Gets the actual GraphQL schema content for a specific schema ID.  
-**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
-**Response (200 OK):** Plain text GraphQL schema  
-```graphql
-type Node {
-  id: String! @id
-  # ...schema content...
-}
-```
+**Description:** Gets the GraphQL content of a specific schema.  
+**Response (200 OK):** Plain text GraphQL schema.
 
-## POST /api/schemas
+### POST /api/schemas
 
 **Path:** `/api/schemas`  
 **Description:** Creates a new schema in the registry.  
-**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
-**Request Body:**  
-```json
-{
-  "schemaInfo": {
-    "id": "new-schema",
-    "name": "New Schema",
-    "description": "A new schema for testing",
-    "owner": "admin",
-    "is_production": false
-  },
-  "content": "type Node { id: String! @id ... }"
-}
-```
-**Response (201 Created):**  
-```json
-{
-  "id": "new-schema",
-  "name": "New Schema",
-  "description": "A new schema for testing",
-  "owner": "admin",
-  "created_at": "2025-04-29T20:00:00Z",
-  "is_production": false
-}
-```
+**Request Body:** Contains `schemaInfo` (metadata) and `content` (GraphQL string).  
+**Response (201 Created):** Created schema metadata object.
 
-## PUT /api/schemas/:id
+### PUT /api/schemas/:id
 
 **Path:** `/api/schemas/:id`  
-**Description:** Updates an existing schema in the registry.  
-**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
-**Request Body:**  
-```json
-{
-  "updates": {
-    "name": "Updated Schema Name",
-    "is_production": true
-  },
-  "content": "type Node { id: String! @id ... }" // Optional: include to update schema content
-}
-```
-**Response (200 OK):**  
-```json
-{
-  "id": "schema-id",
-  "name": "Updated Schema Name",
-  "description": "Original description",
-  "owner": "admin",
-  "created_at": "2025-04-20T00:00:00Z",
-  "is_production": true
-}
-```
+**Description:** Updates metadata and/or content of an existing schema.  
+**Request Body:** Contains `updates` (metadata fields to change) and optionally `content`.  
+**Response (200 OK):** Updated schema metadata object.
 
-## POST /api/schemas/:id/push
+### POST /api/schemas/:id/push
 
 **Path:** `/api/schemas/:id/push`  
-**Description:** Pushes a specific schema from the registry to the Dgraph instance configured by the API service's `DGRAPH_BASE_URL`. The `target` query parameter is now redundant for the API's action, but may be used by calling scripts.  
-**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
-**Query Parameters:**  
-- `target` (optional): This parameter is now primarily for the calling script's reference and does not affect which Dgraph instance the API pushes to. Accepted values: "local", "remote", or "both".  
-**Response (200 OK):**  
-```json
-{
-  "success": true,
-  "message": "Schema schema-id successfully pushed to configured Dgraph instance",
-  "results": { /* Result from the single push operation */ }
-}
-```
-**Response (500 Internal Server Error):**  
-```json
-{
-  "success": false,
-  "message": "Schema schema-id push encountered errors",
-  "results": { /* Error details from the single push operation */ }
-}
-```
-
-## POST /api/admin/schema
-
-**Path:** `/api/admin/schema`  
-**Description:** Legacy endpoint for pushing a GraphQL schema directly or from the registry to the Dgraph instance configured by the API service's `DGRAPH_BASE_URL`. The `target` parameter in the request body is now redundant for the API's action, but may be used by calling scripts.  
-**Authentication:** Requires admin API key via `X-Admin-API-Key` header.  
-**Request Body:**  
-```json
-{
-  "schema": "type Node { id: String! @id ... }", // Direct schema content
-  "schemaId": "default",                          // OR schema ID from registry
-  "target": "local"                               // This parameter is now primarily for the calling script's reference. Accepted values: "local", "remote", or "both".
-}
-```
-**Response (200 OK):**  
-```json
-{
-  "success": true,
-  "message": "Schema successfully pushed to configured Dgraph instance",
-  "results": { /* Result from the single push operation */ }
-}
-```
-**Error Responses:**  
-- 400 Bad Request if schema or schemaId is missing, or target is invalid.  
-- 401 Unauthorized if API key is missing or invalid.  
-- 500 Internal Server Error if schema push fails.
+**Description:** Pushes a specific schema from the registry to Dgraph.  
+**Response (200 OK):** Success message and Dgraph operation result.
 
 ---
 
-*This reference ensures you can integrate with the backend in both local and production environments. Note that Dgraph endpoint URLs (GraphQL, admin schema, alter) are now derived from a single `DGRAPH_BASE_URL` environment variable configured for the API service.*
+## Hierarchy Management Endpoints
 
-## POST /api/admin/dropAll
+### GET /api/hierarchy
 
-**Path:** `/api/admin/dropAll`
-**Description:** Clears all data (nodes and edges) from the Dgraph instance configured by the API service's `DGRAPH_BASE_URL`. The `target` parameter in the request body is now redundant for the API's action, but may be used by calling scripts.
-**Authentication:** Requires admin API key via `X-Admin-API-Key` header.
-**Request Body:**
-```json
-{
-  "target": "local" // This parameter is now primarily for the calling script's reference. Accepted values: "local", "remote", or "both".
-}
-```
-**Request Body Parameters:**
-- `target` (required): This parameter is now primarily for the calling script's reference and does not affect which Dgraph instance the API drops data from. Accepted values: `"local"`, `"remote"`, or `"both"`.
+**Path:** `/api/hierarchy`  
+**Description:** Get all hierarchies.  
+**Authentication:** None
+**Response (200 OK):** Array of hierarchy objects (`{id, name}`).
 
-**Response (200 OK):**
-> Responses include a `hierarchyAssignments` array on both the root and each neighbor, containing:
-> - `hierarchy`: `{ id, name }`
-> - `level`: `{ id, levelNumber, label }`
-```json
-{
-  "success": true,
-  "message": "Drop all data operation completed successfully for configured Dgraph instance",
-  "results": { /* Result from the single drop operation */ }
-}
-```
-**Response (500 Internal Server Error):**
-```json
-{
-  "success": false,
-  "message": "Drop all data operation encountered errors",
-  "results": { /* Error details from the single drop operation */ }
-}
-```
-**Error Responses:**
-- 400 Bad Request if `target` field is missing or invalid.
-- 401 Unauthorized if API key is missing or invalid.
-- 500 Internal Server Error if the drop operation fails.
+**Admin-Protected Hierarchy Endpoints:**
+The following hierarchy endpoints require a valid admin API key via the `X-Admin-API-Key` header.
 
----
+### POST /api/hierarchy
 
-## POST /api/deleteNodeCascade
+**Path:** `/api/hierarchy`  
+**Description:** Create a new hierarchy.  
+**Request Body:** `{ "id": "h1", "name": "Primary Hierarchy" }`  
+**Response (201 Created):** Created hierarchy object.
 
-**Path:** `/api/deleteNodeCascade`
-**Description:** Performs cascade deletion of a node and all associated edges.
-**Request Body:**
-```json
-{ "id": "node-id" }
-```
-**Request Body Parameters:**
-- `id` (required): The ID of the node to delete.
+### GET /api/hierarchy/:id
 
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "deletedNode": "node-id",
-  "deletedEdgesCount": 5, // Example count
-  "deletedNodesCount": 1
-}
-```
-**Response (404 Not Found):**
-```json
-{
-  "error": "Node node-id not found or not deleted.",
-  "deletedEdgesCount": 0 // Edges might still be deleted if they pointed to a non-existent node
-}
-```
-**Error Responses:**
-- 400 Bad Request if `id` field is missing.
-- 500 Internal Server Error on unexpected failures.
+**Path:** `/api/hierarchy/:id`  
+**Description:** Get a specific hierarchy by ID.  
+**Response (200 OK):** Hierarchy object. (404 if not found)
+
+### PUT /api/hierarchy/:id
+
+**Path:** `/api/hierarchy/:id`  
+**Description:** Update an existing hierarchy's name.  
+**Request Body:** `{ "name": "Updated Name" }`  
+**Response (200 OK):** Updated hierarchy object.
+
+### DELETE /api/hierarchy/:id
+
+**Path:** `/api/hierarchy/:id`  
+**Description:** Delete a hierarchy.  
+**Response (200 OK):** Dgraph deletion status message.
+
+### POST /api/hierarchy/level
+
+**Path:** `/api/hierarchy/level`  
+**Description:** Create a new level within a hierarchy.  
+**Request Body:** `{ "hierarchyId": "h1", "levelNumber": 1, "label": "Domain" }`  
+**Response (201 Created):** Created hierarchy level object.
+
+### PUT /api/hierarchy/level/:id
+
+**Path:** `/api/hierarchy/level/:id`  
+**Description:** Update an existing hierarchy level's label.  
+**Request Body:** `{ "label": "Updated Level Label" }`  
+**Response (200 OK):** Updated hierarchy level object.
+
+### DELETE /api/hierarchy/level/:id
+
+**Path:** `/api/hierarchy/level/:id`  
+**Description:** Delete a hierarchy level.  
+**Response (200 OK):** Dgraph deletion status message.
+
+### POST /api/hierarchy/assignment
+
+**Path:** `/api/hierarchy/assignment`  
+**Description:** Assign a node to a specific level in a hierarchy.  
+**Request Body:** `{ "nodeId": "node1", "hierarchyId": "h1", "levelId": "level_abc" }`  
+**Response (201 Created):** Created hierarchy assignment object.
+
+### DELETE /api/hierarchy/assignment/:id
+
+**Path:** `/api/hierarchy/assignment/:id`  
+**Description:** Delete a hierarchy assignment.  
+**Response (200 OK):** Dgraph deletion status message.
 
 ---
 

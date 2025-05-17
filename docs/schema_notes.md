@@ -74,6 +74,7 @@ The graph supports **multiple concurrent hierarchies** through a relationship-ba
 | `Hierarchy`          | Represents a named organizational structure or view (e.g., "Default Taxonomy", "Product Lineage").       | `id`, `name`, `levels`                         |
 | `HierarchyLevel`     | Defines a numbered tier within a specific `Hierarchy`, optionally with a descriptive `label`.            | `id`, `hierarchy`, `levelNumber`, `label`      |
 | `HierarchyLevelType` | (Optional) Specifies which `Node` types are permitted at a given `HierarchyLevel` for validation.    | `id`, `level`, `typeName`                      |
+|                      | *Note: Backend enforcement of these type restrictions is not yet implemented.*                           |                                                |
 | `HierarchyAssignment`| The crucial link: assigns a specific `Node` to a particular `HierarchyLevel` within a `Hierarchy`. | `id`, `node`, `hierarchy`, `level`             |
 
 ### Node and HierarchyAssignment Relationship
@@ -155,8 +156,8 @@ mutation AddNodeWithClientFields {
     id: "newNode456",
     label: "Another Concept",
     type: "Concept",
-    hierarchyId: "hierarchy1",  # Server will use this to create assignment
-    levelId: "level1_of_hierarchy1"  # Server will use this to create assignment
+    hierarchyId: "hierarchy1",  # Server will use this to create assignment if hierarchyAssignments field is not provided
+    levelId: "level1_of_hierarchy1"  # Server will use this to create assignment if hierarchyAssignments field is not provided
   }]) {
     node {
       id
@@ -198,7 +199,7 @@ mutation AddNodeWithParentBasedLevel {
 }
 ```
 
-*Note: The server-side enrichment happens in the API layer, not in Dgraph directly. The API transforms the input before sending it to Dgraph.*
+*Note: The server-side enrichment (using top-level `hierarchyId`, `levelId`, or `parentId` in the input) happens in the API layer if the `hierarchyAssignments` field is not explicitly provided in the `addNode` input. The current primary frontend UI (`NodeFormModal`) typically sends a fully formed `hierarchyAssignments` object (Approach #1), making its intent explicit.*
 
 ### Key Constraints and Best Practices
 

@@ -1,51 +1,6 @@
 # Deployment Guide
 
-This guide describes how to run the full stack locally for development and how to deploy to Render in production.
-
----
-
-## Local Development
-
-1. Clone the repository:
-   ```
-   git clone <repository_url>
-   cd mims-graph
-   ```
-2. Install dependencies:
-   - Root: `npm install`
-   - API: `cd api && npm install && cd ..`
-   - Frontend: `cd frontend && npm install && cd ..`
-3. Ensure Docker and Docker Compose are installed on your machine.
-4. Start the development environment:
-   ```bash
-   npm run start-dev-env
-   ```
-   This will:
-   - Launch Dgraph (Zero, Alpha, Ratel) via Docker Compose.
-   - Start the API server on port 3000.
-   - Start the frontend dev server on port 5173.
-5. Push your GraphQL schema (Recommended: Use API push):
-   ```bash
-   # Ensure conda environment is active if needed
-   # conda activate pointcloud
-   # Set your admin API key
-   export MIMS_ADMIN_API_KEY=your_secure_key 
-   python tools/api_push_schema.py --target local
-   ```
-   (Legacy direct push: `python tools/push_schema.py`)
-6. (Optional) Seed sample data:
-   ```bash
-   # Ensure conda environment is active if needed
-   # conda activate pointcloud
-   export MIMS_API_URL="http://localhost:3000/api"
-   export MIMS_ADMIN_API_KEY="your_admin_key"
-   python tools/seed_data.py
-   ```
-   > The script now aborts immediately if any hierarchy level fails to create.
-7. Access services:
-   - Frontend: http://localhost:5173  
-   - API health check: http://localhost:3000/api/health  
-   - Dgraph Ratel UI: http://localhost:8000  
+This guide describes how to deploy the MakeItMakeSense.io full stack to Render for production. For local development setup, please refer to the main [README.md](../README.md).
 
 ---
 
@@ -74,9 +29,10 @@ We deploy three separate services on Render:
   npm run start
   ```
 - **Environment Variables:**  
-  - `PORT` (e.g., 3000)  
-  - `DGRAPH_BASE_URL=http://mims-graph-dgraph:8080` # Base URL for Dgraph service
-  - `CORS_ORIGIN=https://makeitmakesense.io`  
+  - `PORT` (e.g., 3000, Render will set this)
+  - `DGRAPH_BASE_URL=http://mims-graph-dgraph:8080` (Internal URL to your Dgraph Private Service on Render)
+  - `MIMS_ADMIN_API_KEY` (A secure key for admin operations, ensure this is set in Render)
+  - `CORS_ORIGIN=https://your-frontend-domain.com` (e.g., `https://makeitmakesense.io` or your Render static site URL)
 - **Auto-Deploy:** Enable on pushes to `main`.
 
 ### 3. Frontend (Static Site)
@@ -88,34 +44,46 @@ We deploy three separate services on Render:
   ```
 - **Publish Directory:** `dist`  
 - **Environment Variables:**  
-  - `VITE_API_BASE_URL=https://mims-graph.onrender.com/api`  
+  - `VITE_API_BASE_URL=https://your-backend-api-url.onrender.com/api` (The public URL of your Backend API service on Render, e.g., `https://mims-graph-docker-api.onrender.com/api`)
 - **Auto-Deploy:** Enable on pushes to `main`.
 
 ---
 
 ## DNS & Custom Domain
 
-1. In the Render dashboard, add your custom domain (`makeitmakesense.io`) to the Static Site service.  
-2. Update your DNS records (CNAME) to point to Render’s provided alias.  
-3. Enable HTTPS in Render for your domain.
+If you are using a custom domain for your frontend (e.g., `makeitmakesense.io`):
+
+1. In the Render dashboard, add your custom domain to the **Frontend (Static Site)** service.  
+2. Update your DNS records with your domain registrar (e.g., CNAME record) to point to Render’s provided alias for the static site.  
+3. Enable HTTPS in Render for your custom domain.
+
+Your `CORS_ORIGIN` on the Backend API service and `VITE_API_BASE_URL` on the Frontend service should reflect your custom domain setup if applicable.
 
 ---
 
 ## Verification & Monitoring
 
 - **API Health:**  
+  Check the health of your deployed Backend API service:
   ```
-  curl https://mims-graph.onrender.com/api/health
+  curl https://your-backend-api-url.onrender.com/api/health
   ```
   Expect:
   ```json
   { "apiStatus": "OK", "dgraphStatus": "OK" }
   ```
+  (Replace `https://your-backend-api-url.onrender.com` with the actual public URL of your API service).
+
 - **Frontend Graph Load:**  
-  Open https://makeitmakesense.io and confirm the graph renders without errors.  
-- **Dgraph Ratel UI:**  
-  Access the private service (if network rules allow) or run a one‑off port-forward locally to inspect schema and data.  
+  Open your deployed frontend URL (e.g., `https://your-frontend-domain.com` or the `*.onrender.com` URL for the static site) and confirm the graph renders and interacts correctly.
+
+- **Dgraph Ratel UI (Accessing Private Service):**  
+  Dgraph Ratel UI is not directly exposed publicly from the Private Service. To inspect schema and data:
+    *   Use the Dgraph Cloud offering if migrating in the future.
+    *   For Render Private Services, you might need to temporarily set up a way to access it, such as running a one-off job with port forwarding or using Render's shell access if available to execute Dgraph commands or queries internally.
+    *   Alternatively, rely on your API endpoints and utility tools (configured for remote access) to inspect data.
+
 - **Logs & Alerts:**  
-  Review Render logs for errors. Optionally integrate Sentry or another monitoring service.
+  Review logs for all three services (Dgraph, Backend API, Frontend) in the Render dashboard for any errors or issues. Consider integrating an external logging/monitoring service for more advanced insights.
 
 ---

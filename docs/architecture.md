@@ -37,7 +37,7 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 
 ### Features (Current Implementation)
 - Interactive graph visualization via react-cytoscapejs.
-- Fetches and displays the **complete graph** on initial load using the backend API (`/api/query`).
+- On initial load, fetches all node IDs, then iteratively fetches data for each node and its immediate connections using the `/api/traverse` endpoint (which is hierarchy-aware) to build a view of the graph.
 - Basic pan and zoom provided via react-cytoscapejs (Cytoscape.js plugin).
 - Styling for different node types (`concept`, `example`, `question`).
 - Uses Klay layout algorithm.
@@ -57,17 +57,17 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 ### Tech Stack (Current Implementation)
 - Node.js (with Express.js)
 - `dotenv` for environment variables
-- `axios` for fetching schema from Dgraph admin
+- `axios` for some Dgraph admin communications
 - **Target Hosting:** Web service (e.g., Render)
-- Communicates with Dgraph via GraphQL (`dgraphClient.js`)
+- Communicates with Dgraph primarily via GraphQL through `api/dgraphClient.js`.
 
 ### Responsibilities (Current Implementation)
-- Provide a GraphQL endpoint (`/api/query`, `/api/mutate`) proxying requests to Dgraph.
-- Offer a basic traversal endpoint (`/api/traverse`) fetching a node and its immediate neighbors.
-- Provide a basic search endpoint (`/api/search`).
-- Expose the Dgraph schema (`/api/schema`).
-- Offer a health check endpoint (`/api/health`).
+- Provide GraphQL interaction endpoints (`/api/query`, `/api/mutate`) proxying requests to Dgraph.
+- Offer a traversal endpoint (`/api/traverse`) fetching a node and its immediate neighbors, aware of hierarchy context.
+- Provide a search endpoint (`/api/search`).
+- Expose the Dgraph schema (`/api/schema`) and health checks (`/api/health`).
 - Handle CORS.
+- Provide administrative endpoints for schema management, data clearing, and hierarchy CRUD operations.
 
 ### Responsibilities (Future Goals)
 - Validate and sanitize graph operations more thoroughly.
@@ -80,10 +80,11 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 - `GET /api/schema`: Retrieve GraphQL schema text.
 - `POST /api/query`: Execute arbitrary GraphQL queries.
 - `POST /api/mutate`: Execute arbitrary GraphQL mutations.
-- `POST /api/traverse`: Basic traversal (root + immediate neighbors).
-- `GET /api/search`: Basic node search by label.
+- `POST /api/traverse`: Traversal (root + immediate neighbors), hierarchy-aware.
+- `GET /api/search`: Node search by label.
+- *Note: Additional administrative, schema management, and hierarchy CRUD endpoints exist.*
 
-*(See `docs/api_endpoints.md` for details).*
+*(See `docs/api_endpoints.md` for a comprehensive list and details).*
 
 ### Key Endpoints (Future Goals)
 - Endpoints for submitting, fetching, diffing, and merging branches.
@@ -119,7 +120,7 @@ type Edge {
 }
 
 type Hierarchy {
-  id: ID!
+  id: String! @id # Corrected from ID! to String! @id
   name: String! @search(by: [exact])
   levels: [HierarchyLevel] @hasInverse(field: "hierarchy")
 }
@@ -147,17 +148,17 @@ type HierarchyAssignment {
 }
 ```
 
-*(See `docs/schema_notes.md` regarding `@id` type requirements).*
+*(See `docs/schema_notes.md` regarding `@id` type requirements and other schema details).*
 
 ### Capabilities
 - High-speed traversal of hierarchy and cross-links
 - GraphQL query/mutation interface
 - Schema-driven validation
-- Versioning via `status` and `branch` metadata
+- Versioning via `status` and `branch` metadata (potential)
 
 ---
 
-## 🔧 Admin Tools
+## 🔧 Admin Tools (Future Goals)
 
 - Branch diff viewer
 - Visual conflict resolution
@@ -167,12 +168,12 @@ type HierarchyAssignment {
 
 ---
 
-## 🔒 Privacy & Trust
+## 🔒 Privacy & Trust (Principles / Future Goals)
 
-- IPs/emails not stored with submissions
-- Anonymous or pseudonymous contribution
-- Only admin/curator roles can merge content
-- Rate limiting & spam filtering on submissions
+- IPs/emails not stored with submissions (if applicable to contribution model).
+- Anonymous or pseudonymous contribution options.
+- Only admin/curator roles can merge content into main graph.
+- Rate limiting & spam filtering on submissions.
 
 ---
 
@@ -181,7 +182,7 @@ type HierarchyAssignment {
 | Component     | Service Type    | Description                                  |
 |---------------|-----------------|----------------------------------------------|
 | Frontend      | Static Site     | React/Vite/react-cytoscapejs graph viewer    |
-| API Gateway   | Web Service     | Node.js/Express API                          |
+| Backend API   | Web Service     | Node.js/Express API                          |
 | Dgraph Engine | Private Service | Graph DB container (Docker) with volume      |
 | Storage       | Persistent Disk | Long-term data store for Dgraph (persistent) |
 
@@ -190,12 +191,14 @@ type HierarchyAssignment {
 ## 🚀 Example Workflow (Current Implementation - Graph Load with Hierarchy)
 
 1. User visits the frontend application in their browser.
-2. Frontend loads the available hierarchies and sets the active hierarchy (either from user selection or default).
-3. Frontend (`App.tsx` -> `useGraphState.ts` -> `HierarchyContext.tsx`) calls the backend API with a GraphQL query that filters by the selected hierarchy.
-4. Backend API executes the GraphQL query against Dgraph.
-5. Frontend transforms the data into the format required by Cytoscape.
-6. Frontend renders the graph via react-cytoscapejs, with nodes positioned according to their level in the active hierarchy.
-7. User can switch hierarchies via the UI to view alternate organizational structures of the same knowledge graph.
+2. Frontend (`HierarchyContext.tsx`) loads the available hierarchies (via `GET /api/hierarchy`) and sets an active hierarchy (either from user selection/localStorage or a default).
+3. For initial graph display, `App.tsx` (via `useGraphState.loadCompleteGraph`) triggers a process:
+    a. Fetches all node IDs (via `POST /api/query` with `GET_ALL_NODE_IDS_QUERY`).
+    b. For each node ID, it calls `POST /api/traverse` (via `ApiService.fetchTraversalData`), passing the active `hierarchyId`. This endpoint returns the node and its immediate neighbors within that hierarchy.
+    c. The frontend aggregates this data to build the graph view.
+4. Frontend transforms the aggregated data into the format required by Cytoscape.
+5. Frontend renders the graph via react-cytoscapejs. Nodes can be visually organized or styled based on their hierarchy level.
+6. User can switch hierarchies via the UI, which updates the `hierarchyId` in `HierarchyContext` and triggers a re-load/re-filter of the graph data according to the new hierarchy.
 
 ## 🚀 Example Workflow (Future Goal - Branching/Merging)
 
@@ -209,7 +212,7 @@ type HierarchyAssignment {
 
 ---
 
-## 🔁 Extensibility
+## 🔁 Extensibility (Future Ideas)
 
 - Auth: GitHub OAuth for attribution
 - Embeddable subgraphs for external sites

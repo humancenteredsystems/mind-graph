@@ -17,7 +17,7 @@ Items
 | Label               | Icon | Shortcut   | Handler                  | Description                                              |
 |---------------------|------|------------|--------------------------|----------------------------------------------------------|
 | Add Node            | ➕   | A          | `openAddModal(parentId)` | Opens the Add-Node modal for creating a new root or child |
-| Load Complete Graph | 📂   | L          | `loadCompleteGraph()`    | Fetches & displays entire graph using efficient query    |
+| Load Complete Graph | 📂   | L          | `loadCompleteGraph()`    | Fetches & displays entire graph using iterative traversal |
 | Clear Graph         | 🗑️   | Ctrl+Del   | `resetGraph()`           | Clears canvas (prompts for confirmation)                 |
 
 ### 1.2 Node Context Menu
@@ -32,9 +32,9 @@ Items
 | Edit Node             | ✏️      | Ctrl+E   | `openEditDrawer(node)` | Opens right-side drawer to edit properties            |
 | Delete Node           | 🗑️      | Del      | `onDeleteNode(nodeId)` | Permanently remove node & its edges                  |
 | Hide Node             | 👁️‍🗨️  | H        | `onHideNode(nodeId)`   | Temporarily hide node & edges                         |
-| Expand Children       | ▶️      | E        | `onNodeExpand(nodeId)` | Load & show direct children                           |
-| Expand Descendents    | ▶️▶️   | E, then E| `onExpandDesc(nodeId)` | Recursively show all descendants                      |
-| Collapse Descendents  | ◀️◀️   | C        | `onCollapseDesc(nodeId)` | Collapse this node’s descendants                     |
+| Expand Children       | ▶️      | E        | `onNodeExpand(nodeId)` | Load & show direct children (immediate neighbors)     |
+| Expand Descendents    | ▶️▶️   | E, then E| `onExpandDesc(nodeId)` | (Future Feature) Recursively show all descendants     |
+| Collapse Descendents  | ◀️◀️   | C        | `onCollapseDesc(nodeId)`| (Future Feature) Collapse this node’s descendants    |
 
 ### 1.3 Multi-Node Operations
 
@@ -42,15 +42,15 @@ Trigger
 • Right-click with multiple nodes selected  
 Items mirror Node Context but operate on `nodeIds` array:
 
-| Label                     | Icon  | Shortcut | Handler                    | Description                              |
-|---------------------------|-------|----------|----------------------------|------------------------------------------|
-| Add Connected Nodes       | ➕     | A        | `openAddModal(nodeId)`     | Open modal per selected node             |
-| Edit Nodes                | ✏️     | Ctrl+E   | `openEditDrawer(node)`     | Open drawer per selected node            |
-| Delete Nodes              | 🗑️     | Del      | `onDeleteNodes(nodeIds)`   | Remove all selected nodes & edges        |
-| Hide Nodes                | 👁️‍🗨️ | H        | `onHideNodes(nodeIds)`     | Hide all selected nodes & edges          |
-| Expand Children (All)     | ▶️     | E        | `onNodeExpandBatch(nodeIds)`| Load children for all selected nodes    |
-| Expand Descendents (All)  | ▶️▶️   | E, then E| `onExpandDescBatch(nodeIds)`| Recursively expand descendants for all  |
-| Collapse Descendents (All)| ◀️◀️   | C        | `onCollapseDescBatch(nodeIds)`| Collapse descendants for all selected |
+| Label                     | Icon  | Shortcut | Handler                    | Description                                         |
+|---------------------------|-------|----------|----------------------------|-----------------------------------------------------|
+| Add Connected Nodes       | ➕     | A        | `openAddModal(nodeId)`     | Open modal per selected node                        |
+| Edit Nodes                | ✏️     | Ctrl+E   | `openEditDrawer(node)`     | Open drawer per selected node                       |
+| Delete Nodes              | 🗑️     | Del      | `onDeleteNodes(nodeIds)`   | Remove all selected nodes & edges                   |
+| Hide Nodes                | 👁️‍🗨️ | H        | `onHideNodes(nodeIds)`     | Hide all selected nodes & edges                     |
+| Expand Children (All)     | ▶️     | E        | `onNodeExpandBatch(nodeIds)`| Load children for all selected nodes               |
+| Expand Descendents (All)  | ▶️▶️   | E, then E| `onExpandDescBatch(nodeIds)`| (Future Feature) Recursively expand for all selected |
+| Collapse Descendents (All)| ◀️◀️   | C        | `onCollapseDescBatch(nodeIds)`| (Future Feature) Collapse descendants for all selected |
 
 ---
 
@@ -67,28 +67,28 @@ Component: `<NodeFormModal>` (in `/frontend/src/components/NodeFormModal.tsx`); 
 - `open: boolean`  
 - `parentId?: string` (optional; when provided, modal will create a connecting edge)  
 - `initialValues?` (unused for Add)  
-- `onSubmit(values: { label: string; type: string })`  
+- `onSubmit(values: NodeFormValues)` where `NodeFormValues` is `{ label: string; type: string; hierarchyId: string; levelId: string }`
 - `onCancel()`
 
 ### Fields
 
 - **Label** (text input, required)  
 - **Type** (dropdown: concept, example, question)
-- **Hierarchy** (dropdown: list of available hierarchies)
-- **Level** (dropdown: list of levels for the selected hierarchy)
+- **Hierarchy** (dropdown: list of available hierarchies from `HierarchyContext`)
+- **Level** (dropdown: list of levels for the selected hierarchy, from `HierarchyContext`)
 
 ### Actions
 
-- **Save** → validate & call `onSubmit` (creates a new node with hierarchy assignment and, if `parentId` is provided, also creates a connecting edge), close modal  
+- **Save** → validate & call `onSubmit` (which then typically calls `useGraphState.addNode`), close modal  
 - **Cancel** → call `onCancel`, close modal
 
 ### Data Flow
 
-1. User selects hierarchy from dropdown (defaults to currently active hierarchy)
-2. Level dropdown is populated with levels for the selected hierarchy
-3. User selects level (or system determines appropriate level based on parent node)
-4. On submit, the node is created with the selected hierarchy and level information
-5. The API automatically creates the appropriate hierarchy assignment
+1. User selects a `Hierarchy` from its dropdown (defaults to the active hierarchy in `HierarchyContext`). This updates the active hierarchy context.
+2. The `Level` dropdown is populated with levels corresponding to the selected `Hierarchy`.
+3. User selects a `Level` (or the system suggests a default based on `parentId` or as the first level).
+4. On submit, the `NodeFormModal` passes the chosen `label`, `type`, `hierarchyId`, and `levelId` to its `onSubmit` callback.
+5. This data is typically used by `useGraphState.addNode` to construct an `addNode` GraphQL mutation with an explicit `hierarchyAssignments` field containing the selected `hierarchy.id` and `level.id`. The backend API then uses this explicit assignment.
 
 ### Accessibility/UI
 
@@ -103,22 +103,22 @@ Component: `<NodeDrawer>` (in `/frontend/src/components/NodeDrawer.tsx`); contro
 
 ### Trigger
 
-• `openEditDrawer(nodeData)` (Typically triggered by double-clicking a node)
+• `openEditDrawer(nodeData)` (Typically triggered by double-clicking a node or from context menu)
 
 ### Layout
 
 - Fixed panel on right (320px wide)  
-- Tabs: **Info**, **Links**, **History**
+- Tabs: **Info**, **Links** (Future), **History** (Future)
 
 ### Info Tab
 
-- Same fields as Add-Node modal, pre-populated  
-- **Save** → call `onSave`, close drawer  
+- Displays node properties (label, type). Editing hierarchy assignment via this drawer is not currently specified.
+- **Save** → call `onSave` with updated values, close drawer  
 - **Cancel** → call `onClose`, close drawer
 
 ### Future Tabs
 
-- **Links** and **History** placeholders
+- **Links** and **History** placeholders for future development.
 
 ---
 
@@ -131,25 +131,26 @@ Manages state for modals and drawers:
 - `openAddModal(parentId?)` / `closeAddModal()`  
 - `openEditDrawer(nodeData)` / `closeEditDrawer()`  
 
-Context consumers: `ContextMenuContext`, `App`, and root in `main.tsx`
+Context consumers: `ContextMenuContext`, `App.tsx`, and components that trigger these UI elements.
 
 ---
 
 ## 5. Testing Strategy
 
 - **Unit Tests**:  
-  - `<ContextMenu>` renders correct items for each menu type  
-  - `<NodeFormModal>` and `<NodeDrawer>` form flows  
+  - `<ContextMenu>` renders correct items for each menu type.  
+  - `<NodeFormModal>` and `<NodeDrawer>` form flows, state changes, and callbacks.
 - **End-to-End**:  
-  - Verify context-menu → modal/drawer open/cancel/save for single & multi node scenarios
+  - Verify context-menu → modal/drawer open/cancel/save for single & multi-node scenarios.
+  - Test hierarchy and level selection in `NodeFormModal` and its effect on node creation.
 
 > Keep this doc in sync: update here first, then adjust code and tests as needed.
 
 ## 6. Hierarchy Selector
 
-The hierarchy selector is a dropdown in the application header that allows users to switch between available hierarchies.
+The hierarchy selector is a dropdown, typically in the application header, allowing users to switch the active hierarchy for graph viewing and operations.
 
-**Location:** `frontend/src/App.tsx`
+**Location Example:** `frontend/src/App.tsx`
 
 **Markup Example:**
 ```tsx
@@ -158,13 +159,20 @@ import { useHierarchyContext } from './context/HierarchyContext';
 function AppHeader() {
   const { hierarchies, hierarchyId, setHierarchyId } = useHierarchyContext();
 
+  const handleHierarchyChange = (newHierarchyId: string) => {
+    setHierarchyId(newHierarchyId);
+    // For ApiService to pick up the change for X-Hierarchy-Id header,
+    // localStorage should also be updated here or within setHierarchyId in the context.
+    localStorage.setItem('hierarchyId', newHierarchyId);
+  };
+
   return (
     <div className="app-header">
       <label htmlFor="hierarchy-select">Hierarchy:</label>
       <select
         id="hierarchy-select"
         value={hierarchyId}
-        onChange={e => setHierarchyId(e.target.value)}
+        onChange={e => handleHierarchyChange(e.target.value)}
         aria-label="Select hierarchy"
       >
         {hierarchies.map(h => (
@@ -179,6 +187,7 @@ function AppHeader() {
 ```
 
 **Behavior:**
-- On mount, the dropdown lists all fetched `hierarchies`.
-- Changing selection calls `setHierarchyId`, updating context.
-- Graph view (`useGraphState`) listens to `hierarchyId` and reloads nodes/edges accordingly.
+- On mount, the dropdown lists all fetched `hierarchies` from `HierarchyContext`.
+- Changing selection calls `setHierarchyId` (from `HierarchyContext`), updating the application's active hierarchy.
+- The `GraphView` (via `useGraphState`) listens to changes in `hierarchyId` from the context and reloads/re-filters graph data accordingly.
+- **Important:** For the `X-Hierarchy-Id` header (used by `ApiService` for mutations) to reflect this change, `localStorage.getItem('hierarchyId')` must be updated when the selection changes. The example above includes this `localStorage.setItem` call. Ideally, this `localStorage` update is managed centrally alongside the context state update.
