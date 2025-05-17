@@ -278,50 +278,53 @@ def create_level_types_for_level(api_base: str, api_key: str, level_id_str: str,
 
 
 # --- Functions for seeding graph data (nodes, edges, assignments) ---
-def add_nodes(api_base: str, api_key: str, nodes: List[Dict[str, Any]]) -> bool:
-    """Add nodes to the graph database via the API."""
+def add_nodes(api_base: str, api_key: str, nodes: List[Dict[str, Any]], extra_headers: Optional[Dict[str, str]] = None) -> bool:
+    """Add nodes to the graph database via the API, with optional extra headers."""
     if not nodes: return True
     print(f"Adding {len(nodes)} nodes...")
     payload = {"mutation": ADD_NODE_MUTATION, "variables": {"input": nodes}}
-    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload)
-    if response["success"]:
+    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload, extra_headers=extra_headers)
+    if response["success"] and response.get("data", {}).get("addNode"):
         added_nodes = response.get("data", {}).get("addNode", {}).get("node", [])
         print(f"✅ Added {len(added_nodes)} nodes.")
-        # for node in added_nodes: print(f"  - Node ID: {node.get('id')}, Label: {node.get('label')}")
         return True
     else:
-        print(f"❌ Failed to add nodes: {response['error']}")
+        print(f"❌ Failed to add nodes: {response.get('error', 'Unknown error')}")
         if response.get("details"): print(f"Details: {response['details']}")
+        if response.get("data", {}).get("errors"): print(f"GraphQL Errors: {response['data']['errors']}")
         return False
 
-def add_edges(api_base: str, api_key: str, edges: List[Dict[str, Any]]) -> bool:
-    """Add edges to the graph database via the API."""
+def add_edges(api_base: str, api_key: str, edges: List[Dict[str, Any]], extra_headers: Optional[Dict[str, str]] = None) -> bool:
+    """Add edges to the graph database via the API, with optional extra headers."""
     if not edges: return True
     print(f"Adding {len(edges)} edges...")
     payload = {"mutation": ADD_EDGE_MUTATION, "variables": {"input": edges}}
-    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload)
-    if response["success"]:
+    # Edges typically don't need X-Hierarchy-Id, but pass if provided for consistency or future use
+    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload, extra_headers=extra_headers)
+    if response["success"] and response.get("data", {}).get("addEdge"):
         added_edges = response.get("data", {}).get("addEdge", {}).get("edge", [])
         print(f"✅ Added {len(added_edges)} edges.")
         return True
     else:
-        print(f"❌ Failed to add edges: {response['error']}")
+        print(f"❌ Failed to add edges: {response.get('error', 'Unknown error')}")
         if response.get("details"): print(f"Details: {response['details']}")
+        if response.get("data", {}).get("errors"): print(f"GraphQL Errors: {response['data']['errors']}")
         return False
 
-def add_hierarchy_assignments(api_base: str, api_key: str, assignments: List[Dict[str, Any]]) -> bool:
-    """Add hierarchy assignments via the API."""
+def add_hierarchy_assignments(api_base: str, api_key: str, assignments: List[Dict[str, Any]], extra_headers: Optional[Dict[str, str]] = None) -> bool:
+    """Add hierarchy assignments via the API, with optional extra headers."""
     if not assignments: return True
     print(f"Adding {len(assignments)} hierarchy assignments...")
     payload = {"mutation": ADD_HIERARCHY_ASSIGNMENT_MUTATION, "variables": {"input": assignments}}
-    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload)
-    if response["success"]:
+    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload, extra_headers=extra_headers)
+    if response["success"] and response.get("data", {}).get("addHierarchyAssignment"):
         added_assignments = response.get("data", {}).get("addHierarchyAssignment", {}).get("hierarchyAssignment", [])
         print(f"✅ Added {len(added_assignments)} hierarchy assignments.")
         return True
     else:
-        print(f"❌ Failed to add hierarchy assignments: {response['error']}")
+        print(f"❌ Failed to add hierarchy assignments: {response.get('error', 'Unknown error')}")
         if response.get("details"): print(f"Details: {response['details']}")
+        if response.get("data", {}).get("errors"): print(f"GraphQL Errors: {response['data']['errors']}")
         return False
 # --- End of functions for seeding graph data ---
 
@@ -453,37 +456,35 @@ def main():
     # The `add_nodes` function itself needs to pass the X-Hierarchy-Id header.
     # This requires modifying `call_api` or how `add_nodes` uses it.
     # For now, this script will likely fail at the `add_nodes` step if `call_api` doesn't support headers.
-    # This is a known dependency.
+    # This is a known dependency. The `api_client.call_api` now supports `extra_headers`.
 
     seed_payload = get_seed_data_payload(hierarchy_id, level_ids_map)
 
-    # Prepare headers for calls to /api/mutate
-    mutate_headers = {"X-Hierarchy-Id": hierarchy_id}
-
+    # Prepare headers for calls to /api/mutate that require hierarchy context
+    mutate_context_headers = {"X-Hierarchy-Id": hierarchy_id}
 
     # 7. Add nodes
-    # Modify add_nodes to accept headers
-    # For now, I will assume add_nodes will fail if call_api doesn't pass X-Hierarchy-Id
-    # The plan is to update tools/api_client.py later if needed.
-    # The current `call_api` in `api_client.py` does not seem to take arbitrary headers.
-    # This is a critical point.
-    # Let's modify the `add_nodes`, `add_edges`, `add_hierarchy_assignments` calls to pass the header.
-    # This means `call_api` needs an update.
-    # For now, I will proceed with the seed_data.py changes, and address api_client.py next if this fails.
-
     print(f"Attempting to add nodes with X-Hierarchy-Id: {hierarchy_id}")
-    if not add_nodes_with_headers(api_base_url, api_key_val, seed_payload["nodes"], mutate_headers):
+    if not add_nodes(api_base_url, api_key_val, seed_payload["nodes"], extra_headers=mutate_context_headers):
         print("❌ Node creation failed. This might be due to missing X-Hierarchy-Id header or type enforcement. Aborting.")
         sys.exit(1)
     
     # 8. Add edges
-    if not add_edges(api_base_url, api_key_val, seed_payload["edges"]): # Edges don't typically need hierarchy context
+    # Edges don't strictly need X-Hierarchy-Id for their own mutation, but passing it if available doesn't hurt.
+    # For now, not passing it as add_edges mutation itself is not hierarchy context dependent.
+    if not add_edges(api_base_url, api_key_val, seed_payload["edges"]): 
         print("⚠️ Warning: Edge creation failed or partially failed.")
 
     # 9. Add hierarchy assignments
-    # This also uses /api/mutate, so it needs the header.
-    print(f"Attempting to add assignments with X-Hierarchy-Id: {hierarchy_id}")
-    if not add_hierarchy_assignments_with_headers(api_base_url, api_key_val, seed_payload["hierarchyAssignments"], mutate_headers):
+    # This also uses /api/mutate. While the addHierarchyAssignment mutation itself might not directly use
+    # X-Hierarchy-Id from the header for its core logic (as assignments are explicit),
+    # if /api/mutate has a blanket requirement for it for certain operations, it's safer to pass.
+    # However, the primary validation for addNode was the main concern for X-Hierarchy-Id.
+    # Let's assume addHierarchyAssignment does not strictly need it from header if all info is in payload.
+    # If it does, this call might need `mutate_context_headers`.
+    # For now, calling without extra headers, as the assignment payload is self-contained.
+    print(f"Attempting to add assignments...")
+    if not add_hierarchy_assignments(api_base_url, api_key_val, seed_payload["hierarchyAssignments"]):
         print("❌ Hierarchy assignment creation failed. Aborting.")
         sys.exit(1)
 
@@ -492,44 +493,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# Need to define add_nodes_with_headers and add_hierarchy_assignments_with_headers
-# or modify the original ones and api_client.py
-
-# Placeholder for modified functions - these will require api_client.py to be updated
-# For now, I'll just duplicate and add a headers argument to show intent.
-# The actual implementation requires call_api to support a headers dict.
-
-def add_nodes_with_headers(api_base: str, api_key: str, nodes: List[Dict[str, Any]], headers: Dict[str, str]) -> bool:
-    """Add nodes to the graph database via the API, with custom headers."""
-    if not nodes: return True
-    print(f"Adding {len(nodes)} nodes with headers...")
-    payload = {"mutation": ADD_NODE_MUTATION, "variables": {"input": nodes}}
-    # This call_api needs to be able to pass headers
-    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload, extra_headers=headers)
-    if response["success"]:
-        added_nodes = response.get("data", {}).get("addNode", {}).get("node", [])
-        print(f"✅ Added {len(added_nodes)} nodes.")
-        return True
-    else:
-        print(f"❌ Failed to add nodes: {response['error']}")
-        if response.get("details"): print(f"Details: {response['details']}")
-        if response.get("data", {}).get("errors"): print(f"GraphQL Errors: {response['data']['errors']}")
-        return False
-
-def add_hierarchy_assignments_with_headers(api_base: str, api_key: str, assignments: List[Dict[str, Any]], headers: Dict[str, str]) -> bool:
-    """Add hierarchy assignments via the API, with custom headers."""
-    if not assignments: return True
-    print(f"Adding {len(assignments)} hierarchy assignments with headers...")
-    payload = {"mutation": ADD_HIERARCHY_ASSIGNMENT_MUTATION, "variables": {"input": assignments}}
-    # This call_api needs to be able to pass headers
-    response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload, extra_headers=headers)
-    if response["success"]:
-        added_assignments = response.get("data", {}).get("addHierarchyAssignment", {}).get("hierarchyAssignment", [])
-        print(f"✅ Added {len(added_assignments)} hierarchy assignments.")
-        return True
-    else:
-        print(f"❌ Failed to add hierarchy assignments: {response['error']}")
-        if response.get("details"): print(f"Details: {response['details']}")
-        if response.get("data", {}).get("errors"): print(f"GraphQL Errors: {response['data']['errors']}")
-        return False

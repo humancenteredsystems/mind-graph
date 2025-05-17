@@ -13,7 +13,7 @@ The hierarchy system is built upon several key Dgraph schema types that define i
 
 For detailed Dgraph schema definitions and GraphQL interaction patterns related to these types, please refer to the [Dgraph Schema Notes](schema_notes.md).
 
-*(Note: The `HierarchyLevelType` feature for restricting node types at specific levels, and its backend enforcement, are areas for future enhancement.)*
+*(Note: The `HierarchyLevelType` feature for restricting node types at specific levels is now actively enforced by the backend API during node assignment.)*
 
 ## Rationale for the `HierarchyAssignment` Model
 
@@ -40,18 +40,20 @@ The main trade-off is a slightly more verbose data structure (an extra "hop" thr
 *   **Automatic Assignment during Node Creation (`POST /api/mutate` with `addNode`):**
     *   When new nodes are created via the `addNode` GraphQL mutation, the API server (`api/server.js`) includes logic to automatically create a `HierarchyAssignment`.
     *   **Priority of Information for Assignment:**
-        1.  **Explicit Assignment in Mutation:** If the `AddNodeInput` variables contain an explicit `hierarchyAssignments` object (specifying `hierarchy.id` and `level.id`), these values are used directly. This is the typical flow when adding nodes via the current frontend UI.
-        2.  **`X-Hierarchy-Id` Header:** If no explicit assignment is in the variables, the API checks for an `X-Hierarchy-Id` request header to determine the target hierarchy.
-        3.  **Parent Node Context:** If a `parentId` is provided in the `AddNodeInput`, the `getLevelIdForNode` helper function attempts to place the new node at `parent's level + 1` within the target hierarchy.
-        4.  **Default Fallbacks:** If the hierarchy is still undetermined, it may default to the first available hierarchy. If the level is undetermined (and no parent context helps), it defaults to Level 1 of the target hierarchy.
-    *   The `getLevelIdForNode` function in `api/server.js` encapsulates the logic for determining the appropriate `level.id` based on these rules when not explicitly provided.
+        1.  **`X-Hierarchy-Id` Header (Required):** The API now requires an `X-Hierarchy-Id` request header for `addNode` operations. This header specifies the default target hierarchy for all nodes being added in the batch, unless overridden per node. The provided `hierarchyId` is validated to ensure it exists.
+        2.  **Explicit `hierarchyId` and `levelId` in Input:** Individual items within the `AddNodeInput` array can specify their own `hierarchyId` (overriding the header for that item) and `levelId`. These are also validated.
+            *   If `levelId` is provided, its existence is checked, and the node's type is validated against the level's `allowedTypes`.
+            *   If `levelId` is not provided, it's calculated (see Parent Node Context).
+        3.  **Parent Node Context:** If a `parentId` is provided in the `AddNodeInput` and `levelId` is not, the `getLevelIdForNode` helper function attempts to place the new node at `parent's level + 1` within the target hierarchy. The calculated `levelId` is then validated against the level's `allowedTypes` for the new node's type.
+    *   The API will return a 400 Bad Request if the `X-Hierarchy-Id` header is missing, if any provided `hierarchyId` or `levelId` is invalid, or if a node's type is not permitted at the target level.
+    *   The `getLevelIdForNode` function in `api/server.js` encapsulates the logic for determining the appropriate `level.id` when not explicitly provided by the client. It also now throws specific errors for invalid level calculations.
 
 ### Frontend Interaction
 
 *   **`HierarchyContext` (`frontend/src/context/HierarchyContext.tsx`):**
     *   Manages the application-wide state for available hierarchies, the currently selected `hierarchyId`, and the levels of that selected hierarchy.
     *   Fetches hierarchy data from `GET /api/hierarchy` and level data using a GraphQL query.
-    *   The `setHierarchyId` function updates the selected hierarchy in the context. For this change to be reflected in the `X-Hierarchy-Id` header for subsequent mutations, the component invoking `setHierarchyId` should also update `localStorage.setItem('hierarchyId', newId)`.
+    *   The `setHierarchyId` function updates the selected hierarchy in the context and now also automatically updates `localStorage.setItem('hierarchyId', newId)`, ensuring synchronization for `ApiService`.
 
 *   **`ApiService` (`frontend/src/services/ApiService.ts`):**
     *   When `executeMutation` is called, it reads `hierarchyId` from `localStorage` and, if present, adds it as an `X-Hierarchy-Id` header to the request. This provides the backend with the "active hierarchy" context for its automatic assignment logic.
@@ -64,6 +66,6 @@ The main trade-off is a slightly more verbose data structure (an extra "hop" thr
 
 ### Seeding
 
-*   The `tools/seed_data.py` script demonstrates the programmatic creation of hierarchies and levels using the API, followed by node creation and explicit hierarchy assignments to ensure nodes are correctly placed.
+*   The `tools/seed_data.py` script demonstrates the programmatic creation of hierarchies, levels, and `HierarchyLevelType` entities using the API. It also shows how to create nodes and assign them to hierarchies, respecting the new validation rules (e.g., by passing the `X-Hierarchy-Id` header for mutations).
 
-This multi-faceted approach allows for both explicit control over hierarchy assignments (primarily driven by the frontend UI or direct API calls) and helpful server-side defaults or automatic placements based on context.
+This multi-faceted approach allows for both explicit control over hierarchy assignments (primarily driven by the frontend UI or direct API calls) and robust server-side validation.

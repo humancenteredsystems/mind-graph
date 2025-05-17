@@ -66,24 +66,33 @@ MakeItMakeSense.io API is running!
 ### POST /api/mutate
 
 **Path:** `/api/mutate`  
-**Description:** Executes an arbitrary GraphQL mutation. For `addNode` mutations, the API can automatically enrich input with hierarchy assignments.  
+**Description:** Executes an arbitrary GraphQL mutation. For `addNode` mutations, the API enriches input with hierarchy assignments and performs validation.  
 **Authentication:** None  
-**Headers:**  
-- `X-Hierarchy-Id` (optional): ID of the active hierarchy. If provided for `addNode`, used for automatic hierarchy assignment. If not provided, the system may default to the first available hierarchy.  
+**Headers (for `addNode` operations):**  
+- `X-Hierarchy-Id` (required): ID of the active hierarchy. This is used as the default hierarchy for node assignments unless overridden per item in the `input` array. The provided ID will be validated.
 **Request Body:**  
 ```json
 {
-  "mutation": "mutation { addNode(input: { label: \"New\" }) { node { id } } }",
-  "variables": { /* optional */ }
+  "mutation": "mutation AddNodes($input: [AddNodeInput!]!) { addNode(input: $input) { node { id label type } } }",
+  "variables": {
+    "input": [
+      { "label": "New Node 1", "type": "ConceptNode", "id": "node123" },
+      { "label": "New Node 2", "type": "ExampleNode", "id": "node456", "hierarchyId": "specificH2", "levelId": "level_xyz" }
+    ]
+  }
 }
 ```
 **Response (200 OK):**
 ```json
-{ "addNode": { "node": [ { "id": "newId" } ] } }
+{ "addNode": { "node": [ { "id": "newId", "label": "New Node 1", "type": "ConceptNode" } ] } }
 ```
 **Error Responses:**  
-- 400 Bad Request if `mutation` field is missing.  
-- 400/500 errors if Dgraph returns errors or on unexpected failures.
+- 400 Bad Request if `mutation` field is missing.
+- 400 Bad Request if `X-Hierarchy-Id` header is missing when `addNode` mutation is used.
+- 400 Bad Request if `X-Hierarchy-Id` (or `hierarchyId` in an input item) is invalid (e.g., hierarchy not found).
+- 400 Bad Request if a `levelId` (either client-provided or calculated) is invalid (e.g., level not found, or calculated level number does not exist in the hierarchy).
+- 400 Bad Request if a node's `type` is not allowed for its target `levelId` according to `HierarchyLevelType` definitions.
+- 400/500 errors if Dgraph returns other errors or on unexpected server failures.
 
 ---
 
@@ -92,15 +101,15 @@ MakeItMakeSense.io API is running!
 ### POST /api/traverse
 
 **Path:** `/api/traverse`  
-**Description:** Fetches a node and its immediate neighbors.  
+**Description:** Fetches a node and its immediate neighbors. Requires a valid hierarchy context.  
 **Authentication:** None  
 **Headers:**  
-- `X-Hierarchy-Id` (optional): Can be used instead of `hierarchyId` in the request body.  
+- `X-Hierarchy-Id` (optional, but see `hierarchyId` in body): ID of the active hierarchy.
 **Request Body:**  
 ```json
 {
   "rootId": "node1",
-  "hierarchyId": "hierarchy1", // Optional: ID of a hierarchy for context; falls back to first hierarchy if not provided here or in header.
+  "hierarchyId": "hierarchy1", // Required if not provided in X-Hierarchy-Id header. ID of a hierarchy for context. Will be validated.
   "fields": ["id","label"]    // Optional: defaults to id, label, type, status, branch, and hierarchyAssignments.
 }
 ```
@@ -300,12 +309,12 @@ MakeItMakeSense.io API is running!
 ### GET /api/hierarchy
 
 **Path:** `/api/hierarchy`  
-**Description:** Get all hierarchies.  
+**Description:** Get all hierarchies. This endpoint is publicly accessible to allow clients (e.g., the frontend) to list available hierarchies for user selection.
 **Authentication:** None
 **Response (200 OK):** Array of hierarchy objects (`{id, name}`).
 
 **Admin-Protected Hierarchy Endpoints:**
-The following hierarchy endpoints require a valid admin API key via the `X-Admin-API-Key` header.
+All other hierarchy management endpoints listed below (for creating, updating, deleting hierarchies, levels, and assignments, and fetching specific hierarchy details) require a valid admin API key via the `X-Admin-API-Key` header.
 
 ### POST /api/hierarchy
 

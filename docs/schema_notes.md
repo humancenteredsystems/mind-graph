@@ -74,7 +74,7 @@ The graph supports **multiple concurrent hierarchies** through a relationship-ba
 | `Hierarchy`          | Represents a named organizational structure or view (e.g., "Default Taxonomy", "Product Lineage").       | `id`, `name`, `levels`                         |
 | `HierarchyLevel`     | Defines a numbered tier within a specific `Hierarchy`, optionally with a descriptive `label`.            | `id`, `hierarchy`, `levelNumber`, `label`      |
 | `HierarchyLevelType` | (Optional) Specifies which `Node` types are permitted at a given `HierarchyLevel` for validation.    | `id`, `level`, `typeName`                      |
-|                      | *Note: Backend enforcement of these type restrictions is not yet implemented.*                           |                                                |
+|                      | *Note: Backend enforcement of these type restrictions is now active. Assigning a node to a level where its type is not listed in `allowedTypes` (if `allowedTypes` is populated for that level) will result in an error.* |                                                |
 | `HierarchyAssignment`| The crucial link: assigns a specific `Node` to a particular `HierarchyLevel` within a `Hierarchy`. | `id`, `node`, `hierarchy`, `level`             |
 
 ### Node and HierarchyAssignment Relationship
@@ -199,7 +199,7 @@ mutation AddNodeWithParentBasedLevel {
 }
 ```
 
-*Note: The server-side enrichment (using top-level `hierarchyId`, `levelId`, or `parentId` in the input) happens in the API layer if the `hierarchyAssignments` field is not explicitly provided in the `addNode` input. The current primary frontend UI (`NodeFormModal`) typically sends a fully formed `hierarchyAssignments` object (Approach #1), making its intent explicit.*
+*Note: The server-side enrichment (using top-level `hierarchyId`, `levelId`, or `parentId` in the input) happens in the API layer if the `hierarchyAssignments` field is not explicitly provided in the `addNode` input. The API now requires an `X-Hierarchy-Id` header for `addNode` operations and validates all provided `hierarchyId` and `levelId` values, including checking the node's type against the `HierarchyLevel`'s `allowedTypes` (if defined). The current primary frontend UI (`NodeFormModal`) typically sends a fully formed `hierarchyAssignments` object (Approach #1), making its intent explicit.*
 
 ### Key Constraints and Best Practices
 

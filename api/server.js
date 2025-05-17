@@ -313,30 +313,82 @@ app.post('/api/mutate', async (req, res) => {
         }
         // itemHierarchyId is now validated (either it's the validated header one, or a validated one from input)
 
-        // Use client-provided levelId if available, otherwise look it up
-        let finalLevelId;
-        if (inputObj.levelId) {
+        // Process each input object for node creation
+        let finalLevelId = null; // Will hold the levelId if an assignment is to be made
+        let shouldCreateAssignment = false;
+
+        if (inputObj.levelId) { // Case 1: Client explicitly provides levelId
           console.log(`[MUTATE] Validating client-provided levelId: ${inputObj.levelId} for node type ${inputObj.type}`);
-          // Validate provided levelId and its allowedTypes for the nodeType
           await validateLevelIdAndAllowedType(inputObj.levelId, inputObj.type, itemHierarchyId);
           finalLevelId = inputObj.levelId;
-        } else {
+          shouldCreateAssignment = true;
+        } else if (inputObj.parentId) { // Case 2: Client provides parentId, calculate level
           console.log(`[MUTATE] Looking up levelId for parentId: ${inputObj.parentId} in hierarchy ${itemHierarchyId}`);
           const calculatedLevelId = await getLevelIdForNode(inputObj.parentId, itemHierarchyId);
-          // Now validate the calculatedLevelId for allowedTypes
           console.log(`[MUTATE] Validating calculated levelId: ${calculatedLevelId} for node type ${inputObj.type}`);
           await validateLevelIdAndAllowedType(calculatedLevelId, inputObj.type, itemHierarchyId);
           finalLevelId = calculatedLevelId;
+          shouldCreateAssignment = true;
         }
-        
-        enrichedInputs.push({
+        // Case 3: No levelId and no parentId provided in inputObj.
+        // In this scenario, we might assume the node is standalone and will be assigned later,
+        // or it defaults to level 1 of the header-specified hierarchy.
+        // Given the seed script's behavior (separate assignment step),
+        // it's better not to auto-assign here if no context is given.
+        // However, the current plan implies auto-assignment to level 1 if no other info.
+        // Let's stick to the original logic of defaulting to level 1 if no parent/level is given,
+        // but ensure the type check happens correctly for that default.
+        // The error indicates this default assignment is what's failing.
+
+        // If no explicit levelId or parentId, default to level 1 of itemHierarchyId
+        // This was the implicit behavior causing the issue.
+        // The seed script creates nodes without parentId in the addNode call,
+        // then assigns them later. So, addNode should not try to assign them to level 1
+        // if it violates type constraints.
+
+        // Revised logic: Only create assignment if levelId is determined (either explicit or via parent)
+        // OR if it's a new node without parent, it can be assigned to a default (e.g. level 1)
+        // *if* its type is allowed there.
+        // The current error shows that 'ConceptNode' is not allowed at level 1.
+        // So, if inputObj.type is 'ConceptNode' and it would default to level 1, it should fail.
+
+        // Let's refine: if no levelId and no parentId, we *don't* auto-assign.
+        // This allows seed_data to create nodes and then assign them explicitly.
+        // If a client *wants* auto-assignment to a default level, they should provide
+        // a specific (valid) levelId or rely on parentId.
+
+        const nodeInput = {
           id: inputObj.id,
           label: inputObj.label,
           type: inputObj.type,
-          hierarchyAssignments: [
+        };
+
+        if (shouldCreateAssignment && finalLevelId) {
+          nodeInput.hierarchyAssignments = [
             { hierarchy: { id: itemHierarchyId }, level: { id: finalLevelId } }
-          ]
-        });
+          ];
+        } else if (!inputObj.levelId && !inputObj.parentId) {
+          // If no levelId and no parentId, do not automatically create an assignment here.
+          // The node will be created without an assignment.
+          // This allows seed_data.py to explicitly assign later.
+          console.log(`[MUTATE] Node ${inputObj.id} (${inputObj.type}) will be created without an initial hierarchy assignment by addNode.`);
+        }
+        // If we wanted to default to level 1 AND type check:
+        // else if (!inputObj.levelId && !inputObj.parentId) {
+        //   console.log(`[MUTATE] Defaulting node ${inputObj.id} to level 1 of hierarchy ${itemHierarchyId}`);
+        //   const defaultLevelQuery = `query { queryHierarchy(filter: {id: {eq: "${itemHierarchyId}"}}) { levels(filter: {levelNumber: {eq: 1}}) { id } } }`;
+        //   const dlRes = await executeGraphQL(defaultLevelQuery);
+        //   const defaultLvlId = dlRes.queryHierarchy[0]?.levels[0]?.id;
+        //   if (defaultLvlId) {
+        //     await validateLevelIdAndAllowedType(defaultLvlId, inputObj.type, itemHierarchyId);
+        //     nodeInput.hierarchyAssignments = [{ hierarchy: { id: itemHierarchyId }, level: { id: defaultLvlId } }];
+        //   } else {
+        //     throw new InvalidLevelError(`Default level 1 not found for hierarchy ${itemHierarchyId}. Cannot auto-assign node ${inputObj.id}.`);
+        //   }
+        // }
+
+
+        enrichedInputs.push(nodeInput);
       }
       variables = { ...variables, input: enrichedInputs };
     }
