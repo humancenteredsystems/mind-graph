@@ -34,25 +34,42 @@ const NodeFormModal: React.FC<NodeFormModalProps> = ({
   const [selectedLevelId, setSelectedLevelId] = useState(levels[0]?.id || '');
 
   useEffect(() => {
+    // This effect runs when the modal opens or when dependencies change,
+    // to set initial form values and determine the default selected level.
     if (open) {
+      // Set initial label and type
       setLabel(initialValues?.label || '');
       setType(initialValues?.type || NODE_TYPES[0]);
-      // Default level selection
+
+      // Logic for determining the default selected level ID
       let defaultLevelId: string | undefined;
+
+      // Case 1: Editing an existing node (initialValues are provided)
       if (initialValues && initialValues.assignments) {
+        // Find the assignment corresponding to the currently active hierarchy
         const assign = initialValues.assignments.find(a => a.hierarchyId === hierarchyId);
-        defaultLevelId = assign?.levelId;
-      } else if (parentId) {
+        defaultLevelId = assign?.levelId; // Use the levelId from that assignment
+      }
+      // Case 2: Adding a new node as a child of another node (parentId is provided)
+      else if (parentId) {
         const parent = nodes.find(n => n.id === parentId);
+        // Find the parent's assignment in the current hierarchy
         const parentAssign = parent?.assignments?.find(a => a.hierarchyId === hierarchyId);
         const parentLevelNum = parentAssign?.levelNumber;
+        // Calculate the next level number (parent's level + 1)
         const nextLevelNum = (parentLevelNum !== undefined) ? parentLevelNum + 1 : undefined;
+        // Find a level in the current hierarchy that matches this next level number
         defaultLevelId = levels.find(l => l.levelNumber === nextLevelNum)?.id;
       }
+
+      // Case 3: Fallback - if no specific default was found (e.g., new standalone node, or parent not in hierarchy)
       if (!defaultLevelId) {
+        // Default to the first available level in the current hierarchy
         defaultLevelId = levels[0]?.id;
       }
-      setSelectedLevelId(defaultLevelId);
+
+      // Set the determined default level ID (or undefined if no levels exist)
+      setSelectedLevelId(defaultLevelId || ''); // Ensure it's a string for the select value
     }
   }, [open, initialValues, levels, parentId, nodes, hierarchyId]);
 

@@ -24,15 +24,32 @@ interface ProviderProps {
 
 export const HierarchyProvider = ({ children }: ProviderProps) => {
   const [hierarchies, setHierarchies] = useState<{ id: string; name: string }[]>([]);
-  const [hierarchyId, setHierarchyId] = useState<string>("");
+  const [_hierarchyId, _setHierarchyId] = useState<string>(""); // Renamed internal state
   const [levels, setLevels] = useState<{ id: string; levelNumber: number; label?: string; allowedTypes: { id: string; typeName: string }[] }[]>([]);
+
+  // Function to update hierarchyId in state and localStorage
+  const updateHierarchyId = (newId: string) => {
+    _setHierarchyId(newId);
+    try {
+      localStorage.setItem('hierarchyId', newId);
+      console.log(`[HierarchyContext] Hierarchy ID set in localStorage: ${newId}`);
+    } catch (error) {
+      console.error('[HierarchyContext] Error setting hierarchyId in localStorage:', error);
+    }
+  };
 
   useEffect(() => {
     fetchHierarchies()
       .then(list => {
         setHierarchies(list);
         if (list.length > 0) {
-          setHierarchyId(list[0].id);
+          // Use the new update function to also set localStorage
+          const initialHierarchyId = localStorage.getItem('hierarchyId');
+          if (initialHierarchyId && list.some(h => h.id === initialHierarchyId)) {
+            updateHierarchyId(initialHierarchyId);
+          } else if (list.length > 0) {
+            updateHierarchyId(list[0].id);
+          }
         }
       })
       .catch(err => {
@@ -40,10 +57,10 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
       });
   }, []);
 
-  // Fetch levels when hierarchyId changes
+  // Fetch levels when _hierarchyId changes
     useEffect(() => {
-      if (hierarchyId) {
-        executeQuery(GET_LEVELS_FOR_HIERARCHY, { h: hierarchyId })
+      if (_hierarchyId) {
+        executeQuery(GET_LEVELS_FOR_HIERARCHY, { h: _hierarchyId })
           .then((res: any) => {
             const lvl = res.queryHierarchy?.[0]?.levels || [];
             setLevels(lvl);
@@ -52,10 +69,10 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
             console.error('[HierarchyContext] Error fetching levels:', err);
           });
       }
-    }, [hierarchyId]);
+    }, [_hierarchyId]);
 
   return (
-    <HierarchyContext.Provider value={{ hierarchies, hierarchyId, levels, setHierarchyId }}>
+    <HierarchyContext.Provider value={{ hierarchies, hierarchyId: _hierarchyId, levels, setHierarchyId: updateHierarchyId }}>
       {children}
     </HierarchyContext.Provider>
   );

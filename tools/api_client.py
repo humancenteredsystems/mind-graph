@@ -8,7 +8,8 @@ def call_api(
     api_key: str,
     method: str = 'POST',
     payload: Optional[Dict[str, Any]] = None,
-    params: Optional[Dict[str, Any]] = None
+    params: Optional[Dict[str, Any]] = None,
+    extra_headers: Optional[Dict[str, str]] = None
 ) -> Dict[str, Any]:
     """
     Makes an authenticated request to the backend API.
@@ -36,6 +37,8 @@ def call_api(
         "Content-Type": "application/json",
         "X-Admin-API-Key": api_key
     }
+    if extra_headers:
+        headers.update(extra_headers)
 
     try:
         response = requests.request(

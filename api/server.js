@@ -21,6 +21,93 @@ process.on('unhandledRejection', (reason, promise) => {
 const express = require('express');
 const { executeGraphQL } = require('./dgraphClient'); // Import the client
 
+// Custom Error for Invalid Level operations
+class InvalidLevelError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "InvalidLevelError";
+  }
+}
+
+// Helper function to validate a hierarchy ID
+async function validateHierarchyId(hierarchyId) {
+  if (!hierarchyId || typeof hierarchyId !== 'string') {
+    return false; // Basic type check
+  }
+  const query = `query GetHierarchy($id: String!) { getHierarchy(id: $id) { id } }`;
+  try {
+    const result = await executeGraphQL(query, { id: hierarchyId });
+    return !!(result.getHierarchy && result.getHierarchy.id);
+  } catch (error) {
+    console.error(`Error validating hierarchy ID ${hierarchyId}:`, error);
+    return false; // Treat errors during validation as invalid
+  }
+}
+
+// Custom Error for Node Type Not Allowed at Level
+class NodeTypeNotAllowedError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "NodeTypeNotAllowedError";
+  }
+}
+
+// Helper function to validate a level ID and check allowed node type
+async function validateLevelIdAndAllowedType(levelId, nodeType, hierarchyId) {
+  if (!levelId || typeof levelId !== 'string') {
+    throw new InvalidLevelError(`A valid levelId string must be provided.`);
+  }
+  if (!nodeType || typeof nodeType !== 'string') {
+    // This should ideally be caught by GraphQL schema validation for node input
+    throw new Error(`A valid nodeType string must be provided for validation.`);
+  }
+
+  const query = `
+    query GetLevelDetails($levelId: ID!) {
+      getHierarchyLevel(id: $levelId) {
+        id
+        levelNumber
+        hierarchy { id } # For context, ensure it belongs to the expected hierarchy
+        allowedTypes {
+          typeName
+        }
+      }
+    }
+  `;
+  try {
+    const result = await executeGraphQL(query, { levelId });
+    const levelDetails = result.getHierarchyLevel;
+
+    if (!levelDetails || !levelDetails.id) {
+      throw new InvalidLevelError(`Level with ID '${levelId}' not found.`);
+    }
+
+    // Optional: Check if the found level belongs to the correct hierarchy (if hierarchyId is passed and relevant)
+    // For now, we assume levelId is globally unique and its existence is primary.
+    // if (hierarchyId && levelDetails.hierarchy.id !== hierarchyId) {
+    //   throw new InvalidLevelError(`Level '${levelId}' does not belong to hierarchy '${hierarchyId}'.`);
+    // }
+
+    if (levelDetails.allowedTypes && levelDetails.allowedTypes.length > 0) {
+      const isTypeAllowed = levelDetails.allowedTypes.some(at => at.typeName === nodeType);
+      if (!isTypeAllowed) {
+        const allowedTypeNames = levelDetails.allowedTypes.map(at => at.typeName).join(', ');
+        throw new NodeTypeNotAllowedError(`Node type '${nodeType}' is not allowed at level ${levelDetails.levelNumber} (ID: ${levelId}). Allowed types: ${allowedTypeNames}.`);
+      }
+    }
+    // If allowedTypes is null or empty, all types are permitted at this level.
+    return levelDetails; // Return details if needed, or just true
+  } catch (error) {
+    console.error(`Error validating level ID '${levelId}' for type '${nodeType}':`, error.message);
+    if (error instanceof InvalidLevelError || error instanceof NodeTypeNotAllowedError) {
+      throw error; // Re-throw custom errors
+    }
+    // For unexpected GraphQL errors during validation
+    throw new Error(`Server error during validation of level ID '${levelId}'.`);
+  }
+}
+
+
 // Helper to determine levelId for a new node within a hierarchy
 async function getLevelIdForNode(parentId, hierarchyId) {
   let targetLevelNumber = 1; // Default if no parent or no matching assignment
@@ -65,10 +152,19 @@ async function getLevelIdForNode(parentId, hierarchyId) {
     }
   `;
   const levelsResp = await executeGraphQL(levelsQuery, { h: hierarchyId });
-  const levels = levelsResp.queryHierarchy[0].levels;
+  const levelsData = levelsResp.queryHierarchy[0];
+  if (!levelsData || !levelsData.levels) {
+    // This case implies the hierarchyId itself might be invalid or has no levels defined.
+    // validateHierarchyId should have caught an invalid hierarchyId earlier.
+    // If hierarchy is valid but has no levels, it's a data setup issue.
+    console.error(`[getLevelIdForNode] Hierarchy ${hierarchyId} has no levels defined or queryHierarchy returned unexpected structure.`);
+    throw new InvalidLevelError(`Hierarchy ${hierarchyId} does not contain any levels.`);
+  }
+  const levels = levelsData.levels;
   const level = levels.find(l => l.levelNumber === targetLevelNumber);
   if (!level) {
-    throw new Error(`Level ${targetLevelNumber} not found for hierarchy ${hierarchyId}`);
+    // Use the custom error type
+    throw new InvalidLevelError(`Calculated target level ${targetLevelNumber} not found for hierarchy ${hierarchyId}. Available levels: ${levels.map(l => l.levelNumber).join(', ')}.`);
   }
   return level.id;
 }
@@ -191,40 +287,58 @@ app.post('/api/mutate', async (req, res) => {
     // Focus on the operation being performed rather than specific mutation names
     if (Array.isArray(variables.input) && 
         (mutation.includes('addNode') || mutation.includes('AddNode'))) {
-      // Determine hierarchyId from header or fallback to first hierarchy
-      let hierarchyIdVal = req.headers['x-hierarchy-id'];
-      if (!hierarchyIdVal) {
-        const hierRes = await executeGraphQL(`query { queryHierarchy { id } }`, {});
-        hierarchyIdVal = hierRes.queryHierarchy[0].id;
+      // Determine hierarchyId from header. It is now required.
+      let hierarchyIdFromHeader = req.headers['x-hierarchy-id'];
+
+      if (!hierarchyIdFromHeader) {
+        return res.status(400).json({ error: 'Missing required header: X-Hierarchy-Id' });
       }
+
+      const isValidHierarchy = await validateHierarchyId(hierarchyIdFromHeader);
+      if (!isValidHierarchy) {
+        return res.status(400).json({ error: `Invalid X-Hierarchy-Id provided: ${hierarchyIdFromHeader}. Hierarchy not found.` });
+      }
+      // At this point, hierarchyIdFromHeader is validated.
+
       const enrichedInputs = [];
       for (const inputObj of variables.input) {
-        // Use client-provided levelId if available, otherwise look it up
-        let levelId;
-        if (inputObj.levelId) {
-          console.log(`[MUTATE] Using client-provided levelId: ${inputObj.levelId}`);
-          levelId = inputObj.levelId;
-        } else {
-          console.log(`[MUTATE] Looking up levelId for parentId: ${inputObj.parentId}`);
-          levelId = await getLevelIdForNode(inputObj.parentId, hierarchyIdVal);
+        // Client can override hierarchyId per input item, this also needs validation
+        let itemHierarchyId = inputObj.hierarchyId || hierarchyIdFromHeader;
+
+        if (inputObj.hierarchyId && inputObj.hierarchyId !== hierarchyIdFromHeader) {
+          const isItemHierarchyValid = await validateHierarchyId(inputObj.hierarchyId);
+          if (!isItemHierarchyValid) {
+            return res.status(400).json({ error: `Invalid hierarchyId in input item: ${inputObj.hierarchyId}. Hierarchy not found.` });
+          }
         }
-        
-        // Use client-provided hierarchyId if available, otherwise use the one from header/fallback
-        const finalHierarchyId = inputObj.hierarchyId || hierarchyIdVal;
+        // itemHierarchyId is now validated (either it's the validated header one, or a validated one from input)
+
+        // Use client-provided levelId if available, otherwise look it up
+        let finalLevelId;
+        if (inputObj.levelId) {
+          console.log(`[MUTATE] Validating client-provided levelId: ${inputObj.levelId} for node type ${inputObj.type}`);
+          // Validate provided levelId and its allowedTypes for the nodeType
+          await validateLevelIdAndAllowedType(inputObj.levelId, inputObj.type, itemHierarchyId);
+          finalLevelId = inputObj.levelId;
+        } else {
+          console.log(`[MUTATE] Looking up levelId for parentId: ${inputObj.parentId} in hierarchy ${itemHierarchyId}`);
+          const calculatedLevelId = await getLevelIdForNode(inputObj.parentId, itemHierarchyId);
+          // Now validate the calculatedLevelId for allowedTypes
+          console.log(`[MUTATE] Validating calculated levelId: ${calculatedLevelId} for node type ${inputObj.type}`);
+          await validateLevelIdAndAllowedType(calculatedLevelId, inputObj.type, itemHierarchyId);
+          finalLevelId = calculatedLevelId;
+        }
         
         enrichedInputs.push({
           id: inputObj.id,
           label: inputObj.label,
           type: inputObj.type,
           hierarchyAssignments: [
-            { hierarchy: { id: finalHierarchyId }, level: { id: levelId } }
+            { hierarchy: { id: itemHierarchyId }, level: { id: finalLevelId } }
           ]
         });
       }
       variables = { ...variables, input: enrichedInputs };
-      
-      // The problematic transformation block has been removed.
-      // The original mutation will now proceed to the executeGraphQL call below.
     }
     
     // For mutations that don't need transformation, or for addNode after input enrichment, execute normally
@@ -233,32 +347,39 @@ app.post('/api/mutate', async (req, res) => {
     res.status(200).json(result); // Use 200 OK for mutations unless specifically creating (201)
   } catch (error) {
     console.error(`Error in /api/mutate endpoint:`, error);
-     // Provide a more specific error message if possible
-    const errorMessage = error.message.includes('GraphQL query failed:')
-      ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
-      : 'Server error executing mutation.';
-    const statusCode = error.message.includes('GraphQL query failed:') ? 400 : 500;
-    res.status(statusCode).json({ error: errorMessage });
+    if (error instanceof InvalidLevelError || error instanceof NodeTypeNotAllowedError) {
+      res.status(400).json({ error: error.message }); // Or 422 Unprocessable Entity
+    } else {
+      const errorMessage = error.message.includes('GraphQL query failed:')
+        ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
+        : 'Server error executing mutation.';
+      const statusCode = error.message.includes('GraphQL query failed:') ? 400 : 500;
+      res.status(statusCode).json({ error: errorMessage });
+    }
   } // End catch block
 }); // End app.post('/api/mutate')
 
  // Stable version using string concatenation
  app.post('/api/traverse', async (req, res) => {
   const { rootId, currentLevel, fields } = req.body;
-  // Determine hierarchyId for traversal (header or fallback)
+  
+  // Determine hierarchyId for traversal. Prefer header, then body. Required.
   let hierarchyId = req.headers['x-hierarchy-id'] || req.body.hierarchyId;
+
   if (!hierarchyId) {
-    const hierRes = await executeGraphQL(`query { queryHierarchy { id } }`, {});
-    hierarchyId = hierRes.queryHierarchy[0].id;
+    return res.status(400).json({ error: 'Missing required hierarchyId (expected in X-Hierarchy-Id header or hierarchyId in body)' });
   }
+
+  const isValidHierarchy = await validateHierarchyId(hierarchyId);
+  if (!isValidHierarchy) {
+    return res.status(400).json({ error: `Invalid hierarchyId provided: ${hierarchyId}. Hierarchy not found.` });
+  }
+  // At this point, hierarchyId is validated.
 
   if (!rootId) {
       return res.status(400).json({ error: 'Missing required field: rootId' });
     }
-  // Removed explicit hierarchyId missing check; using fallback instead
 
-  // Validate hierarchyId is a non-empty string
-  // Removed validation for hierarchyId type since it's guaranteed
   console.log('[TRAVERSE] Using hierarchyId:', hierarchyId);
 
   // Validate currentLevel
