@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { FC, useState, useEffect } from 'react';
 import { NodeData } from '../types/graph';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { useGraphState } from '../hooks/useGraphState';
@@ -18,66 +18,86 @@ interface NodeFormModalProps {
   onCancel: () => void;
 }
 
-const NODE_TYPES = ['concept', 'example', 'question'];
-
-const NodeFormModal: React.FC<NodeFormModalProps> = ({
+const NodeFormModal: FC<NodeFormModalProps> = ({
   open,
   initialValues,
   parentId,
   onSubmit,
   onCancel,
 }) => {
-  const { hierarchies, hierarchyId, levels, setHierarchyId } = useHierarchyContext();
+  const {
+    hierarchies,
+    hierarchyId,
+    levels,
+    allowedTypesMap,
+    allNodeTypes,
+    setHierarchyId,
+  } = useHierarchyContext();
   const { nodes } = useGraphState();
-  const [label, setLabel] = useState(initialValues?.label || '');
-  const [type, setType] = useState(initialValues?.type || NODE_TYPES[0]);
-  const [selectedLevelId, setSelectedLevelId] = useState(levels[0]?.id || '');
 
+  // Compute parent and child level context
+  const parentAssign = parentId
+    ? nodes.find(n => n.id === parentId)?.assignments?.find(a => a.hierarchyId === hierarchyId)
+    : undefined;
+  const parentLevelNum = parentAssign?.levelNumber ?? 0;
+  const childLevelNum = parentLevelNum > 0 ? parentLevelNum + 1 : undefined;
+  const childLevel = childLevelNum
+    ? levels.find(l => l.levelNumber === childLevelNum)
+    : undefined;
+  const maxLevelNum = levels.reduce((max, l) => Math.max(max, l.levelNumber), 0);
+
+  // Form state
+  const [label, setLabel] = useState('');
+  const [type, setType] = useState('');
+  const [selectedLevelId, setSelectedLevelId] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isValid, setIsValid] = useState(false);
+
+  // Initialize form values
   useEffect(() => {
-    // This effect runs when the modal opens or when dependencies change,
-    // to set initial form values and determine the default selected level.
-    if (open) {
-      // Set initial label and type
-      setLabel(initialValues?.label || '');
-      setType(initialValues?.type || NODE_TYPES[0]);
-
-      // Logic for determining the default selected level ID
-      let defaultLevelId: string | undefined;
-
-      // Case 1: Editing an existing node (initialValues are provided)
-      if (initialValues && initialValues.assignments) {
-        // Find the assignment corresponding to the currently active hierarchy
-        const assign = initialValues.assignments.find(a => a.hierarchyId === hierarchyId);
-        defaultLevelId = assign?.levelId; // Use the levelId from that assignment
-      }
-      // Case 2: Adding a new node as a child of another node (parentId is provided)
-      else if (parentId) {
-        const parent = nodes.find(n => n.id === parentId);
-        // Find the parent's assignment in the current hierarchy
-        const parentAssign = parent?.assignments?.find(a => a.hierarchyId === hierarchyId);
-        const parentLevelNum = parentAssign?.levelNumber;
-        // Calculate the next level number (parent's level + 1)
-        const nextLevelNum = (parentLevelNum !== undefined) ? parentLevelNum + 1 : undefined;
-        // Find a level in the current hierarchy that matches this next level number
-        defaultLevelId = levels.find(l => l.levelNumber === nextLevelNum)?.id;
-      }
-
-      // Case 3: Fallback - if no specific default was found (e.g., new standalone node, or parent not in hierarchy)
-      if (!defaultLevelId) {
-        // Default to the first available level in the current hierarchy
-        defaultLevelId = levels[0]?.id;
-      }
-
-      // Set the determined default level ID (or undefined if no levels exist)
-      setSelectedLevelId(defaultLevelId || ''); // Ensure it's a string for the select value
+    if (!open) return;
+    setLabel(initialValues?.label ?? '');
+    setType(initialValues?.type ?? allNodeTypes[0] ?? '');
+    let defaultLevel = levels[0]?.id ?? '';
+    if (initialValues?.assignments?.length) {
+      const assign = initialValues.assignments.find(a => a.hierarchyId === hierarchyId);
+      if (assign) defaultLevel = assign.levelId;
+    } else if (childLevel) {
+      defaultLevel = childLevel.id;
     }
-  }, [open, initialValues, levels, parentId, nodes, hierarchyId]);
+    setSelectedLevelId(defaultLevel);
+    setErrorMessage(null);
+  }, [open, initialValues, levels, hierarchyId, allNodeTypes, childLevel]);
+
+  // Validate
+  useEffect(() => {
+    if (!open) return;
+    let valid = true;
+    let err: string | null = null;
+    if (!label.trim()) {
+      valid = false;
+      err = 'Label is required.';
+    }
+    if (parentId && parentLevelNum >= maxLevelNum) {
+      valid = false;
+      err = `Cannot add child: already at deepest level (${parentLevelNum}).`;
+    }
+    setErrorMessage(err);
+    setIsValid(valid);
+  }, [open, label, parentId, parentLevelNum, maxLevelNum]);
 
   if (!open) return null;
 
-  // When user changes hierarchy, update hierarchy selection
-  const onHierarchyChange = (hierId: string) => {
-    setHierarchyId(hierId);
+  // Determine types for dropdown
+  const effectiveLevel = childLevel ? childLevel.levelNumber : levels.find(l => l.id === selectedLevelId)?.levelNumber;
+  const typeKey = `${hierarchyId}l${effectiveLevel}`;
+  const availableTypes = allowedTypesMap[typeKey]?.length
+    ? allowedTypesMap[typeKey]
+    : allNodeTypes;
+
+  const handleSubmit = () => {
+    const levelId = parentId && childLevel ? childLevel.id : selectedLevelId;
+    onSubmit({ label: label.trim(), type, hierarchyId, levelId });
   };
 
   return (
@@ -89,72 +109,68 @@ const NodeFormModal: React.FC<NodeFormModalProps> = ({
     }}>
       <div style={{
         background: '#fff', padding: 20, borderRadius: 4,
-        width: '300px', boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+        width: 600, boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+        display: 'flex',
       }}>
-        <h2 style={{ marginTop: 0 }}>{initialValues ? 'Edit Node' : 'Add Node'}</h2>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Label</label>
-          <input
-            type="text"
-            value={label}
-            onChange={e => setLabel(e.target.value)}
-            style={{ width: '100%', padding: 4 }}
-          />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Type</label>
-          <select
-            value={type}
-            onChange={e => setType(e.target.value)}
-            style={{ width: '100%', padding: 4 }}
-          >
-            {NODE_TYPES.map(t => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Hierarchy</label>
-          <select
-            value={hierarchyId}
-            onChange={e => onHierarchyChange(e.target.value)}
-            style={{ width: '100%', padding: 4 }}
-          >
-            {hierarchies.map(h => (
-              <option key={h.id} value={h.id}>{h.name}</option>
-            ))}
-          </select>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', marginBottom: 4 }}>Level</label>
-          <select
-            value={selectedLevelId}
-            onChange={e => setSelectedLevelId(e.target.value)}
-            style={{ width: '100%', padding: 4 }}
-          >
-            {levels.map(l => (
-              <option key={l.id} value={l.id}>
-                {l.levelNumber}{l.label ? `: ${l.label}` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <button onClick={onCancel} style={{ marginRight: 8, padding: '6px 12px' }}>
-            Cancel
-          </button>
-          <button
-            onClick={() => onSubmit({
-              label,
-              type,
-              hierarchyId,
-              levelId: selectedLevelId
-            })}
-            disabled={!label.trim()}
-            style={{ padding: '6px 12px' }}
-          >
-            Save
-          </button>
+        <div style={{ flex: 1, paddingRight: 16 }}>
+          <h2>{initialValues ? 'Edit Node' : 'Add Node'}</h2>
+
+          <div style={{ marginBottom: 12 }}>
+            <label>Label</label>
+            <input
+              type="text"
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              style={{ width: '100%', padding: 4 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label>Type</label>
+            <select
+              value={type}
+              onChange={e => setType(e.target.value)}
+              style={{ width: '100%', padding: 4 }}
+            >
+              {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label>Hierarchy</label>
+            <select
+              value={hierarchyId}
+              onChange={e => setHierarchyId(e.target.value)}
+              style={{ width: '100%', padding: 4 }}
+            >
+              {hierarchies.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label>Level</label>
+            <select
+              value={parentId && childLevel ? childLevel.id : selectedLevelId}
+              onChange={e => setSelectedLevelId(e.target.value)}
+              style={{ width: '100%', padding: 4 }}
+              disabled={!!parentId}
+            >
+              {levels.map(l => (
+                <option key={l.id} value={l.id}>
+                  L{l.levelNumber}{l.label ? `: ${l.label}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {errorMessage && (
+            <div style={{ color: 'red', marginBottom: 12 }}>{errorMessage}</div>
+          )}
+
+          <div style={{ textAlign: 'right' }}>
+            <button onClick={onCancel} style={{ marginRight: 8 }}>Cancel</button>
+            <button onClick={handleSubmit} disabled={!isValid}>Save</button>
+          </div>
         </div>
       </div>
     </div>

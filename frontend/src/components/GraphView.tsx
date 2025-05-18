@@ -55,8 +55,8 @@ const GraphView: React.FC<GraphViewProps> = ({
   onConnect,
 }) => {
   const cyRef = useRef<Core | null>(null);
-  const { openMenu } = useContextMenu();
-  const { hierarchyId } = useHierarchyContext();
+    const { openMenu } = useContextMenu();
+    const { hierarchyId, levels, allowedTypesMap } = useHierarchyContext();
   const [selectedCount, setSelectedCount] = useState(0);
   const selectedOrderRef = useRef<string[]>([]);
   const [selectedEdgesCount, setSelectedEdgesCount] = useState(0);
@@ -358,11 +358,18 @@ const GraphView: React.FC<GraphViewProps> = ({
           onDeleteEdge,
           onDeleteEdges,
         });
-      } else if (tgt.isNode && tgt.isNode()) {
+        } else if (tgt.isNode && tgt.isNode()) {
         // Node context menu
         const sel = selectedOrderRef.current;
         const type = sel.length > 1 ? 'multi-node' : 'node';
         const data = tgt.data() as NodeData;
+        // Determine if adding a child is valid via allowedTypesMap context
+        const assignments = data.assignments?.filter(a => a.hierarchyId === hierarchyId) || [];
+        assignments.sort((a, b) => b.levelNumber - a.levelNumber);
+        const parentLevelNum = assignments[0]?.levelNumber ?? 0;
+        const nextLevelNum = parentLevelNum + 1;
+        const levelKeyNode = `${hierarchyId}l${nextLevelNum}`;
+        const canAddChild = Boolean(allowedTypesMap[levelKeyNode]?.length);
         let canConnect = false;
         let connectFrom: string | undefined;
         let connectTo: string | undefined;
@@ -377,7 +384,7 @@ const GraphView: React.FC<GraphViewProps> = ({
         openMenu(type, pos, {
           node: data,
           nodeIds: sel,
-          onAddNode,
+          ...(canAddChild ? { onAddNode } : {}),
           onNodeExpand,
           onEditNode,
           onDeleteNode,

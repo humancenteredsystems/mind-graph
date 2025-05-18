@@ -9,6 +9,8 @@ The hierarchy system is built upon several key Dgraph schema types that define i
 *   **`Node`**: These are the primary content entities within the graph. Nodes can be associated with one or more hierarchies through `HierarchyAssignment` objects.
 *   **`Hierarchy`**: This type represents a distinct hierarchical tree or organizational structure (e.g., "Technical Skills," "Project Categories"). Each hierarchy has a name and contains multiple levels.
 *   **`HierarchyLevel`**: This type defines a specific tier or depth within a particular `Hierarchy` (e.g., "Programming Languages" as a level within "Technical Skills"). Each level has a number and an optional descriptive label. It can also (optionally) specify allowed node types.
+*   **`HierarchyLevelType`**: Specifies which `Node` types are permitted at a given `HierarchyLevel`, controlling `allowedTypes` consumed by both backend validation and UI filtering.
+*
 *   **`HierarchyAssignment`**: This is the central linking type. An instance of `HierarchyAssignment` explicitly connects a `Node` to a specific `HierarchyLevel` within a particular `Hierarchy`. This record is what places a node into the hierarchical structure.
 
 For detailed Dgraph schema definitions and GraphQL interaction patterns related to these types, please refer to the [Dgraph Schema Notes](schema_notes.md).

@@ -9,6 +9,8 @@ export interface NodeData {
     levelNumber: number;
     levelLabel?: string;
   }[];
+  levelNumber?: number;
+  levelLabel?: string;
   status?: string;
   branch?: string;
 }

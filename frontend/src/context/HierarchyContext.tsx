@@ -5,14 +5,23 @@ import { GET_LEVELS_FOR_HIERARCHY } from '../graphql/queries';
 interface HierarchyContextType {
   hierarchies: { id: string; name: string }[];
   hierarchyId: string;
-  levels: { id: string; levelNumber: number; label?: string; allowedTypes: { id: string; typeName: string }[] }[];
+  levels: {
+    id: string;
+    levelNumber: number;
+    label?: string;
+    allowedTypes: { id: string; typeName: string }[];
+  }[];
+  allowedTypesMap: Record<string, string[]>;
+  allNodeTypes: string[];
   setHierarchyId: (id: string) => void;
 }
 
 const HierarchyContext = createContext<HierarchyContextType>({
   hierarchies: [],
-  hierarchyId: "",
+  hierarchyId: '',
   levels: [],
+  allowedTypesMap: {},
+  allNodeTypes: [],
   setHierarchyId: () => {},
 });
 
@@ -24,30 +33,32 @@ interface ProviderProps {
 
 export const HierarchyProvider = ({ children }: ProviderProps) => {
   const [hierarchies, setHierarchies] = useState<{ id: string; name: string }[]>([]);
-  const [_hierarchyId, _setHierarchyId] = useState<string>(""); // Renamed internal state
-  const [levels, setLevels] = useState<{ id: string; levelNumber: number; label?: string; allowedTypes: { id: string; typeName: string }[] }[]>([]);
+  const [_hierarchyId, _setHierarchyId] = useState<string>('');
+  const [levels, setLevels] = useState<
+    { id: string; levelNumber: number; label?: string; allowedTypes: { id: string; typeName: string }[] }[]
+  >([]);
+  const [allowedTypesMap, setAllowedTypesMap] = useState<Record<string, string[]>>({});
+  const [allNodeTypes, setAllNodeTypes] = useState<string[]>([]);
 
-  // Function to update hierarchyId in state and localStorage
   const updateHierarchyId = (newId: string) => {
     _setHierarchyId(newId);
     try {
       localStorage.setItem('hierarchyId', newId);
-      console.log(`[HierarchyContext] Hierarchy ID set in localStorage: ${newId}`);
     } catch (error) {
       console.error('[HierarchyContext] Error setting hierarchyId in localStorage:', error);
     }
   };
 
+  // Fetch hierarchies on mount
   useEffect(() => {
     fetchHierarchies()
       .then(list => {
         setHierarchies(list);
         if (list.length > 0) {
-          // Use the new update function to also set localStorage
-          const initialHierarchyId = localStorage.getItem('hierarchyId');
-          if (initialHierarchyId && list.some(h => h.id === initialHierarchyId)) {
-            updateHierarchyId(initialHierarchyId);
-          } else if (list.length > 0) {
+          const saved = localStorage.getItem('hierarchyId');
+          if (saved && list.some(h => h.id === saved)) {
+            updateHierarchyId(saved);
+          } else {
             updateHierarchyId(list[0].id);
           }
         }
@@ -57,22 +68,41 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
       });
   }, []);
 
-  // Fetch levels when _hierarchyId changes
-    useEffect(() => {
-      if (_hierarchyId) {
-        executeQuery(GET_LEVELS_FOR_HIERARCHY, { h: _hierarchyId })
-          .then((res: any) => {
-            const lvl = res.queryHierarchy?.[0]?.levels || [];
-            setLevels(lvl);
-          })
-          .catch((err: any) => {
-            console.error('[HierarchyContext] Error fetching levels:', err);
-          });
-      }
-    }, [_hierarchyId]);
+  // Fetch levels and build maps when hierarchy changes
+  useEffect(() => {
+    if (!_hierarchyId) return;
+    executeQuery(GET_LEVELS_FOR_HIERARCHY, { h: _hierarchyId })
+      .then((res: any) => {
+        const lvl = res.queryHierarchy?.[0]?.levels || [];
+        setLevels(lvl);
+        // Build allowedTypesMap and compute allNodeTypes
+        const map: Record<string, string[]> = {};
+        lvl.forEach((level: any) => {
+          const key = `${_hierarchyId}l${level.levelNumber}`;
+          const types = (level.allowedTypes || []).map((at: any) => at.typeName);
+          map[key] = types;
+        });
+        setAllowedTypesMap(map);
+        // Flatten unique types for fallback
+        const flat = Array.from(new Set(Object.values(map).flat()));
+        setAllNodeTypes(flat);
+      })
+      .catch((err: any) => {
+        console.error('[HierarchyContext] Error fetching levels:', err);
+      });
+  }, [_hierarchyId]);
 
   return (
-    <HierarchyContext.Provider value={{ hierarchies, hierarchyId: _hierarchyId, levels, setHierarchyId: updateHierarchyId }}>
+    <HierarchyContext.Provider
+      value={{
+        hierarchies,
+        hierarchyId: _hierarchyId,
+        levels,
+        allowedTypesMap,
+        allNodeTypes,
+        setHierarchyId: updateHierarchyId,
+      }}
+    >
       {children}
     </HierarchyContext.Provider>
   );
