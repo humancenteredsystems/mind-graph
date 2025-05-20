@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { fetchHierarchies, executeQuery } from '../services/ApiService';
 import { GET_LEVELS_FOR_HIERARCHY } from '../graphql/queries';
 
+// Canonical node types for fallback when allowedTypes is empty
+const CANONICAL_NODE_TYPES = ['concept', 'example', 'question'];
+
 interface HierarchyContextType {
   hierarchies: { id: string; name: string }[];
   hierarchyId: string;
@@ -84,8 +87,8 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
         });
         setAllowedTypesMap(map);
         // Flatten unique types for fallback
-        const flat = Array.from(new Set(Object.values(map).flat()));
-        setAllNodeTypes(flat);
+        // Use canonical list for fallback instead of flattening allowedTypesMap
+        setAllNodeTypes(CANONICAL_NODE_TYPES);
       })
       .catch((err: any) => {
         console.error('[HierarchyContext] Error fetching levels:', err);

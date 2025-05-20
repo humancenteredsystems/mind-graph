@@ -369,7 +369,8 @@ const GraphView: React.FC<GraphViewProps> = ({
         const parentLevelNum = assignments[0]?.levelNumber ?? 0;
         const nextLevelNum = parentLevelNum + 1;
         const levelKeyNode = `${hierarchyId}l${nextLevelNum}`;
-        const canAddChild = Boolean(allowedTypesMap[levelKeyNode]?.length);
+        // Allow child addition for any defined level (empty allowedTypes ⇒ no restriction)
+        const canAddChild = levels.some(l => l.levelNumber === nextLevelNum);
         let canConnect = false;
         let connectFrom: string | undefined;
         let connectTo: string | undefined;

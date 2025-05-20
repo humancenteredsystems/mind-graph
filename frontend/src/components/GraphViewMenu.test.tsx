@@ -81,7 +81,7 @@ describe('GraphView context-menu "Add Node" gating', () => {
     expect(opts).toHaveProperty('onAddNode');
   });
 
-  it('omits onAddNode when next level has no allowedTypes', () => {
+  it('includes onAddNode when next level has empty allowedTypes (no restriction)', () => {
     useHierarchyMock.mockReturnValueOnce({
       ...baseHierarchy,
       allowedTypesMap: { 'h1l2': [] },
@@ -90,6 +90,6 @@ describe('GraphView context-menu "Add Node" gating', () => {
     (window as any).cyTrigger('cxttap', 'n1');
     expect(openMenuMock).toHaveBeenCalledTimes(1);
     const opts = openMenuMock.mock.calls[0][2];
-    expect(opts).not.toHaveProperty('onAddNode');
+    expect(opts).toHaveProperty('onAddNode');
   });
 });

@@ -59,15 +59,15 @@ const NodeFormModal: FC<NodeFormModalProps> = ({
     setLabel(initialValues?.label ?? '');
     setType(initialValues?.type ?? allNodeTypes[0] ?? '');
     let defaultLevel = levels[0]?.id ?? '';
-    if (initialValues?.assignments?.length) {
+    if (parentId && childLevel) {
+      defaultLevel = childLevel.id;
+    } else if (initialValues?.assignments?.length) {
       const assign = initialValues.assignments.find(a => a.hierarchyId === hierarchyId);
       if (assign) defaultLevel = assign.levelId;
-    } else if (childLevel) {
-      defaultLevel = childLevel.id;
     }
     setSelectedLevelId(defaultLevel);
     setErrorMessage(null);
-  }, [open, initialValues, levels, hierarchyId, allNodeTypes, childLevel]);
+  }, [open, initialValues, levels, hierarchyId, allNodeTypes, parentId, childLevel]);
 
   // Validate
   useEffect(() => {
@@ -91,8 +91,9 @@ const NodeFormModal: FC<NodeFormModalProps> = ({
   // Determine types for dropdown
   const effectiveLevel = childLevel ? childLevel.levelNumber : levels.find(l => l.id === selectedLevelId)?.levelNumber;
   const typeKey = `${hierarchyId}l${effectiveLevel}`;
-  const availableTypes = allowedTypesMap[typeKey]?.length
-    ? allowedTypesMap[typeKey]
+  // If allowedTypesMap has an entry for this level (even empty), use its values (empty ⇒ no restriction)
+  const availableTypes = typeKey in allowedTypesMap
+    ? (allowedTypesMap[typeKey].length > 0 ? allowedTypesMap[typeKey] : allNodeTypes)
     : allNodeTypes;
 
   const handleSubmit = () => {
@@ -116,13 +117,52 @@ const NodeFormModal: FC<NodeFormModalProps> = ({
           <h2>{initialValues ? 'Edit Node' : 'Add Node'}</h2>
 
           <div style={{ marginBottom: 12 }}>
-            <label>Label</label>
+            <label htmlFor="node-label">Label</label>
             <input
+              id="node-label"
               type="text"
               value={label}
               onChange={e => setLabel(e.target.value)}
               style={{ width: '100%', padding: 4 }}
             />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label htmlFor="node-type">Type</label>
+            <select
+              id="node-type"
+              value={type}
+              onChange={e => setType(e.target.value)}
+              style={{ width: '100%', padding: 4 }}
+            >
+              {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label htmlFor="node-hierarchy">Hierarchy</label>
+            <select
+              id="node-hierarchy"
+              value={hierarchyId}
+              onChange={e => setHierarchyId(e.target.value)}
+              style={{ width: '100%', padding: 4 }}
+            >
+              {hierarchies.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label htmlFor="node-level">Level</label>
+            <select
+              id="node-level"
+              value={parentId && childLevel ? childLevel.id : selectedLevelId}
+              onChange={e => setSelectedLevelId(e.target.value)}
+              style={{ width: '100%', padding: 4 }}
+              disabled={!!parentId}
+            >
+              {levels.map(l => (
+                <option key={l.id} value={l.id}>
+                  L{l.levelNumber}{l.label ? `: ${l.label}` : ''}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div style={{ marginBottom: 12 }}>

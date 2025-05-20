@@ -432,13 +432,13 @@ def main():
     # 5. Create level types for these levels
     level_types_all_ok = True
     if level_ids_map.get(1):
-        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[1], ["DomainNode"]):
+        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[1], ["concept"]):
             level_types_all_ok = False
     if level_ids_map.get(2):
-        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[2], ["ConceptNode"]):
+        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[2], ["example"]):
             level_types_all_ok = False
     if level_ids_map.get(3):
-        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[3], ["ExampleNode"]):
+        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[3], ["question"]):
             level_types_all_ok = False
     
     if not level_types_all_ok:

@@ -88,4 +88,19 @@ describe('NodeFormModal', () => {
     fireEvent.click(screen.getByText('Cancel'));
     expect(mockOnCancel).toHaveBeenCalled();
   });
+
+  it('selects correct child level when parentId is provided', () => {
+    const parentId = 'parent1';
+    (useGraphState as Mock).mockReturnValue({
+      nodes: [
+        { id: parentId, assignments: [{ hierarchyId: 'h1', levelId: 'lvl1', levelNumber: 1 }] },
+      ],
+    });
+    render(
+      <NodeFormModal open={true} parentId={parentId} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
+    );
+    const levelSelect = screen.getByLabelText('Level');
+    expect(levelSelect).toHaveValue('lvl2');
+    expect(levelSelect).toBeDisabled();
+  });
 });

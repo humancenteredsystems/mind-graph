@@ -278,28 +278,16 @@ app.post('/api/query', async (req, res) => {
 
 // Endpoint to execute arbitrary GraphQL mutations
 app.post('/api/mutate', async (req, res) => {
-  let { mutation, variables } = req.body;
+  let { mutation, variables = {} } = req.body;
   if (!mutation) {
     return res.status(400).json({ error: 'Missing required field: mutation' });
   }
   try {
     // Enrich addNode inputs with nested hierarchyAssignments
     // Focus on the operation being performed rather than specific mutation names
-    if (Array.isArray(variables.input) && 
-        (mutation.includes('addNode') || mutation.includes('AddNode'))) {
-      // Determine hierarchyId from header. It is now required.
-      let hierarchyIdFromHeader = req.headers['x-hierarchy-id'];
-
-      if (!hierarchyIdFromHeader) {
-        return res.status(400).json({ error: 'Missing required header: X-Hierarchy-Id' });
-      }
-
-      const isValidHierarchy = await validateHierarchyId(hierarchyIdFromHeader);
-      if (!isValidHierarchy) {
-        return res.status(400).json({ error: `Invalid X-Hierarchy-Id provided: ${hierarchyIdFromHeader}. Hierarchy not found.` });
-      }
-      // At this point, hierarchyIdFromHeader is validated.
-
+    // Enrich only AddNodeWithHierarchy mutations; simple AddNode mutations bypass enrichment
+    if (Array.isArray(variables.input) && mutation.includes('AddNodeWithHierarchy')) {
+      const hierarchyIdFromHeader = req.headers['x-hierarchy-id'];
       const enrichedInputs = [];
       for (const inputObj of variables.input) {
         // Client can override hierarchyId per input item, this also needs validation
@@ -411,97 +399,40 @@ app.post('/api/mutate', async (req, res) => {
   } // End catch block
 }); // End app.post('/api/mutate')
 
- // Stable version using string concatenation
- app.post('/api/traverse', async (req, res) => {
-  const { rootId, currentLevel, fields } = req.body;
-  
-  // Determine hierarchyId for traversal. Prefer header, then body. Required.
-  let hierarchyId = req.headers['x-hierarchy-id'] || req.body.hierarchyId;
-
-  if (!hierarchyId) {
-    return res.status(400).json({ error: 'Missing required hierarchyId (expected in X-Hierarchy-Id header or hierarchyId in body)' });
-  }
-
-  const isValidHierarchy = await validateHierarchyId(hierarchyId);
-  if (!isValidHierarchy) {
-    return res.status(400).json({ error: `Invalid hierarchyId provided: ${hierarchyId}. Hierarchy not found.` });
-  }
-  // At this point, hierarchyId is validated.
-
+app.post('/api/traverse', async (req, res) => {
+  const { rootId } = req.body;
   if (!rootId) {
-      return res.status(400).json({ error: 'Missing required field: rootId' });
-    }
-
-  console.log('[TRAVERSE] Using hierarchyId:', hierarchyId);
-
-  // Validate currentLevel
-  if (currentLevel !== undefined && (typeof currentLevel !== 'number' || currentLevel < 0)) {
-    return res.status(400).json({ error: 'Invalid depth parameter. Must be a non-negative number.' });
+    return res.status(400).json({ error: 'Missing required field: rootId' });
   }
-
-  // Validate fields
-  const allowedFields = ['id', 'label', 'type', 'status', 'branch']; // Removed 'level'
-  const safeFields = Array.isArray(fields) && fields.length > 0
-    ? fields.filter(f => allowedFields.includes(f))
-    : allowedFields; // Default to allowed fields if none provided or invalid
-
-  // Ensure 'level' is included if currentLevel is used for filtering - This logic is no longer needed as 'level' is not a direct field.
-
-  if (safeFields.length === 0) {
-    // This case should ideally not happen if default is allowedFields, but good to check
-    return res.status(400).json({ error: 'Invalid fields array. No allowed fields provided.' });
-  }
-
-  const fieldBlock = safeFields.join('\n    '); // Indent fields correctly
-  const targetLevel = currentLevel !== undefined ? currentLevel + 1 : null;
-
-  // Construct the 'to' block conditionally
-  // Use hierarchyId directly as an integer in the GraphQL query
-  const toBlock = targetLevel !== null
-    ? `to (filter: { hierarchyAssignments: { some: { hierarchyId: { eq: ${hierarchyId} }, levelNumber: { eq: ${targetLevel} } } } }) {\n      ${fieldBlock}\n      hierarchyAssignments {\n        hierarchy { id name }\n        level { id levelNumber label }\n      }\n    }`
-    : `to {\n      ${fieldBlock}\n      hierarchyAssignments {\n        hierarchy { id name }\n        level { id levelNumber label }\n      }\n    }`; // Note indentation
-
-  // Construct the full query using array join for clarity and safety
-  const query = [
-    'query TraverseGraph($rootId: String!) {',
-    '  queryNode(filter: { id: { eq: $rootId } }) {',
-    `    ${fieldBlock}`, // Fields for the root node
-    '    hierarchyAssignments {',
-    '      hierarchy { id name }',
-    '      level { id levelNumber label }',
-    '    }',
-    '    outgoing {',
-    '      type',
-    `      ${toBlock}`, // The conditionally constructed 'to' block
-    '    }',
-    '  }',
-    '}'
-  ].join('\n');
-
-  const variables = { rootId };
-
   try {
-    console.log(`[TRAVERSE] Attempting query for rootId: ${rootId}, targetLevel: ${targetLevel ?? 'N/A'}`);
-    // console.log(`[TRAVERSE] Query:\n${query}`); // Original log, replaced by more detailed one below
-    // console.log(`[TRAVERSE] Variables:`, variables); // Original log, replaced by more detailed one below
-    console.log('[TRAVERSE] Constructed GraphQL Query:\n', query);
-    console.log('[TRAVERSE] Query Variables:', JSON.stringify(variables, null, 2));
-    const result = await executeGraphQL(query, variables);
-
-    // Apply the filterValidOutgoingEdges helper function to the results
-    const rawTraversalData = result.queryNode;
-    const safeTraversalData = rawTraversalData.map(filterValidOutgoingEdges);
-
-    console.log(`[TRAVERSE] Query successful for rootId: ${rootId}`);
-    res.json({ data: { queryNode: safeTraversalData } }); // Wrap result in 'data' key to match expected frontend structure
+    const raw = await executeGraphQL(
+      `query($rootId: String!) {
+        queryNode(filter: { id: { eq: $rootId } }) {
+          id
+          label
+          type
+          status
+          branch
+          hierarchyAssignments {
+            hierarchy { id name }
+            level { id levelNumber label }
+          }
+          outgoing {
+            type
+            to { id label type status branch }
+          }
+        }
+      }`,
+      { rootId }
+    );
+    const data = raw.queryNode || [];
+    const safe = data.map(filterValidOutgoingEdges);
+    return res.json({ data: { queryNode: safe } });
   } catch (err) {
-    console.error(`[TRAVERSE] Error occurred for rootId: ${rootId}:`, err);
-    // Keep existing response logic
     if (err.message?.startsWith('GraphQL query failed:')) {
-       res.status(400).json({ error: `GraphQL error during traversal: ${err.message}` });
-    } else {
-       res.status(500).json({ error: 'Server error during traversal.' });
+      return res.status(400).json({ error: `GraphQL error during traversal: ${err.message}` });
     }
+    return res.status(500).json({ error: 'Server error during traversal.' });
   }
 });
 
