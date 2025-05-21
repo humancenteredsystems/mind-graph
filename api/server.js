@@ -798,6 +798,32 @@ app.get('/api/debug/dgraph', async (req, res) => {
   }
 });
 
+// Endpoint to get all configured node types from HierarchyLevelType entities
+app.get('/api/node-types', async (req, res) => {
+  const query = `
+    query GetAllConfiguredNodeTypes {
+      queryHierarchyLevelType {
+        typeName
+      }
+    }
+  `;
+  try {
+    const result = await executeGraphQL(query);
+    // Extract unique typeNames
+    const types = result?.queryHierarchyLevelType?.map(item => item.typeName) || [];
+    const uniqueTypes = Array.from(new Set(types));
+    res.json(uniqueTypes);
+  } catch (error) {
+    console.error(`Error in /api/node-types endpoint:`, error);
+    const errorMessage = error.message.includes('GraphQL query failed:')
+      ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
+      : 'Server error fetching node types.';
+    const statusCode = error.message.includes('GraphQL query failed:') ? 400 : 500;
+    res.status(statusCode).json({ error: errorMessage });
+  }
+});
+
+
 // Cascade delete endpoint for nodes and their related edges
 app.post('/api/deleteNodeCascade', async (req, res) => {
   const { nodeId } = req.body;

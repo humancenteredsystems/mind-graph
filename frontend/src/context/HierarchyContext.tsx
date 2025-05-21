@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { fetchHierarchies, executeQuery } from '../services/ApiService';
+import { fetchHierarchies, executeQuery, fetchNodeTypes } from '../services/ApiService'; // Import fetchNodeTypes
 import { GET_LEVELS_FOR_HIERARCHY } from '../graphql/queries';
 
 // Canonical node types for fallback when allowedTypes is empty
-const CANONICAL_NODE_TYPES = ['concept', 'example', 'question'];
+// const CANONICAL_NODE_TYPES = ['concept', 'example', 'question']; // Removed hardcoded types
 
 interface HierarchyContextType {
   hierarchies: { id: string; name: string }[];
@@ -52,8 +52,9 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
     }
   };
 
-  // Fetch hierarchies on mount
+  // Fetch hierarchies and all node types on mount
   useEffect(() => {
+    // Fetch hierarchies
     fetchHierarchies()
       .then(list => {
         setHierarchies(list);
@@ -69,7 +70,19 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
       .catch(err => {
         console.error('[HierarchyContext] Error fetching hierarchies:', err);
       });
-  }, []);
+
+    // Fetch all node types dynamically
+    fetchNodeTypes()
+      .then(types => {
+        setAllNodeTypes(types);
+      })
+      .catch(err => {
+        console.error('[HierarchyContext] Error fetching node types:', err);
+        // Fallback to a default list if fetching fails (optional, but good practice)
+        // setAllNodeTypes(['concept', 'example', 'question']);
+      });
+
+  }, []); // Empty dependency array means this runs once on mount
 
   // Fetch levels and build maps when hierarchy changes
   useEffect(() => {
@@ -78,7 +91,7 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
       .then((res: any) => {
         const lvl = res.queryHierarchy?.[0]?.levels || [];
         setLevels(lvl);
-        // Build allowedTypesMap and compute allNodeTypes
+        // Build allowedTypesMap
         const map: Record<string, string[]> = {};
         lvl.forEach((level: any) => {
           const key = `${_hierarchyId}l${level.levelNumber}`;
@@ -86,14 +99,12 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
           map[key] = types;
         });
         setAllowedTypesMap(map);
-        // Flatten unique types for fallback
-        // Use canonical list for fallback instead of flattening allowedTypesMap
-        setAllNodeTypes(CANONICAL_NODE_TYPES);
+        // allNodeTypes is now fetched separately on mount
       })
       .catch((err: any) => {
         console.error('[HierarchyContext] Error fetching levels:', err);
       });
-  }, [_hierarchyId]);
+  }, [_hierarchyId]); // Dependency on _hierarchyId
 
   return (
     <HierarchyContext.Provider
