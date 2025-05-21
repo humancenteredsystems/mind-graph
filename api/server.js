@@ -382,8 +382,16 @@ app.post('/api/mutate', async (req, res) => {
     }
     
     // For mutations that don't need transformation, or for addNode after input enrichment, execute normally
+    // Log the input being sent to Dgraph for addNode mutations
+    if (mutation.includes('AddNodeWithHierarchy')) {
+        console.log('[MUTATE] Sending to Dgraph (AddNodeWithHierarchy):', JSON.stringify(variables, null, 2));
+    }
     const result = await executeGraphQL(mutation, variables || {});
-    console.log('[MUTATE] Dgraph result:', result);
+    // Log the raw result received from Dgraph for addNode mutations
+    if (mutation.includes('AddNodeWithHierarchy')) {
+        console.log('[MUTATE] Received from Dgraph (AddNodeWithHierarchy):', JSON.stringify(result, null, 2));
+    }
+    console.log('[MUTATE] Dgraph result:', result); // Keep existing log for general mutations
     res.status(200).json(result); // Use 200 OK for mutations unless specifically creating (201)
   } catch (error) {
     console.error(`Error in /api/mutate endpoint:`, error);

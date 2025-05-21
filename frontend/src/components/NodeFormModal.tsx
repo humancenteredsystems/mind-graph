@@ -164,45 +164,6 @@ const NodeFormModal: FC<NodeFormModalProps> = ({
               ))}
             </select>
           </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <label>Type</label>
-            <select
-              value={type}
-              onChange={e => setType(e.target.value)}
-              style={{ width: '100%', padding: 4 }}
-            >
-              {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <label>Hierarchy</label>
-            <select
-              value={hierarchyId}
-              onChange={e => setHierarchyId(e.target.value)}
-              style={{ width: '100%', padding: 4 }}
-            >
-              {hierarchies.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-            </select>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <label>Level</label>
-            <select
-              value={parentId && childLevel ? childLevel.id : selectedLevelId}
-              onChange={e => setSelectedLevelId(e.target.value)}
-              style={{ width: '100%', padding: 4 }}
-              disabled={!!parentId}
-            >
-              {levels.map(l => (
-                <option key={l.id} value={l.id}>
-                  L{l.levelNumber}{l.label ? `: ${l.label}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {errorMessage && (
             <div style={{ color: 'red', marginBottom: 12 }}>{errorMessage}</div>
           )}
