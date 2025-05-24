@@ -70,16 +70,6 @@ export const fetchTraversalData = async (
   }
 };
 
-// Function to fetch all configured node types from the backend
-export const fetchNodeTypes = async (): Promise<string[]> => {
-  try {
-    const response = await axios.get<string[]>(`${API_BASE_URL}/node-types`);
-    return response.data; // Assuming the backend returns a JSON array of strings
-  } catch (error) {
-    console.error('[ApiService] Error fetching node types:', error);
-    throw new Error('Failed to fetch node types.');
-  }
-};
 
 /**
  * Executes arbitrary GraphQL query.

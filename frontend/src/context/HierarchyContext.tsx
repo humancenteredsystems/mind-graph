@@ -1,9 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { fetchHierarchies, executeQuery, fetchNodeTypes } from '../services/ApiService'; // Import fetchNodeTypes
+import { fetchHierarchies, executeQuery } from '../services/ApiService';
 import { GET_LEVELS_FOR_HIERARCHY } from '../graphql/queries';
-
-// Canonical node types for fallback when allowedTypes is empty
-// const CANONICAL_NODE_TYPES = ['concept', 'example', 'question']; // Removed hardcoded types
 
 interface HierarchyContextType {
   hierarchies: { id: string; name: string }[];
@@ -52,9 +49,8 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
     }
   };
 
-  // Fetch hierarchies and all node types on mount
+  // Fetch hierarchies on mount
   useEffect(() => {
-    // Fetch hierarchies
     fetchHierarchies()
       .then(list => {
         setHierarchies(list);
@@ -70,19 +66,7 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
       .catch(err => {
         console.error('[HierarchyContext] Error fetching hierarchies:', err);
       });
-
-    // Fetch all node types dynamically
-    fetchNodeTypes()
-      .then(types => {
-        setAllNodeTypes(types);
-      })
-      .catch(err => {
-        console.error('[HierarchyContext] Error fetching node types:', err);
-        // Fallback to a default list if fetching fails (optional, but good practice)
-        // setAllNodeTypes(['concept', 'example', 'question']);
-      });
-
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
   // Fetch levels and build maps when hierarchy changes
   useEffect(() => {
@@ -99,7 +83,13 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
           map[key] = types;
         });
         setAllowedTypesMap(map);
-        // allNodeTypes is now fetched separately on mount
+        
+        // Derive allNodeTypes from hierarchy levels data
+        const allTypes: string[] = lvl.flatMap((level: any) => 
+          (level.allowedTypes || []).map((at: any) => at.typeName as string)
+        );
+        const uniqueTypes = Array.from(new Set(allTypes));
+        setAllNodeTypes(uniqueTypes);
       })
       .catch((err: any) => {
         console.error('[HierarchyContext] Error fetching levels:', err);
