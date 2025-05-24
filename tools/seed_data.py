@@ -173,73 +173,6 @@ def create_level_types_for_level(api_base: str, api_key: str, level_id_str: str,
     print(f"Creating level types for level ID '{level_id_str}' with allowed types: {', '.join(type_names)}...")
     all_successful = True
     for type_name in type_names:
-        # Assuming endpoint is /api/hierarchy/levelType and takes levelId and typeName
-        # This matches the typical REST pattern for creating sub-resources.
-        # The actual endpoint might be different, e.g., /api/hierarchy/level/{levelId}/allowedType
-        payload = {
-            "levelId": level_id_str,
-            "typeName": type_name
-        }
-        # The endpoint for creating HierarchyLevelType is POST /api/hierarchy/type
-        # based on docs/api_endpoints.md (though it's listed under HierarchyAssignment there,
-        # it's the most plausible one for creating these types).
-        # Let's assume it's /api/hierarchy/levelType for now as it's more RESTful for a sub-resource.
-        # If this is wrong, the API call will fail and we'll know.
-        # A more robust solution would be to have a specific endpoint like /api/hierarchy/level/{level_id}/allowedTypes
-        # For now, let's try a generic /api/hierarchy/levelType and see.
-        # The schema notes imply HierarchyLevelType is a distinct type, so it might have its own CRUD.
-        # Let's assume a dedicated endpoint /api/hierarchy/leveltype (singular)
-        
-        # Corrected assumption: The API docs suggest HierarchyLevelType is managed via HierarchyLevel updates or specific endpoints.
-        # Given the structure, a likely endpoint for adding an allowed type to a level would be something like:
-        # POST /api/hierarchy/level/{level_id}/allowedType with payload {"typeName": "..."}
-        # OR PUT /api/hierarchy/level/{level_id} with a body that includes an 'allowedTypes' array.
-        # The current API (hierarchyRoutes.js) doesn't seem to have a direct POST for HierarchyLevelType.
-        # It's possible this is meant to be part of the HierarchyLevel creation/update.
-        # For now, to make progress, I will *assume* there's an endpoint like POST /api/hierarchy/levelType
-        # that creates a HierarchyLevelType linking a level to a typeName.
-        # This is a known gap if the endpoint doesn't exist.
-        
-        # Based on `docs/api_endpoints.md`, there isn't a direct POST for HierarchyLevelType.
-        # It's likely intended to be part of the `POST /api/hierarchy/level` or `PUT /api/hierarchy/level/:id` payload.
-        # However, the `create_levels_for_hierarchy` function only sends `hierarchyId`, `levelNumber`, `label`.
-        # This means we cannot add `allowedTypes` during level creation with the current `create_levels_for_hierarchy`.
-
-        # For the purpose of this refactor, and given the backend now *enforces* allowedTypes,
-        # the seed script *must* create these.
-        # I will proceed by *assuming* an endpoint `POST /api/hierarchy/leveltype` exists or needs to be created.
-        # If it doesn't exist, this part of the seed script will fail, highlighting the need for that endpoint.
-        # Payload for a hypothetical POST /api/hierarchy/leveltype:
-        # { "level": { "id": "level_id_str" }, "typeName": "type_name" }
-
-        # Let's try to use the documented POST /api/hierarchy/type for HierarchyAssignment,
-        # and see if it can be (mis)used or if there's another.
-        # The schema has `HierarchyLevelType { id, level, typeName }`.
-        # A direct creation endpoint for this would be POST /api/hierarchy-level-type
-        # with payload { levelId: "...", typeName: "..." }
-
-        # Given the current API structure in hierarchyRoutes.js, there is no dedicated endpoint for HierarchyLevelType.
-        # The most straightforward way without altering hierarchyRoutes.js extensively now is to assume
-        # that HierarchyLevelType records are created via a general GraphQL mutation if not via specific REST.
-        # However, the script uses REST for hierarchy setup.
-
-        # Let's assume the task implies that if an endpoint is missing, it should be noted or a placeholder used.
-        # The backend *will* enforce this. So, the seed data *must* be correct.
-        # The `addHierarchyAssignment` mutation is what will be affected by the backend enforcement.
-        # The `HierarchyLevel` itself needs to have its `allowedTypes` field populated.
-        # This means `create_levels_for_hierarchy` should be modified to include `allowedTypes`.
-
-        # Revisiting: The plan is to make `tools/seed_data.py` populate `HierarchyLevelType`.
-        # This implies `HierarchyLevelType` are distinct entities.
-        # The schema is: type HierarchyLevelType { id: ID!, level: HierarchyLevel!, typeName: String! }
-        # A GraphQL mutation to create this would be:
-        # mutation AddHLT($levelId: ID!, $typeName: String!) {
-        #   addHierarchyLevelType(input: [{level: {id: $levelId}, typeName: $typeName}]) {
-        #     hierarchyLevelType { id }
-        #   }
-        # }
-        # I will use this GraphQL mutation approach.
-
         print(f"  Attempting to allow type '{type_name}' for level '{level_id_str}'...")
         mutation = """
         mutation AddHLT($levelId: ID!, $typeName: String!) {
@@ -251,18 +184,6 @@ def create_level_types_for_level(api_base: str, api_key: str, level_id_str: str,
         variables = {"levelId": level_id_str, "typeName": type_name}
         payload_hlt = {"mutation": mutation, "variables": variables}
         
-        # We need to add the X-Hierarchy-Id header for /api/mutate calls if the backend expects it
-        # for all mutations, even if not strictly hierarchy-dependent for this specific one.
-        # The backend changes in api/server.js for /api/mutate (addNode) now require X-Hierarchy-Id.
-        # It's safer to include it for all /api/mutate calls from the seed script.
-        # The `call_api` function needs to support passing custom headers.
-        # For now, I'll assume `call_api` handles this or it's not strictly needed for `addHierarchyLevelType`.
-        # The `addNode` part of this script will fail if X-Hierarchy-Id is not sent.
-
-        # The `call_api` function in `api_client.py` needs to be checked if it supports custom headers.
-        # Let's assume for now it does, or that this specific mutation doesn't trigger the header check.
-        # The primary concern is that the `allowedTypes` are set on the levels.
-
         resp = call_api(api_base, "/mutate", api_key, method='POST', payload=payload_hlt)
 
         if not resp["success"] or not resp.get("data", {}).get("addHierarchyLevelType"):
@@ -332,37 +253,60 @@ def get_seed_data_payload(hierarchy_id_str: str, level_ids_map: Dict[int, str]) 
     """Generate the data payload for nodes, edges, and assignments."""
     
     nodes = [
-        {"id": "dom1", "label": "Software Engineering", "type": "DomainNode", "status": "approved", "branch": "main"},
-        {"id": "dom2", "label": "Data Science", "type": "DomainNode", "status": "approved", "branch": "main"},
-        {"id": "con1", "label": "API Design", "type": "ConceptNode", "status": "approved", "branch": "main"},
-        {"id": "con2", "label": "Microservices", "type": "ConceptNode", "status": "approved", "branch": "main"},
-        {"id": "con3", "label": "Machine Learning", "type": "ConceptNode", "status": "approved", "branch": "main"},
-        {"id": "ex1", "label": "REST API Best Practices", "type": "ExampleNode", "status": "approved", "branch": "main"},
-        {"id": "ex2", "label": "Event Sourcing Pattern", "type": "ExampleNode", "status": "approved", "branch": "main"},
-        {"id": "ex3", "label": "Regression Analysis Example", "type": "ExampleNode", "status": "approved", "branch": "main"}
+        # Level 1: Domains & Categories
+        {"id": "dom1", "label": "Software Engineering", "type": "domain", "status": "approved", "branch": "main"},
+        {"id": "dom2", "label": "Data Science", "type": "domain", "status": "approved", "branch": "main"},
+        {"id": "cat1", "label": "Development Methodologies", "type": "category", "status": "approved", "branch": "main"},
+        
+        # Level 2: Concepts & Principles
+        {"id": "con1", "label": "API Design", "type": "concept", "status": "approved", "branch": "main"},
+        {"id": "con2", "label": "Microservices", "type": "concept", "status": "approved", "branch": "main"},
+        {"id": "con3", "label": "Machine Learning", "type": "concept", "status": "approved", "branch": "main"},
+        {"id": "pri1", "label": "REST Principles", "type": "principle", "status": "approved", "branch": "main"},
+        
+        # Level 3: Examples & Applications
+        {"id": "ex1", "label": "GraphQL Implementation", "type": "example", "status": "approved", "branch": "main"},
+        {"id": "ex2", "label": "Event Sourcing Pattern", "type": "example", "status": "approved", "branch": "main"},
+        {"id": "ex3", "label": "Regression Analysis", "type": "example", "status": "approved", "branch": "main"},
+        {"id": "app1", "label": "Docker Container Setup", "type": "application", "status": "approved", "branch": "main"},
     ]
 
     edges = [
-        {"from": {"id": "dom1"}, "fromId": "dom1", "to": {"id": "con1"}, "toId": "con1", "type": "has_concept"},
-        {"from": {"id": "dom1"}, "fromId": "dom1", "to": {"id": "con2"}, "toId": "con2", "type": "has_concept"},
-        {"from": {"id": "dom2"}, "fromId": "dom2", "to": {"id": "con3"}, "toId": "con3", "type": "has_concept"},
-        {"from": {"id": "con1"}, "fromId": "con1", "to": {"id": "ex1"}, "toId": "ex1", "type": "has_example"},
-        {"from": {"id": "con2"}, "fromId": "con2", "to": {"id": "ex2"}, "toId": "ex2", "type": "has_example"},
-        {"from": {"id": "con3"}, "fromId": "con3", "to": {"id": "ex3"}, "toId": "ex3", "type": "has_example"},
-        {"from": {"id": "con1"}, "fromId": "con1", "to": {"id": "con2"}, "toId": "con2", "type": "related_concept"}
+        # Connect domains/categories to concepts/principles
+        {"from": {"id": "dom1"}, "fromId": "dom1", "to": {"id": "con1"}, "toId": "con1", "type": "simple"},
+        {"from": {"id": "dom1"}, "fromId": "dom1", "to": {"id": "con2"}, "toId": "con2", "type": "simple"},
+        {"from": {"id": "dom2"}, "fromId": "dom2", "to": {"id": "con3"}, "toId": "con3", "type": "simple"},
+        {"from": {"id": "cat1"}, "fromId": "cat1", "to": {"id": "pri1"}, "toId": "pri1", "type": "simple"},
+        
+        # Connect concepts/principles to examples/applications
+        {"from": {"id": "con1"}, "fromId": "con1", "to": {"id": "ex1"}, "toId": "ex1", "type": "simple"},
+        {"from": {"id": "con2"}, "fromId": "con2", "to": {"id": "ex2"}, "toId": "ex2", "type": "simple"},
+        {"from": {"id": "con3"}, "fromId": "con3", "to": {"id": "ex3"}, "toId": "ex3", "type": "simple"},
+        {"from": {"id": "pri1"}, "fromId": "pri1", "to": {"id": "app1"}, "toId": "app1", "type": "simple"},
+        
+        # Cross-connections within levels
+        {"from": {"id": "con1"}, "fromId": "con1", "to": {"id": "con2"}, "toId": "con2", "type": "simple"}
     ]
 
     hierarchy_assignments = []
     if level_ids_map.get(1) and level_ids_map.get(2) and level_ids_map.get(3):
         hierarchy_assignments = [
+            # Level 1 assignments
             {"node": {"id": "dom1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[1]}},
             {"node": {"id": "dom2"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[1]}},
+            {"node": {"id": "cat1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[1]}},
+            
+            # Level 2 assignments
             {"node": {"id": "con1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[2]}},
             {"node": {"id": "con2"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[2]}},
             {"node": {"id": "con3"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[2]}},
+            {"node": {"id": "pri1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[2]}},
+            
+            # Level 3 assignments
             {"node": {"id": "ex1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}},
             {"node": {"id": "ex2"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}},
-            {"node": {"id": "ex3"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}}
+            {"node": {"id": "ex3"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}},
+            {"node": {"id": "app1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}},
         ]
     else:
         print("⚠️ Warning: Not all level IDs were found. Hierarchy assignments will be incomplete or skipped.")
@@ -429,16 +373,16 @@ def main():
         print("❌ Error: Failed to create all hierarchy levels. Aborting.")
         sys.exit(1)
     
-    # 5. Create level types for these levels
+    # 5. Create level types for these levels (two types per level)
     level_types_all_ok = True
     if level_ids_map.get(1):
-        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[1], ["concept"]):
+        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[1], ["domain", "category"]):
             level_types_all_ok = False
     if level_ids_map.get(2):
-        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[2], ["example"]):
+        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[2], ["concept", "principle"]):
             level_types_all_ok = False
     if level_ids_map.get(3):
-        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[3], ["question"]):
+        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[3], ["example", "application"]):
             level_types_all_ok = False
     
     if not level_types_all_ok:
@@ -448,16 +392,7 @@ def main():
     print("Waiting 5 seconds for Dgraph to process level type creations...")
     time.sleep(5)
 
-
     # 6. Get data payload (nodes, edges, assignments)
-    # The addNode mutation in add_nodes function will now be subject to X-Hierarchy-Id header requirement
-    # and levelId/allowedType validation by the backend.
-    # The `get_seed_data_payload` creates assignments that should now be valid if level types were set.
-    # The `add_nodes` function itself needs to pass the X-Hierarchy-Id header.
-    # This requires modifying `call_api` or how `add_nodes` uses it.
-    # For now, this script will likely fail at the `add_nodes` step if `call_api` doesn't support headers.
-    # This is a known dependency. The `api_client.call_api` now supports `extra_headers`.
-
     seed_payload = get_seed_data_payload(hierarchy_id, level_ids_map)
 
     # Prepare headers for calls to /api/mutate that require hierarchy context
@@ -470,19 +405,10 @@ def main():
         sys.exit(1)
     
     # 8. Add edges
-    # Edges don't strictly need X-Hierarchy-Id for their own mutation, but passing it if available doesn't hurt.
-    # For now, not passing it as add_edges mutation itself is not hierarchy context dependent.
     if not add_edges(api_base_url, api_key_val, seed_payload["edges"]): 
         print("⚠️ Warning: Edge creation failed or partially failed.")
 
     # 9. Add hierarchy assignments
-    # This also uses /api/mutate. While the addHierarchyAssignment mutation itself might not directly use
-    # X-Hierarchy-Id from the header for its core logic (as assignments are explicit),
-    # if /api/mutate has a blanket requirement for it for certain operations, it's safer to pass.
-    # However, the primary validation for addNode was the main concern for X-Hierarchy-Id.
-    # Let's assume addHierarchyAssignment does not strictly need it from header if all info is in payload.
-    # If it does, this call might need `mutate_context_headers`.
-    # For now, calling without extra headers, as the assignment payload is self-contained.
     print(f"Attempting to add assignments...")
     if not add_hierarchy_assignments(api_base_url, api_key_val, seed_payload["hierarchyAssignments"]):
         print("❌ Hierarchy assignment creation failed. Aborting.")

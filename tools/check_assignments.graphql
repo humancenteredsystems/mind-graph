@@ -1,0 +1,20 @@
+query {
+  queryNode {
+    id
+    label
+    type
+    status
+    branch
+    hierarchyAssignments {
+      hierarchy {
+        id
+        name
+      }
+      level {
+        id
+        levelNumber
+        label
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { NodeData } from '../types/graph';
+import { resolveNodeHierarchyAssignment } from '../utils/graphUtils';
 
 type NodeEditValues = {
   label: string;
@@ -21,7 +22,9 @@ type Tab = typeof TABS[number];
 const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<Tab>('Info');
   const { hierarchyId } = useHierarchyContext();
-  const assignmentForCurrent = node?.assignments?.find(a => a.hierarchyId === hierarchyId);
+  const { assignment: assignmentForCurrent } = node ? 
+    resolveNodeHierarchyAssignment(node.id, [node], hierarchyId) : 
+    { assignment: undefined };
 
   const [formValues, setFormValues] = useState<NodeEditValues>({
     label: node?.label || '',

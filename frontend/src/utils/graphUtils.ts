@@ -58,7 +58,8 @@ export const transformTraversalData = (data: any): { nodes: NodeData[], edges: E
             levelLabel: a.level.label,
           }))
         : [],
-        // Add other relevant properties from node
+        status: node.status,
+        branch: node.branch,
       });
 
       // Process outgoing edges and recursively process connected nodes

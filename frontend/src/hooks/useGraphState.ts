@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { useHierarchyContext } from '../context/HierarchyContext';
-import { fetchAllNodeIds, fetchTraversalData, deleteNodeCascade, executeMutation } from '../services/ApiService';
-import { transformTraversalData } from '../utils/graphUtils';
+import { fetchAllNodeIds, fetchTraversalData, deleteNodeCascade, executeMutation, executeQuery } from '../services/ApiService';
+import { transformTraversalData, transformAllGraphData } from '../utils/graphUtils';
+import { GET_ALL_NODES_AND_EDGES_QUERY } from '../graphql/queries';
 import { NodeData, EdgeData } from '../types/graph';
 import { log } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
@@ -69,30 +70,16 @@ export const useGraphState = (): UseGraphState => {
     setIsLoading(true);
     setError(null);
     try {
-      const ids = await fetchAllNodeIds();
-      const allNodes: NodeData[] = [];
-      const allEdges: EdgeData[] = [];
-      for (const id of ids) {
-        const rawData = await fetchTraversalData(id, hierarchyId); // hierarchyId is a string
-        const { nodes: nNodes, edges: nEdges } = transformTraversalData(rawData);
-        nNodes.forEach(n => {
-          if (!allNodes.some(existing => existing.id === n.id)) {
-            allNodes.push(n);
-          }
-        });
-        nEdges.forEach(e => {
-          if (!allEdges.some(existing => existing.source === e.source && existing.target === e.target && existing.type === e.type)) {
-            allEdges.push(e);
-          }
-        });
-      }
+      // Use the proper query to get all nodes with complete hierarchy assignments
+      const rawData = await executeQuery(GET_ALL_NODES_AND_EDGES_QUERY);
+      const { nodes: allNodes, edges: allEdges } = transformAllGraphData(rawData);
       setNodes(allNodes);
       setEdges(allEdges);
       setHiddenNodeIds(new Set());
       expandedNodeIds.current.clear();
     } catch (err) {
       log('useGraphState', 'Error loading complete graph', err);
-      setError('Failed to load initial graph data.');
+      setError('Failed to load complete graph data.');
     } finally {
       setIsLoading(false);
     }
