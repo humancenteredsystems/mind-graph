@@ -5,8 +5,6 @@ import App from './App.tsx'
 import { UIProvider } from './context/UIContext';
 import { ContextMenuProvider } from './context/ContextMenuContext';
 import ContextMenu from './components/ContextMenu';
-import NodeFormModal from './components/NodeFormModal';
-import NodeDrawer from './components/NodeDrawer';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -14,16 +12,6 @@ createRoot(document.getElementById('root')!).render(
       <ContextMenuProvider>
         <App />
         <ContextMenu />
-        <NodeFormModal
-          open={false}
-          onSubmit={() => {}}
-          onCancel={() => {}}
-        />
-        <NodeDrawer
-          open={false}
-          onSave={() => {}}
-          onClose={() => {}}
-        />
       </ContextMenuProvider>
     </UIProvider>
   </StrictMode>,
