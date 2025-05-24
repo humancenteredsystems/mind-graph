@@ -1,15 +1,7 @@
 const express = require('express');
-const { executeGraphQL } = require('./dgraphClient');
+const { executeGraphQL } = require('../dgraphClient');
+const { authenticateAdmin } = require('../middleware/auth');
 const router = express.Router();
-
-// Admin authentication middleware
-const authenticateAdmin = (req, res, next) => {
-  const apiKey = req.headers['x-admin-api-key'];
-  if (apiKey !== process.env.ADMIN_API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-};
 
 // --- Hierarchy CRUD ---
 

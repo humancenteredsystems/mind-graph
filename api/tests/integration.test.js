@@ -1,10 +1,10 @@
 const request = require('supertest');
-const app = require('./server');
+const app = require('../server');
 
-jest.mock('./dgraphClient', () => ({
+jest.mock('../dgraphClient', () => ({
   executeGraphQL: jest.fn(),
 }));
-const { executeGraphQL } = require('./dgraphClient');
+const { executeGraphQL } = require('../dgraphClient');
 
 describe('Integration /api/mutate', () => {
   beforeEach(() => {

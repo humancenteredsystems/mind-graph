@@ -1,6 +1,14 @@
 require('dotenv').config(); // Load environment variables from .env file
-const schemaRegistry = require('./schemaRegistry'); // Schema registry module
+const schemaRegistry = require('./services/schemaRegistry'); // Schema registry module
 const { pushSchemaViaHttp } = require('./utils/pushSchema'); // Import the new helper
+const { 
+  InvalidLevelError, 
+  NodeTypeNotAllowedError, 
+  validateHierarchyId, 
+  validateLevelIdAndAllowedType, 
+  getLevelIdForNode 
+} = require('./services/validation');
+const { authenticateAdmin } = require('./middleware/auth');
 
 // --- Global Error Handlers ---
 process.on('uncaughtException', (err, origin) => {
@@ -20,155 +28,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const express = require('express');
 const { executeGraphQL } = require('./dgraphClient'); // Import the client
-
-// Custom Error for Invalid Level operations
-class InvalidLevelError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "InvalidLevelError";
-  }
-}
-
-// Helper function to validate a hierarchy ID
-async function validateHierarchyId(hierarchyId) {
-  if (!hierarchyId || typeof hierarchyId !== 'string') {
-    return false; // Basic type check
-  }
-  const query = `query GetHierarchy($id: String!) { getHierarchy(id: $id) { id } }`;
-  try {
-    const result = await executeGraphQL(query, { id: hierarchyId });
-    return !!(result.getHierarchy && result.getHierarchy.id);
-  } catch (error) {
-    console.error(`Error validating hierarchy ID ${hierarchyId}:`, error);
-    return false; // Treat errors during validation as invalid
-  }
-}
-
-// Custom Error for Node Type Not Allowed at Level
-class NodeTypeNotAllowedError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "NodeTypeNotAllowedError";
-  }
-}
-
-// Helper function to validate a level ID and check allowed node type
-async function validateLevelIdAndAllowedType(levelId, nodeType, hierarchyId) {
-  if (!levelId || typeof levelId !== 'string') {
-    throw new InvalidLevelError(`A valid levelId string must be provided.`);
-  }
-  if (!nodeType || typeof nodeType !== 'string') {
-    // This should ideally be caught by GraphQL schema validation for node input
-    throw new Error(`A valid nodeType string must be provided for validation.`);
-  }
-
-  const query = `
-    query GetLevelDetails($levelId: ID!) {
-      getHierarchyLevel(id: $levelId) {
-        id
-        levelNumber
-        hierarchy { id } # For context, ensure it belongs to the expected hierarchy
-        allowedTypes {
-          typeName
-        }
-      }
-    }
-  `;
-  try {
-    const result = await executeGraphQL(query, { levelId });
-    const levelDetails = result.getHierarchyLevel;
-
-    if (!levelDetails || !levelDetails.id) {
-      throw new InvalidLevelError(`Level with ID '${levelId}' not found.`);
-    }
-
-    // Optional: Check if the found level belongs to the correct hierarchy (if hierarchyId is passed and relevant)
-    // For now, we assume levelId is globally unique and its existence is primary.
-    // if (hierarchyId && levelDetails.hierarchy.id !== hierarchyId) {
-    //   throw new InvalidLevelError(`Level '${levelId}' does not belong to hierarchy '${hierarchyId}'.`);
-    // }
-
-    if (levelDetails.allowedTypes && levelDetails.allowedTypes.length > 0) {
-      const isTypeAllowed = levelDetails.allowedTypes.some(at => at.typeName === nodeType);
-      if (!isTypeAllowed) {
-        const allowedTypeNames = levelDetails.allowedTypes.map(at => at.typeName).join(', ');
-        throw new NodeTypeNotAllowedError(`Node type '${nodeType}' is not allowed at level ${levelDetails.levelNumber} (ID: ${levelId}). Allowed types: ${allowedTypeNames}.`);
-      }
-    }
-    // If allowedTypes is null or empty, all types are permitted at this level.
-    return levelDetails; // Return details if needed, or just true
-  } catch (error) {
-    console.error(`Error validating level ID '${levelId}' for type '${nodeType}':`, error.message);
-    if (error instanceof InvalidLevelError || error instanceof NodeTypeNotAllowedError) {
-      throw error; // Re-throw custom errors
-    }
-    // For unexpected GraphQL errors during validation
-    throw new Error(`Server error during validation of level ID '${levelId}'.`);
-  }
-}
-
-
-// Helper to determine levelId for a new node within a hierarchy
-async function getLevelIdForNode(parentId, hierarchyId) {
-  let targetLevelNumber = 1; // Default if no parent or no matching assignment
-
-  if (parentId) {
-    const parentQuery = `
-      query ParentLevel($nodeId: String!) {
-        queryNode(filter: { id: { eq: $nodeId } }) {
-          hierarchyAssignments {
-            hierarchy { id }
-            level { levelNumber }
-          }
-        }
-      }
-    `;
-    const parentResp = await executeGraphQL(parentQuery, { nodeId: parentId });
-    const allAssignments = parentResp.queryNode[0]?.hierarchyAssignments;
-    let relevantAssignment = null;
-
-    if (allAssignments && allAssignments.length > 0) {
-      relevantAssignment = allAssignments.find(asn => asn.hierarchy.id === hierarchyId);
-    }
-
-    if (relevantAssignment) {
-      targetLevelNumber = relevantAssignment.level.levelNumber + 1;
-    } else {
-      // Parent node exists but is not in the target hierarchy, or has no assignments.
-      // Defaulting the new node to level 1 of the target hierarchy.
-      targetLevelNumber = 1; // Explicitly set, though it's the default
-      console.warn(`Parent node ${parentId} found, but has no assignment for hierarchy ${hierarchyId}. New node will be at level 1 of this hierarchy.`);
-    }
-  }
-  // Fetch all levels for the hierarchy and pick by levelNumber
-  const levelsQuery = `
-    query LevelsForHierarchy($h: String!) {
-      queryHierarchy(filter: { id: { eq: $h } }) {
-        levels {
-          id
-          levelNumber
-        }
-      }
-    }
-  `;
-  const levelsResp = await executeGraphQL(levelsQuery, { h: hierarchyId });
-  const levelsData = levelsResp.queryHierarchy[0];
-  if (!levelsData || !levelsData.levels) {
-    // This case implies the hierarchyId itself might be invalid or has no levels defined.
-    // validateHierarchyId should have caught an invalid hierarchyId earlier.
-    // If hierarchy is valid but has no levels, it's a data setup issue.
-    console.error(`[getLevelIdForNode] Hierarchy ${hierarchyId} has no levels defined or queryHierarchy returned unexpected structure.`);
-    throw new InvalidLevelError(`Hierarchy ${hierarchyId} does not contain any levels.`);
-  }
-  const levels = levelsData.levels;
-  const level = levels.find(l => l.levelNumber === targetLevelNumber);
-  if (!level) {
-    // Use the custom error type
-    throw new InvalidLevelError(`Calculated target level ${targetLevelNumber} not found for hierarchy ${hierarchyId}. Available levels: ${levels.map(l => l.levelNumber).join(', ')}.`);
-  }
-  return level.id;
-}
-
 const { v4: uuidv4 } = require('uuid'); // Import UUID generator
 const axios = require('axios'); // Import axios for /api/schema
 const { sendDgraphAdminRequest } = require('./utils/dgraphAdmin');
@@ -212,16 +71,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware to authenticate admin requests
-const authenticateAdmin = (req, res, next) => {
-  const apiKey = req.headers['x-admin-api-key'];
-  if (apiKey !== process.env.ADMIN_API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-};
-
-
 // Helper function to drop all data from the configured Dgraph instance
 async function dropAllData(target) { // Keep target parameter for potential future validation/logging
   const payload = { "drop_all": true };
@@ -233,6 +82,15 @@ async function dropAllData(target) { // Keep target parameter for potential futu
   return result; // Return the single result object
 }
 
+// Helper function to push schema to the configured Dgraph instance
+async function pushSchemaToConfiguredDgraph(schema) {
+  const url = DGRAPH_ADMIN_SCHEMA_URL; // Use the derived URL
+  const result = await pushSchemaViaHttp(url, schema);
+
+  // Add verification step if needed
+
+  return result;
+}
 
 app.get('/', (req, res) => {
   res.send('MakeItMakeSense.io API is running!');
@@ -273,8 +131,8 @@ app.post('/api/query', async (req, res) => {
       : 'Server error executing query.';
     const statusCode = error.message.includes('GraphQL query failed:') ? 400 : 500;
     res.status(statusCode).json({ error: errorMessage });
-  } // End catch block
-}); // End app.post('/api/query')
+  }
+});
 
 // Endpoint to execute arbitrary GraphQL mutations
 app.post('/api/mutate', async (req, res) => {
@@ -382,8 +240,8 @@ app.post('/api/mutate', async (req, res) => {
       const statusCode = error.message.includes('GraphQL query failed:') ? 400 : 500;
       res.status(statusCode).json({ error: errorMessage });
     }
-  } // End catch block
-}); // End app.post('/api/mutate')
+  }
+});
 
 app.post('/api/traverse', async (req, res) => {
   const { rootId } = req.body;
@@ -436,22 +294,15 @@ app.get('/api/search', async (req, res) => {
       return res.status(400).json({ error: `Invalid search field: ${field}. Allowed fields: ${allowedFields.join(', ')}` });
   }
 
-  // Construct query using allofterms (adjust if different search logic needed)
-  // Note: Dgraph GraphQL search syntax might require specific function names
-  // This assumes a function like 'allofterms' is available via custom query or schema extension
-  // A more reliable way might be to use queryNode with filter functions if available
-  // Let's try a filter approach assuming standard filters work with @search
   const query = `
     query SearchNodes($term: String!) {
-      queryNode(filter: { label: { allofterms: $term } }) { # Adjust field and function based on schema/Dgraph version
+      queryNode(filter: { label: { allofterms: $term } }) {
         id
         label
         type
       }
     }
   `;
-  // If searching other fields, the filter structure might change:
-  // e.g., queryNode(filter: { type: { eq: $term } }) { ... }
 
   const variables = { term };
 
@@ -489,16 +340,6 @@ app.get('/api/schema', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch schema from Dgraph.' });
     }
 });
-
-// Helper function to push schema to the configured Dgraph instance
-async function pushSchemaToConfiguredDgraph(schema) {
-  const url = DGRAPH_ADMIN_SCHEMA_URL; // Use the derived URL
-  const result = await pushSchemaViaHttp(url, schema);
-
-  // Add verification step if needed
-
-  return result;
-}
 
 // Schema Management Endpoints
 // -------------------------------------------------------------------
@@ -584,13 +425,9 @@ app.put('/api/schemas/:id', authenticateAdmin, async (req, res) => {
 });
 
 // POST /api/schemas/:id/push - Push a specific schema to Dgraph
-// This endpoint will now push to the Dgraph instance configured by the API's DGRAPH_BASE_URL.
-// The 'target' query parameter is now redundant for the API's action, but we can keep it
-// for potential future validation or logging if needed.
 app.post('/api/schemas/:id/push', authenticateAdmin, async (req, res) => {
   try {
     const schemaId = req.params.id;
-    // const target = req.query.target || 'local'; // Target parameter is now less relevant for API action
 
     // Get schema content
     const schemaContent = await schemaRegistry.getSchemaContent(schemaId);
@@ -599,30 +436,22 @@ app.post('/api/schemas/:id/push', authenticateAdmin, async (req, res) => {
     const result = await pushSchemaToConfiguredDgraph(schemaContent);
 
     if (result.success) {
-      // If pushing the production schema, update other schemas to not be production
-      // This logic might need adjustment depending on how production schema is managed
-      // with a single DGRAPH_BASE_URL. Assuming the API instance is tied to a specific
-      // Dgraph instance (local or remote), the concept of "production" might apply
-      // to the schema pushed to the remote instance.
-      // Let's keep this logic for now, assuming it's intended for the schema registry state.
       const schema = await schemaRegistry.getSchemaById(schemaId);
       if (schema.is_production) {
-        // This update is to the schema registry, not Dgraph itself.
-        // It marks this schema as the currently active production schema in the registry.
         await schemaRegistry.updateSchema(schemaId, { is_production: true });
       }
 
       res.json({
         success: true,
         message: `Schema ${schemaId} successfully pushed to configured Dgraph instance`,
-        results: result // Return the single result object
+        results: result
       });
     } else {
       console.error('[SCHEMA PUSH] Push failed:', result.error);
       res.status(500).json({
         success: false,
         message: `Schema ${schemaId} push encountered errors`,
-        results: result // Return the single result object
+        results: result
       });
     }
   } catch (error) {
@@ -635,29 +464,22 @@ app.post('/api/schemas/:id/push', authenticateAdmin, async (req, res) => {
 });
 
 // Endpoint to push schema directly or from registry
-// This endpoint will also push to the Dgraph instance configured by the API's DGRAPH_BASE_URL.
-// The 'target' parameter in the request body is now redundant for the API's action.
 app.post('/api/admin/schema', authenticateAdmin, async (req, res) => {
   try {
-    // Get schema from request body, or schema ID if provided
-    const { schema, schemaId /*, target = 'local'*/ } = req.body; // Target parameter is now less relevant
+    const { schema, schemaId } = req.body;
 
     // Determine which schema to use
     let schemaContent;
 
     if (schemaId) {
-      // If schemaId is provided, use schema from registry
       console.log(`[SCHEMA PUSH] Using schema ${schemaId} from registry`);
       schemaContent = await schemaRegistry.getSchemaContent(schemaId);
     } else if (schema) {
-      // If schema content is provided directly, use it
       schemaContent = schema;
     } else {
       return res.status(400).json({ error: 'Missing required field: schema or schemaId' });
     }
 
-    // The API instance is configured for a single Dgraph target via DGRAPH_BASE_URL.
-    // We will push the schema to *that* configured instance.
     console.log('[SCHEMA PUSH] Pushing schema to configured Dgraph instance');
     const result = await pushSchemaToConfiguredDgraph(schemaContent);
 
@@ -665,12 +487,10 @@ app.post('/api/admin/schema', authenticateAdmin, async (req, res) => {
       return res.json({ success: true, results: result });
     } else {
       console.error('[SCHEMA PUSH] Push failed:', result.error);
-      // Return 500 status code if the push failed
       return res.status(500).json({ success: false, message: 'Schema push encountered errors', results: result });
     }
   } catch (err) {
     console.error('[SCHEMA PUSH] Error:', err);
-    // Return 500 status code for unexpected errors
     return res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -685,22 +505,20 @@ app.post('/api/admin/dropAll', authenticateAdmin, async (req, res) => {
 
   try {
     console.log(`[DROP ALL] Received request to drop data for target: ${target}`);
-    const result = await dropAllData(target); // dropAllData now returns a single result object
+    const result = await dropAllData(target);
 
-    // The API endpoint should now return the single result from dropAllData
     if (result.success) {
       res.json({
         success: true,
         message: `Drop all data operation completed successfully for configured Dgraph instance`,
-        data: result.data // Include the data from the Dgraph response
+        data: result.data
       });
     } else {
-      // Return 500 status code if the drop failed
       res.status(500).json({
         success: false,
         message: `Drop all data operation encountered errors`,
-        error: result.error, // Include the error message from the result
-        details: result.details // Include any details from the result
+        error: result.error,
+        details: result.details
       });
     }
   } catch (error) {
@@ -713,7 +531,6 @@ app.post('/api/admin/dropAll', authenticateAdmin, async (req, res) => {
 app.get('/api/health', async (req, res) => {
   const healthQuery = `query { queryNode { id } }`; // Minimal query
   try {
-    // Use executeGraphQL which is configured with DGRAPH_GRAPHQL_URL
     await executeGraphQL(healthQuery);
     res.json({ apiStatus: "OK", dgraphStatus: "OK" });
   } catch (error) {
@@ -725,10 +542,9 @@ app.get('/api/health', async (req, res) => {
 // Diagnostic endpoint for Dgraph connectivity
 const dns = require('dns').promises;
 app.get('/api/debug/dgraph', async (req, res) => {
-  // Use the derived URLs for testing connectivity
   const graphqlUrl = DGRAPH_GRAPHQL_URL;
   const adminSchemaUrl = DGRAPH_ADMIN_SCHEMA_URL;
-  const baseUrl = DGRAPH_BASE_URL; // Use the base URL for DNS lookup
+  const baseUrl = DGRAPH_BASE_URL;
 
   let host = baseUrl.replace(/^https?:\/\//, '').split(':')[0];
 
@@ -738,7 +554,6 @@ app.get('/api/debug/dgraph', async (req, res) => {
     const lookupMs = Date.now() - dnsStart;
 
     console.log(`[DEBUG] Attempting POST request to Dgraph admin schema endpoint: ${adminSchemaUrl}`);
-    // Test HTTP admin API reachability using POST with empty schema
     const adminRes = await axios.post(
       adminSchemaUrl,
       "# Empty schema for testing connectivity",
@@ -747,9 +562,7 @@ app.get('/api/debug/dgraph', async (req, res) => {
     console.log('[DEBUG] POST request to Dgraph admin schema endpoint successful.');
     console.log('[DEBUG] Dgraph admin response data:', adminRes.data);
 
-
     console.log(`[DEBUG] Attempting POST request to Dgraph GraphQL endpoint: ${graphqlUrl}`);
-    // Test GraphQL introspection
     const gqlRes = await axios.post(
       graphqlUrl,
       { query: '{ __schema { queryType { name } } }', variables: null },
@@ -776,7 +589,6 @@ app.get('/api/debug/dgraph', async (req, res) => {
   }
 });
 
-
 // Cascade delete endpoint for nodes and their related edges
 app.post('/api/deleteNodeCascade', async (req, res) => {
   const { nodeId } = req.body;
@@ -788,7 +600,6 @@ app.post('/api/deleteNodeCascade', async (req, res) => {
   try {
     console.log(`[DELETE NODE CASCADE] Attempting to delete node and connected edges for node: ${nodeId}`);
 
-    // Mutation to delete incoming and outgoing edges, then the node using scalar IDs
     const deleteMutation = `
       mutation DeleteNodeAndEdges($nodeId: String!) {
         deleteIncomingEdges: deleteEdge(filter: { toId: { eq: $nodeId } }) {
@@ -815,7 +626,6 @@ app.post('/api/deleteNodeCascade', async (req, res) => {
     const deletedOutgoingEdgesCount = result?.deleteOutgoingEdges?.numUids || 0;
     const totalDeletedEdges = deletedIncomingEdgesCount + deletedOutgoingEdgesCount;
 
-
     if (deletedNodesCount > 0) {
        console.log(`[DELETE NODE CASCADE] Successfully deleted node: ${nodeId}, ${totalDeletedEdges} associated edges.`);
        res.json({
@@ -826,7 +636,6 @@ app.post('/api/deleteNodeCascade', async (req, res) => {
        });
     } else {
        console.warn(`[DELETE NODE CASCADE] Node ${nodeId} not found or not deleted.`);
-       // Even if the node wasn't found, edges might have been deleted if they pointed to it.
        res.status(404).json({
          error: `Node ${nodeId} not found or not deleted.`,
          deletedEdgesCount: totalDeletedEdges
@@ -842,14 +651,13 @@ app.post('/api/deleteNodeCascade', async (req, res) => {
   }
 });
 
-// Export the app instance for testing purposes
-const hierarchyRoutes = require('./hierarchyRoutes');
+// Mount hierarchy routes
+const hierarchyRoutes = require('./routes/hierarchy');
 app.use('/api', hierarchyRoutes);
 
 module.exports = app;
 
-// Start the server only if this file is run directly (e.g. node server.js or via nodemon)
-// Use !module.parent which is more reliable than require.main === module in some scenarios
+// Start the server only if this file is run directly
 if (!module.parent) {
   app.listen(PORT, () => {
     console.log(`API server listening on port ${PORT}`);
