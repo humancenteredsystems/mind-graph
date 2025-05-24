@@ -11,16 +11,13 @@ axios.interceptors.request.use(config => {
   }
   return config;
 }, error => Promise.reject(error));
-import { NodeData } from '../types/graph';
+
+import { NodeData, ApiMutationResponse, TraversalQueryResponse, RawNodeResponse } from '../types/graph';
 import { GET_ALL_NODE_IDS_QUERY } from '../graphql/queries';
 
 // Base URL for API endpoint loaded from Vite environment or fallback
 const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
 export const API_BASE_URL = envUrl && envUrl.length > 0 ? envUrl.replace(/\/$/, '') : '/api';
-
-interface TraversalResponse {
-  queryNode: NodeData[];
-}
 
 interface QueryResponse {
   queryNode?: NodeData[];
@@ -32,13 +29,6 @@ interface RawEdgeResponse {
   to?: { id: string };
   toId?: string;
   type?: string;
-}
-
-interface MutateResponse {
-  addNode?: { node: any[] };
-  addEdge?: { edge: RawEdgeResponse[] };
-  updateNode?: { node: any[] };
-  deleteNode?: { node: any[] };
 }
 
 interface HealthStatus {
@@ -53,13 +43,13 @@ interface HealthStatus {
 export const fetchTraversalData = async (
   rootId: string,
   hierarchyId: string  // Changed from number to string
-): Promise<TraversalResponse> => {
+): Promise<TraversalQueryResponse> => {
   if (!rootId || !hierarchyId) { // Check for falsy hierarchyId (empty string or undefined)
     console.warn('[ApiService] fetchTraversalData skipped: missing rootId or hierarchyId');
     return { queryNode: [] };
   }
   try {
-    const response = await axios.post<{ data: TraversalResponse }>(
+    const response = await axios.post<{ data: TraversalQueryResponse }>(
       `${API_BASE_URL}/traverse`,
       { rootId, hierarchyId }  // hierarchyId is now a string
     );
@@ -76,7 +66,7 @@ export const fetchTraversalData = async (
  */
 export const executeQuery = async (
   query: string,
-  variables?: Record<string, any>
+  variables?: Record<string, unknown>
 ): Promise<QueryResponse> => {
   try {
     const response = await axios.post<QueryResponse>(`${API_BASE_URL}/query`, {
@@ -95,9 +85,9 @@ export const executeQuery = async (
  */
 export const executeMutation = async (
   mutation: string,
-  variables?: Record<string, any>,
+  variables?: Record<string, unknown>,
   headers?: Record<string, string>
-): Promise<MutateResponse> => {
+): Promise<ApiMutationResponse> => {
   try {
     // Log the mutation and variables for debugging
     console.log('[ApiService] Executing mutation:', mutation);
@@ -122,7 +112,7 @@ export const executeMutation = async (
       }
     }
     
-    const response = await axios.post<MutateResponse>(
+    const response = await axios.post<ApiMutationResponse>(
       `${API_BASE_URL}/mutate`,
       { mutation, variables },
       config
@@ -130,9 +120,10 @@ export const executeMutation = async (
     
     console.log('[ApiService] Mutation response:', response.data);
     return response.data;
-  } catch (error: any) {
-    if (error.response && error.response.data) {
-      console.error('[ApiService] Mutation error response data:', error.response.data);
+  } catch (error: unknown) {
+    const axiosError = error as { response?: { data?: unknown } };
+    if (axiosError.response && axiosError.response.data) {
+      console.error('[ApiService] Mutation error response data:', axiosError.response.data);
     }
     console.error('[ApiService] Error executing mutation:', error);
     
@@ -193,9 +184,10 @@ export async function deleteNodeCascade(
       headers: { 'Content-Type': 'application/json' }
     });
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const axiosError = error as { response?: { data?: { error?: string } } };
     console.error('[ApiService] Error deleting node cascade:', error);
-    throw new Error(error?.response?.data?.error || 'Failed to delete node.');
+    throw new Error(axiosError?.response?.data?.error || 'Failed to delete node.');
   }
 }
 

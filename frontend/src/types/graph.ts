@@ -46,3 +46,54 @@ export interface HierarchyAssignmentData {
   levelId: string; // ID of the HierarchyLevel
   // Potentially other fields
 }
+
+// API Response Types
+export interface RawNodeResponse {
+  id: string;
+  label?: string;
+  type?: string;
+  status?: string;
+  branch?: string;
+  hierarchyAssignments?: {
+    hierarchy: {
+      id: string;
+      name: string;
+    };
+    level: {
+      id: string;
+      levelNumber: number;
+      label?: string;
+    };
+  }[];
+  outgoing?: {
+    id: string;
+    type?: string;
+    target: RawNodeResponse;
+  }[];
+}
+
+export interface RawEdgeResponse {
+  id: string;
+  source?: string;
+  target?: string;
+  from?: { id: string };
+  fromId?: string;
+  to?: { id: string };
+  toId?: string;
+  type?: string;
+}
+
+export interface ApiMutationResponse {
+  addNode?: { node: RawNodeResponse[] };
+  addEdge?: { edge: RawEdgeResponse[] };
+  updateNode?: { node: RawNodeResponse[] };
+  deleteNode?: { node: RawNodeResponse[] };
+}
+
+export interface TraversalQueryResponse {
+  queryNode: RawNodeResponse[];
+}
+
+export interface AllGraphQueryResponse {
+  queryNode: RawNodeResponse[];
+}

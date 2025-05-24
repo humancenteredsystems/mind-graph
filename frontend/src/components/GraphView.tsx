@@ -71,13 +71,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     const visible = nodes.filter(n => !hiddenNodeIds.has(n.id));
     const levelCounters: Record<number, number> = {};
     
-    // Debug: Log the current hierarchyId from context
-    console.log(`[GraphView] Current hierarchyId from context: ${hierarchyId}`);
-    
     const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => {
-      // Debug: Log assignments for this node
-      console.log(`[GraphView] Node ${id} assignments:`, assignments);
-      
       // Find all matching assignments for this hierarchy
       let matchingAssignments: any[] = [];
       
@@ -102,13 +96,6 @@ const GraphView: React.FC<GraphViewProps> = ({
       // Sort by level number (descending) and take the highest level
       matchingAssignments.sort((a, b) => b.levelNumber - a.levelNumber);
       const assignmentForCurrent = matchingAssignments.length > 0 ? matchingAssignments[0] : undefined;
-      
-      // Debug: Log if assignment was found
-      if (!assignmentForCurrent) {
-        console.log(`[GraphView] No assignment found for node ${id} in hierarchy ${hierarchyId}`);
-      } else {
-        console.log(`[GraphView] Found assignment for node ${id}: level=${assignmentForCurrent.levelNumber} (highest of ${matchingAssignments.length} assignments)`);
-      }
       
       const levelNum = assignmentForCurrent?.levelNumber ?? 1;
       const idx = levelCounters[levelNum] ?? 0;
@@ -231,12 +218,10 @@ const GraphView: React.FC<GraphViewProps> = ({
       if (shortTermTapTimeoutRef.current) {
         clearTimeout(shortTermTapTimeoutRef.current);
         shortTermTapTimeoutRef.current = null;
-        // log('GraphView', '[handleTap] Cleared short-term timeout (duplicate tap event likely)'); // Removed log
         // We might still need to check if this completes a double-click
       }
       
       if (!nodeId) {
-        // log('GraphView', '[handleTap] Tap detected on background or unknown target.'); // Removed log
         lastConfirmedClickRef.current = { nodeId: null, time: 0 }; // Reset on background tap
         potentialClickRef.current = { nodeId: null, time: 0 };
         return;
@@ -248,7 +233,6 @@ const GraphView: React.FC<GraphViewProps> = ({
 
       if (nodeId === lastConfirmedNodeId && timeDiffFromConfirmed < DOUBLE_CLICK_DELAY) {
         // --- Double-click detected ---
-        // log('GraphView', `[handleTap] Double-click detected on node: ${nodeId} (Time diff: ${timeDiffFromConfirmed}ms)`); // Removed log
         
         // Reset state immediately
         lastConfirmedClickRef.current = { nodeId: null, time: 0 }; 
@@ -266,8 +250,6 @@ const GraphView: React.FC<GraphViewProps> = ({
           } else {
             log('GraphView', `[handleTap] Warning: Node data not found for ID: ${nodeId}`);
           }
-        } else {
-          // log('GraphView', '[handleTap] Double-click detected but no onEditNode handler provided.'); // Removed log
         }
         
         // Prevent default behavior for the second tap
@@ -278,13 +260,11 @@ const GraphView: React.FC<GraphViewProps> = ({
          // --- Potential Single Click ---
          // Store this tap temporarily
          potentialClickRef.current = { nodeId, time: now };
-         // log('GraphView', `[handleTap] Potential single click on node: ${nodeId}. Setting short-term timeout.`); // Removed log
 
          // Set a short timeout. If no other tap event clears this timeout within ~50ms, 
          // then confirm this as the first click of a potential double-click sequence.
          shortTermTapTimeoutRef.current = setTimeout(() => {
              const confirmedNodeId = potentialClickRef.current.nodeId;
-             // log('GraphView', `[handleTap] Short-term timeout completed. Confirming single click for node: ${confirmedNodeId}`); // Removed log
              lastConfirmedClickRef.current = { ...potentialClickRef.current };
              shortTermTapTimeoutRef.current = null;
               
@@ -292,7 +272,6 @@ const GraphView: React.FC<GraphViewProps> = ({
               if (onNodeSelect && confirmedNodeId) {
                   const nodeData = nodes.find(n => n.id === confirmedNodeId);
                   if (nodeData) {
-                      // log('GraphView', `[handleTap] Calling onNodeSelect for node: ${confirmedNodeId}`); // Removed log
                       onNodeSelect(nodeData);
                   } else {
                       log('GraphView', `[handleTap] Warning: Node data not found for ID: ${confirmedNodeId} after confirming single click.`);
@@ -350,7 +329,6 @@ const GraphView: React.FC<GraphViewProps> = ({
           loadInitialGraph: onLoadCompleteGraph 
         });
       } else if (tgt.isEdge && tgt.isEdge()) {
-        console.log('GraphView cxttap on edge:', tgt.id());
         const sel = selectedEdgesOrderRef.current;
         const type = sel.length > 1 ? 'multi-edge' : 'edge';
         openMenu(type, pos, {

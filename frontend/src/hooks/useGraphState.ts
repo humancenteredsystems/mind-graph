@@ -3,7 +3,7 @@ import { useHierarchyContext } from '../context/HierarchyContext';
 import { fetchAllNodeIds, fetchTraversalData, deleteNodeCascade, executeMutation, executeQuery } from '../services/ApiService';
 import { transformTraversalData, transformAllGraphData } from '../utils/graphUtils';
 import { GET_ALL_NODES_AND_EDGES_QUERY } from '../graphql/queries';
-import { NodeData, EdgeData } from '../types/graph';
+import { NodeData, EdgeData, RawNodeResponse } from '../types/graph';
 import { log } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -116,7 +116,18 @@ export const useGraphState = (): UseGraphState => {
 
   const addNode = useCallback(async (values: { label: string; type: string; hierarchyId: string; levelId: string }, parentId?: string) => {
     const newId = uuidv4();
-    let inputObj: any = {
+    interface NodeInput {
+      id: string;
+      label: string;
+      type: string;
+      hierarchyAssignments: {
+        hierarchy: { id: string };
+        level: { id: string };
+      }[];
+      parentId?: string;
+    }
+    
+    const inputObj: NodeInput = {
       id: newId,
       label: values.label,
       type: values.type,
@@ -133,7 +144,7 @@ export const useGraphState = (): UseGraphState => {
     const variables = { input: [inputObj] };
     try {
       const result = await executeMutation(ADD_NODE_WITH_HIERARCHY, variables);
-      const added: any = result.addNode?.node?.[0];
+      const added: RawNodeResponse | undefined = result.addNode?.node?.[0];
         if (added) {
           setNodes(prev => [
             ...prev,
@@ -141,13 +152,13 @@ export const useGraphState = (): UseGraphState => {
               id: added.id,
               label: added.label,
               type: added.type,
-              assignments: added.hierarchyAssignments.map((a: any) => ({
+              assignments: added.hierarchyAssignments?.map(a => ({
                 hierarchyId: a.hierarchy.id,
                 hierarchyName: a.hierarchy.name,
                 levelId: a.level.id,
                 levelNumber: a.level.levelNumber,
                 levelLabel: a.level.label
-              })),
+              })) ?? [],
               status: added.status,
               branch: added.branch
             }
@@ -187,13 +198,13 @@ export const useGraphState = (): UseGraphState => {
     };
     try {
       const res = await executeMutation(UPDATE_NODE_MUTATION, variables);
-      const updated: any = res.updateNode?.node?.[0];
+      const updated: RawNodeResponse | undefined = res.updateNode?.node?.[0];
       if (updated) {
         setNodes(prev => prev.map(n => n.id === updated.id ? {
           id: updated.id,
           label: updated.label,
           type: updated.type,
-          assignments: (updated as any).hierarchyAssignments?.map((a: any) => ({
+          assignments: updated.hierarchyAssignments?.map(a => ({
             hierarchyId: a.hierarchy.id,
             hierarchyName: a.hierarchy.name,
             levelId: a.level.id,
@@ -270,8 +281,8 @@ export const useGraphState = (): UseGraphState => {
       const edge = edgeRes.addEdge?.edge?.[0];
       if (edge) {
         const newEdge: EdgeData = {
-          source: edge.from?.id!,
-          target: edge.to?.id!,
+          source: edge.fromId || fromId,
+          target: edge.toId || toId,
           type: edge.type
         };
         setEdges(prev => [...prev, newEdge]);

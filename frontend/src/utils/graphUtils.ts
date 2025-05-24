@@ -1,4 +1,4 @@
-import { NodeData, EdgeData } from '../types/graph'; // Import from centralized types
+import { NodeData, EdgeData, TraversalQueryResponse, RawNodeResponse } from '../types/graph'; // Import from centralized types
 
 // Interface representing the expected structure from the GET_ALL_NODES_AND_EDGES_QUERY
 interface AllGraphDataResponse {
@@ -29,13 +29,13 @@ interface AllGraphDataResponse {
  * @param data - The raw data object returned by the API (e.g., from fetchTraversalData).
  * @returns An object containing arrays of nodes and edges formatted for Cytoscape.
  */
-export const transformTraversalData = (data: any): { nodes: NodeData[], edges: EdgeData[] } => {
+export const transformTraversalData = (data: TraversalQueryResponse): { nodes: NodeData[], edges: EdgeData[] } => {
   const nodes: NodeData[] = [];
   const edges: EdgeData[] = [];
   const visited = new Set<string>(); // Keep track of visited nodes to avoid duplicates
 
   // Recursive function to process nodes and edges
-  function processNodes(nodeArray: any[]) {
+  function processNodes(nodeArray: RawNodeResponse[]) {
     if (!Array.isArray(nodeArray)) return;
 
     nodeArray.forEach(node => {
@@ -50,7 +50,7 @@ export const transformTraversalData = (data: any): { nodes: NodeData[], edges: E
         label: node.label || node.id, // Use label or ID
         type: node.type,
         assignments: Array.isArray(node.hierarchyAssignments)
-        ? (node.hierarchyAssignments as any[]).map(a => ({
+        ? node.hierarchyAssignments.map(a => ({
             hierarchyId: a.hierarchy.id,
             hierarchyName: a.hierarchy.name,
             levelId: a.level.id,
@@ -64,10 +64,10 @@ export const transformTraversalData = (data: any): { nodes: NodeData[], edges: E
 
       // Process outgoing edges and recursively process connected nodes
       if (Array.isArray(node.outgoing)) {
-        node.outgoing.forEach((edge: any) => {
+        node.outgoing.forEach(edge => {
           // Ensure the edge and target node exist and have IDs
-          if (edge && edge.to && edge.to.id) {
-            const targetNode = edge.to;
+          if (edge && edge.target && edge.target.id) {
+            const targetNode = edge.target;
             // Add edge
             edges.push({
               source: node.id,
@@ -89,12 +89,12 @@ export const transformTraversalData = (data: any): { nodes: NodeData[], edges: E
 
   // Start processing from the root nodes returned by the query
   // Support both nested and un-nested queryNode structures
-  const rootNodes = data?.data?.queryNode ?? data?.queryNode;
+  const rootNodes = data?.queryNode;
   if (Array.isArray(rootNodes)) {
     processNodes(rootNodes);
   } else {
     console.warn(
-      "transformTraversalData: Expected 'data.data.queryNode' or 'data.queryNode' not found in the input:",
+      "transformTraversalData: Expected 'data.queryNode' not found in the input:",
       data
     );
   }
@@ -129,7 +129,7 @@ export const transformAllGraphData = (data: AllGraphDataResponse): { nodes: Node
       label: node.label || node.id, // Fallback label
       type: node.type,
       assignments: Array.isArray(node.hierarchyAssignments)
-        ? (node.hierarchyAssignments as any[]).map(a => ({
+        ? node.hierarchyAssignments.map(a => ({
             hierarchyId: a.hierarchy.id,
             hierarchyName: a.hierarchy.name,
             levelId: a.level.id,
