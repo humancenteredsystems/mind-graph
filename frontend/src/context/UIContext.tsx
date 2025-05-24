@@ -1,5 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useRef, useEffect } from 'react';
-import { log } from '../utils/logger';
+import React, { createContext, useContext, useState, ReactNode, useRef } from 'react';
 import { NodeData } from '../types/graph';
 
 interface UIContextValue {
@@ -24,7 +23,6 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editNodeData, setEditNodeData] = useState<NodeData | undefined>(undefined);
   const lastOpenTimeRef = useRef<number>(0);
-  const drawerOpenRequestCount = useRef<number>(0);
 
   const openAddModal = (parentId?: string) => {
     setAddParentId(parentId);
@@ -37,42 +35,27 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   // Add debounce to drawer opening to prevent rapid successive openings
   const openEditDrawer = (node: NodeData) => {
-    // const requestId = ++drawerOpenRequestCount.current; // Removed log
-    // log('UIContext', `Drawer open request #${requestId} for node ${node.id}`); // Removed log
-    
     const now = Date.now();
     const timeSinceLastOpen = now - lastOpenTimeRef.current;
     
     // Prevent reopening too quickly (500ms debounce)
     if (timeSinceLastOpen < 500) {
-      // log('UIContext', `Prevented rapid drawer re-open (${timeSinceLastOpen}ms since last open)`); // Removed log
       return;
     }
     
-    // log('UIContext', `Opening drawer for node ${node.id}`); // Removed log
     lastOpenTimeRef.current = now;
     setEditNodeData(node);
     setEditDrawerOpen(true);
   };
   const closeEditDrawer = () => {
-    // log('UIContext', `Closing drawer`); // Removed log
     setEditDrawerOpen(false);
     setEditNodeData(undefined);
   };
 
   // Function to just update the node data without changing open state
   const setEditNode = (node: NodeData) => {
-    // log('UIContext', `Updating drawer node data to: ${node.id}`); // Removed log
     setEditNodeData(node);
   };
-  
-  // Remove logging effect for drawer state changes
-  // useEffect(() => {
-  //   log('UIContext', `Drawer state changed to: ${editDrawerOpen ? 'open' : 'closed'}`);
-  //   if (editDrawerOpen && editNodeData) {
-  //     log('UIContext', `Drawer opened for node: ${editNodeData.id}`);
-  //   }
-  // }, [editDrawerOpen, editNodeData]);
 
   return (
     <UIContext.Provider

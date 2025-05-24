@@ -14,6 +14,7 @@ axios.interceptors.request.use(config => {
 
 import { NodeData, ApiMutationResponse, TraversalQueryResponse, RawNodeResponse } from '../types/graph';
 import { GET_ALL_NODE_IDS_QUERY } from '../graphql/queries';
+import { log } from '../utils/logger';
 
 // Base URL for API endpoint loaded from Vite environment or fallback
 const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
@@ -45,7 +46,7 @@ export const fetchTraversalData = async (
   hierarchyId: string  // Changed from number to string
 ): Promise<TraversalQueryResponse> => {
   if (!rootId || !hierarchyId) { // Check for falsy hierarchyId (empty string or undefined)
-    console.warn('[ApiService] fetchTraversalData skipped: missing rootId or hierarchyId');
+    log('ApiService', 'fetchTraversalData skipped: missing rootId or hierarchyId');
     return { queryNode: [] };
   }
   try {
@@ -55,7 +56,7 @@ export const fetchTraversalData = async (
     );
     return response.data.data;
   } catch (error) {
-    console.error('[ApiService] Error fetching traversal data:', error);
+    log('ApiService', 'Error fetching traversal data:', error);
     throw error;
   }
 };
@@ -75,7 +76,7 @@ export const executeQuery = async (
     });
     return response.data;
   } catch (error) {
-    console.error('[ApiService] Error executing query:', error);
+    log('ApiService', 'Error executing query:', error);
     throw error;
   }
 };
@@ -90,20 +91,20 @@ export const executeMutation = async (
 ): Promise<ApiMutationResponse> => {
   try {
     // Log the mutation and variables for debugging
-    console.log('[ApiService] Executing mutation:', mutation);
-    console.log('[ApiService] Mutation variables:', JSON.stringify(variables, null, 2));
+    log('ApiService', 'Executing mutation:', mutation);
+    log('ApiService', 'Mutation variables:', JSON.stringify(variables, null, 2));
     
     // Use let instead of const for config so we can modify it
     let config = headers ? { headers } : undefined;
     if (config) {
-      console.log('[ApiService] Using custom headers:', config.headers);
+      log('ApiService', 'Using custom headers:', config.headers);
     }
     
     // Ensure hierarchyId header is set from localStorage if not provided
     if (!headers?.['X-Hierarchy-Id']) {
       const hierarchyId = localStorage.getItem('hierarchyId');
       if (hierarchyId) {
-        console.log('[ApiService] Adding X-Hierarchy-Id header from localStorage:', hierarchyId);
+        log('ApiService', 'Adding X-Hierarchy-Id header from localStorage:', hierarchyId);
         if (!config) {
           config = { headers: { 'X-Hierarchy-Id': hierarchyId } };
         } else {
@@ -118,18 +119,18 @@ export const executeMutation = async (
       config
     );
     
-    console.log('[ApiService] Mutation response:', response.data);
+    log('ApiService', 'Mutation response:', response.data);
     return response.data;
   } catch (error: unknown) {
     const axiosError = error as { response?: { data?: unknown } };
     if (axiosError.response && axiosError.response.data) {
-      console.error('[ApiService] Mutation error response data:', axiosError.response.data);
+      log('ApiService', 'Mutation error response data:', axiosError.response.data);
     }
-    console.error('[ApiService] Error executing mutation:', error);
+    log('ApiService', 'Error executing mutation:', error);
     
     // Log additional details about the request that failed
-    console.error('[ApiService] Failed mutation:', mutation);
-    console.error('[ApiService] Failed variables:', JSON.stringify(variables, null, 2));
+    log('ApiService', 'Failed mutation:', mutation);
+    log('ApiService', 'Failed variables:', JSON.stringify(variables, null, 2));
     
     throw error;
   }
@@ -145,7 +146,7 @@ export const fetchSchema = async (): Promise<string> => {
     });
     return response.data;
   } catch (error) {
-    console.error('[ApiService] Error fetching schema:', error);
+    log('ApiService', 'Error fetching schema:', error);
     throw error;
   }
 };
@@ -158,7 +159,7 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
     const response = await axios.get<HealthStatus>(`${API_BASE_URL}/health`);
     return response.data;
   } catch (error) {
-    console.error('[ApiService] Error fetching health status:', error);
+    log('ApiService', 'Error fetching health status:', error);
     throw error;
   }
 };
@@ -168,7 +169,7 @@ export const fetchHierarchies = async (): Promise<{ id: string; name: string }[]
     const response = await axios.get<{ id: string; name: string }[]>(`${API_BASE_URL}/hierarchy`);
     return response.data;
   } catch (error) {
-    console.error('[ApiService] Error fetching hierarchies:', error);
+    log('ApiService', 'Error fetching hierarchies:', error);
     throw error;
   }
 };
@@ -186,7 +187,7 @@ export async function deleteNodeCascade(
     return response.data;
   } catch (error: unknown) {
     const axiosError = error as { response?: { data?: { error?: string } } };
-    console.error('[ApiService] Error deleting node cascade:', error);
+    log('ApiService', 'Error deleting node cascade:', error);
     throw new Error(axiosError?.response?.data?.error || 'Failed to delete node.');
   }
 }
@@ -199,7 +200,7 @@ export const fetchAllNodeIds = async (): Promise<string[]> => {
     const result = await executeQuery(GET_ALL_NODE_IDS_QUERY);
     return result.queryNode?.map(node => node.id) ?? [];
   } catch (error) {
-    console.error('[ApiService] Error fetching all node IDs:', error);
+    log('ApiService', 'Error fetching all node IDs:', error);
     throw error;
   }
 };
