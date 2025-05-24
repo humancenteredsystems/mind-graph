@@ -204,7 +204,7 @@ app.use((req, res, next) => {
   res.set('Access-Control-Allow-Origin', allowedOrigin);
   // Allow common methods and headers needed for GraphQL/API requests
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Hierarchy-Id');
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
