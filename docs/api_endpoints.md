@@ -4,6 +4,8 @@ This document describes each backend API endpoint, including paths, methods, req
 
 **Note on Admin Operations:** Endpoints marked as requiring admin authentication operate on the Dgraph instance configured by the API service's `DGRAPH_BASE_URL` environment variable. Parameters like `target` in some admin requests are validated by the API but do not change which Dgraph instance the API interacts with; they are primarily for the calling script's reference or future use.
 
+**Note on Architecture:** As of the recent refactoring, the API has been restructured into a modular architecture with separate route files for different functional domains (GraphQL operations, admin functions, schema management, diagnostics, and hierarchy management), improving maintainability while preserving full backward compatibility.
+
 ---
 
 ## General Endpoints
