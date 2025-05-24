@@ -200,6 +200,24 @@ type HierarchyAssignment {
 5. Frontend renders the graph via react-cytoscapejs. Nodes can be visually organized or styled based on their hierarchy level.
 6. User can switch hierarchies via the UI, which updates the `hierarchyId` in `HierarchyContext` and triggers a re-load/re-filter of the graph data according to the new hierarchy.
 
+## 🚀 Example Workflow (Current Implementation - Node Creation with Hierarchy)
+
+1. **User Initiates Creation:** User right-clicks on graph background and selects "Add Node" from context menu.
+2. **Modal Opens:** `NodeFormModal` component opens with form fields for label, type, hierarchy, and level.
+3. **Hierarchy Context:** Modal loads current hierarchy from `HierarchyContext` and displays available levels.
+4. **Type Filtering:** When user selects a level, available node types are filtered based on that level's `allowedTypes` restrictions.
+5. **Form Validation:** Modal validates that label is provided and selected type is allowed at the chosen level.
+6. **Submission:** User submits form, triggering `useGraphState.addNode` with `hierarchyAssignments` structure.
+7. **API Request:** Frontend sends `POST /api/mutate` with:
+   - `hierarchyAssignments` array containing nested `hierarchy.id` and `level.id`
+   - `X-Hierarchy-Id` header for server context
+8. **Server Processing:** Backend processes the client-provided `hierarchyAssignments` structure:
+   - Validates hierarchy and level IDs exist
+   - Validates node type is allowed at the specified level
+   - Preserves client's hierarchy assignment structure
+9. **Database Storage:** Server sends validated mutation to Dgraph with proper `hierarchyAssignments`.
+10. **Response & Update:** New node is created with correct hierarchy assignment, frontend updates graph state.
+
 ## 🚀 Example Workflow (Future Goal - Branching/Merging)
 
 1. User visits map → loads public graph from API.

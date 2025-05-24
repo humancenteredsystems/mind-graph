@@ -1,4 +1,4 @@
-import React, { FC, useState, useEffect } from 'react';
+import React, { FC, useState, useEffect, useMemo } from 'react';
 import { NodeData } from '../types/graph';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { useGraphState } from '../hooks/useGraphState';
@@ -35,23 +35,47 @@ const NodeFormModal: FC<NodeFormModalProps> = ({
   } = useHierarchyContext();
   const { nodes } = useGraphState();
 
-  // Compute parent and child level context
-  const parentAssign = parentId
-    ? nodes.find(n => n.id === parentId)?.assignments?.find(a => a.hierarchyId === hierarchyId)
-    : undefined;
-  const parentLevelNum = parentAssign?.levelNumber ?? 0;
-  const childLevelNum = parentLevelNum > 0 ? parentLevelNum + 1 : undefined;
-  const childLevel = childLevelNum
-    ? levels.find(l => l.levelNumber === childLevelNum)
-    : undefined;
-  const maxLevelNum = levels.reduce((max, l) => Math.max(max, l.levelNumber), 0);
-
   // Form state
   const [label, setLabel] = useState('');
   const [type, setType] = useState('');
   const [selectedLevelId, setSelectedLevelId] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(false);
+
+  // Memoize calculated values to prevent unnecessary re-renders
+  const parentAssign = useMemo(() => {
+    return parentId
+      ? nodes.find(n => n.id === parentId)?.assignments?.find(a => a.hierarchyId === hierarchyId)
+      : undefined;
+  }, [parentId, nodes, hierarchyId]);
+
+  const parentLevelNum = useMemo(() => {
+    return parentAssign?.levelNumber ?? 0;
+  }, [parentAssign]);
+
+  const childLevelNum = useMemo(() => {
+    return parentLevelNum > 0 ? parentLevelNum + 1 : undefined;
+  }, [parentLevelNum]);
+
+  const childLevel = useMemo(() => {
+    return childLevelNum ? levels.find(l => l.levelNumber === childLevelNum) : undefined;
+  }, [childLevelNum, levels]);
+
+  const maxLevelNum = useMemo(() => {
+    return levels.reduce((max, l) => Math.max(max, l.levelNumber), 0);
+  }, [levels]);
+
+  // Memoize available types calculation
+  const availableTypes = useMemo(() => {
+    const effectiveLevel = childLevel ? childLevel.levelNumber : levels.find(l => l.id === selectedLevelId)?.levelNumber;
+    if (effectiveLevel === undefined) return allNodeTypes;
+    
+    const typeKey = `${hierarchyId}l${effectiveLevel}`;
+    // If allowedTypesMap has an entry for this level (even empty), use its values (empty ⇒ no restriction)
+    return typeKey in allowedTypesMap
+      ? (allowedTypesMap[typeKey].length > 0 ? allowedTypesMap[typeKey] : allNodeTypes)
+      : allNodeTypes;
+  }, [childLevel, levels, selectedLevelId, hierarchyId, allowedTypesMap, allNodeTypes]);
 
   // Initialize form values
   useEffect(() => {
@@ -86,15 +110,18 @@ const NodeFormModal: FC<NodeFormModalProps> = ({
     setIsValid(valid);
   }, [open, label, parentId, parentLevelNum, maxLevelNum]);
 
-  if (!open) return null;
+  // Sync type with available types when they change
+  useEffect(() => {
+    if (!open || availableTypes.length === 0) return;
+    
+    // If current type is not in available types, select the first available
+    if (!availableTypes.includes(type)) {
+      setType(availableTypes[0]);
+    }
+  }, [open, availableTypes, type]);
 
-  // Determine types for dropdown
-  const effectiveLevel = childLevel ? childLevel.levelNumber : levels.find(l => l.id === selectedLevelId)?.levelNumber;
-  const typeKey = `${hierarchyId}l${effectiveLevel}`;
-  // If allowedTypesMap has an entry for this level (even empty), use its values (empty ⇒ no restriction)
-  const availableTypes = typeKey in allowedTypesMap
-    ? (allowedTypesMap[typeKey].length > 0 ? allowedTypesMap[typeKey] : allNodeTypes)
-    : allNodeTypes;
+  // Early return AFTER all hooks
+  if (!open) return null;
 
   const handleSubmit = () => {
     const levelId = parentId && childLevel ? childLevel.id : selectedLevelId;

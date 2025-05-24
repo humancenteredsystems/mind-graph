@@ -36,3 +36,33 @@ Update the logic within the `for...of` loop in the `/api/mutate` endpoint handle
     *   Verify that the log `[MUTATE] Node ... will be created without an initial hierarchy assignment...` is *not* present.
     *   Verify that the "Sending to Dgraph" log *includes* the `hierarchyAssignments` array with the correct hierarchy and level IDs.
 4.  Open the Node Drawer for the newly created node and verify that the correct Hierarchy and Level are displayed. (Note: This verification also depends on the fix for Issue #1 being implemented).
+
+## Implementation Status
+
+**✅ COMPLETED** - Implemented on 2025-05-23
+
+### Changes Made
+
+1. **Server-side Implementation (api/server.js)**:
+   - Added Case 1 processing for client-provided `hierarchyAssignments` array
+   - Modified `/api/mutate` endpoint to check for nested hierarchy structure before top-level properties
+   - Implemented proper validation and error handling for client-provided hierarchy data
+   - Ensured client's `hierarchyAssignments` structure is preserved in Dgraph mutation
+
+2. **Frontend Fix (frontend/src/components/NodeFormModal.tsx)**:
+   - Fixed Rules of Hooks violation by moving useEffect before early return
+   - Added `useMemo` to prevent infinite loops in `availableTypes` calculation
+   - Implemented automatic type synchronization when level selection changes
+   - Memoized all calculated values for stable dependencies
+
+### Verification Results
+
+- ✅ Server correctly processes `hierarchyAssignments` from frontend
+- ✅ Server logs show: "Processing client-provided hierarchyAssignments: hierarchyId=h1, levelId=0x1e1"
+- ✅ Type validation works correctly (enforces allowed types per level)
+- ✅ Frontend type dropdown synchronizes with level selection
+- ✅ End-to-end node creation workflow functions properly
+
+### Additional Notes
+
+The implementation revealed that a frontend bug was also preventing proper functionality. The NodeFormModal was not synchronizing the selected type with available types when the level changed, causing form submission to send stale type values. This was fixed as part of the complete solution.
