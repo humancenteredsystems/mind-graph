@@ -1,43 +1,228 @@
-# Plan B: Collapse Node (Level-Aware)
+# Plan B: Collapse Node (Hierarchy-Aware)
 
-**Goal:** Allow the user to collapse an expanded node via a context menu, hiding its descendants based on level.
+**Goal:** Allow the user to collapse an expanded node via the existing context menu, hiding its descendants within the currently active hierarchy.
 
 **Prerequisites:**
-*   Frontend `NodeData` interface includes `level`.
-*   Frontend state accurately reflects the `level` of displayed nodes.
-*   A mechanism exists (e.g., in node data or separate state) to track which nodes are currently considered "expanded".
+*   Multi-hierarchy system is already implemented with `HierarchyContext`
+*   Node expansion system from Plan A is implemented (`useNodeExpansion` hook)
+*   Frontend has existing context menu infrastructure (`ContextMenu.tsx`, `ContextMenuContext.tsx`)
+*   Graph state management via `useGraphState.ts` hook
 
 **User Interaction:**
-1.  User right-clicks on a node that has previously been expanded.
-2.  A context menu appears.
-3.  User selects the "Collapse" (or "Roll up") option from the menu.
+1.  User right-clicks on a node that has previously been expanded in the current hierarchy.
+2.  The existing context menu appears with current options.
+3.  User selects the "Collapse" option from the menu.
 
-**Frontend Implementation (`GraphView.tsx`, `App.tsx`, `graphUtils.ts`):**
-1.  **Event Handling & Context Menu (`GraphView.tsx`):**
-    *   Use the same `cy.on('cxttap', 'node', handler)` as Plan A.
-    *   Inside the handler:
-        *   Get the node ID.
-        *   Determine if the node is currently considered "expanded" (using the tracking mechanism).
-        *   Display the context menu. Conditionally show the "Collapse" option only if the node is expanded.
-        *   The "Collapse" menu item's click handler calls `handleNodeCollapse(nodeId)`.
-2.  **State Management & Logic (`App.tsx` / `graphUtils.ts`):**
-    *   Implement `handleNodeCollapse(nodeId)`:
-        *   Find the selected node's data in the current state to get its `level` (let's say `collapseLevel`).
-        *   Implement a graph traversal function (e.g., in `graphUtils.ts`) that operates on the current `nodes` and `edges` state arrays. This function should start from `nodeId` and find all reachable descendant nodes.
-        *   Filter the identified descendants: Keep only those nodes where `node.level > collapseLevel`. Let this set be `nodesToRemove`.
-        *   Identify all edges connected *only* between nodes in `nodesToRemove`, or between `nodeId` and a node in `nodesToRemove`. Let this set be `edgesToRemove`.
-        *   Create new `nodes` and `edges` arrays by filtering out `nodesToRemove` and `edgesToRemove` from the current state.
-        *   Update the state with these filtered arrays.
-        *   Update the tracking mechanism to mark `nodeId` as collapsed.
-3.  **Rendering (`GraphView.tsx`):**
-    *   The component re-renders due to the state change.
-    *   The `useEffect` hook updates the Cytoscape instance, removing the collapsed elements.
-    *   The layout should ideally re-run.
+**Frontend Implementation:**
 
-**API Interaction:**
-*   None required. This is purely a frontend state manipulation.
+### 1. **Extend Context Menu (`ContextMenu.tsx`, `ContextMenuContext.tsx`)**
+*   Add "Collapse" option to existing context menu items
+*   Show "Collapse" only for nodes that are currently expanded in the active hierarchy
+*   Use existing context menu state management patterns
+
+### 2. **Enhance Node Expansion Hook (`useNodeExpansion.ts`)**
+```typescript
+const useNodeExpansion = () => {
+  const [expansionStates, setExpansionStates] = useState<NodeExpansionState[]>([]);
+  const { activeHierarchyId } = useHierarchy();
+  const { nodes, edges, removeNodes, removeEdges } = useGraphState();
+  
+  const collapseNode = (nodeId: string) => {
+    const expansionState = expansionStates.find(state => 
+      state.nodeId === nodeId && 
+      state.hierarchyId === activeHierarchyId
+    );
+    
+    if (!expansionState?.isExpanded) return;
+    
+    // Find all descendant nodes that were expanded from this node
+    const descendantsToRemove = findDescendantsInHierarchy(
+      nodeId, 
+      activeHierarchyId, 
+      nodes, 
+      edges,
+      expansionState.expandedChildren
+    );
+    
+    // Remove descendant nodes and their edges
+    removeNodes(descendantsToRemove.map(n => n.id));
+    removeEdges(findEdgesToRemove(descendantsToRemove, edges));
+    
+    // Update expansion state
+    setNodeCollapsed(nodeId, activeHierarchyId);
+  };
+  
+  return { isNodeExpanded, expandNode, collapseNode };
+};
+```
+
+### 3. **Hierarchy-Aware Descendant Discovery**
+```typescript
+const findDescendantsInHierarchy = (
+  rootNodeId: string,
+  hierarchyId: string,
+  nodes: NodeData[],
+  edges: EdgeData[],
+  expandedChildren: string[]
+): NodeData[] => {
+  const descendants: NodeData[] = [];
+  const visited = new Set<string>();
+  
+  const traverse = (nodeId: string) => {
+    if (visited.has(nodeId)) return;
+    visited.add(nodeId);
+    
+    // Find direct children of this node
+    const childEdges = edges.filter(edge => edge.source === nodeId);
+    
+    for (const edge of childEdges) {
+      const childNode = nodes.find(n => n.id === edge.target);
+      if (!childNode) continue;
+      
+      // Check if this child belongs to the active hierarchy
+      const belongsToHierarchy = childNode.hierarchyAssignments?.some(
+        assignment => assignment.hierarchy.id === hierarchyId
+      );
+      
+      if (belongsToHierarchy && expandedChildren.includes(childNode.id)) {
+        descendants.push(childNode);
+        traverse(childNode.id); // Recursively find grandchildren
+      }
+    }
+  };
+  
+  traverse(rootNodeId);
+  return descendants;
+};
+```
+
+### 4. **Edge Cleanup Logic**
+```typescript
+const findEdgesToRemove = (nodesToRemove: NodeData[], allEdges: EdgeData[]): string[] => {
+  const nodeIdsToRemove = new Set(nodesToRemove.map(n => n.id));
+  
+  return allEdges
+    .filter(edge => 
+      nodeIdsToRemove.has(edge.source) || 
+      nodeIdsToRemove.has(edge.target)
+    )
+    .map(edge => edge.id);
+};
+```
+
+### 5. **Enhanced Graph State Management (`useGraphState.ts`)**
+*   Add `removeNodes` and `removeEdges` methods if not already present
+*   Ensure proper cleanup of Cytoscape elements
+*   Handle state consistency during collapse operations
+
+**API Integration:**
+*   No additional API calls required for collapse operation
+*   Uses existing graph state and hierarchy context
+*   Leverages in-memory tracking of expansion states
+
+**Key Implementation Details:**
+
+### Context Menu Integration:
+```typescript
+// In ContextMenu.tsx
+const menuItems = [
+  // ... existing items
+  {
+    label: 'Expand',
+    action: () => expandNode(selectedNodeId),
+    show: !isNodeExpanded(selectedNodeId) && hasExpandableChildren(selectedNodeId)
+  },
+  {
+    label: 'Collapse',
+    action: () => collapseNode(selectedNodeId),
+    show: isNodeExpanded(selectedNodeId)
+  }
+];
+```
+
+### Hierarchy-Aware Collapse:
+```typescript
+const collapseNode = (nodeId: string) => {
+  const { activeHierarchyId } = useHierarchy();
+  
+  // Check if node is expanded in current hierarchy
+  if (!isNodeExpanded(nodeId)) return;
+  
+  try {
+    // Find all descendants that were added during expansion
+    const descendantsToRemove = findDescendantsInHierarchy(
+      nodeId,
+      activeHierarchyId,
+      nodes,
+      edges,
+      getExpandedChildren(nodeId, activeHierarchyId)
+    );
+    
+    // Remove nodes and edges from graph state
+    const { removeNodes, removeEdges } = useGraphState();
+    removeNodes(descendantsToRemove.map(n => n.id));
+    
+    // Find and remove associated edges
+    const edgesToRemove = findEdgesToRemove(descendantsToRemove, edges);
+    removeEdges(edgesToRemove);
+    
+    // Update expansion state
+    setNodeCollapsed(nodeId, activeHierarchyId);
+    
+    // Trigger layout recalculation
+    triggerLayoutUpdate();
+    
+  } catch (error) {
+    console.error('Failed to collapse node:', error);
+  }
+};
+```
+
+**Integration with Existing Systems:**
+*   **HierarchyContext**: Use active hierarchy for collapse context
+*   **ContextMenu**: Extend existing menu with collapse options
+*   **useGraphState**: Integrate with existing graph state management
+*   **useNodeExpansion**: Share expansion state between expand and collapse
+*   **GraphView**: Leverage existing Cytoscape integration for element removal
+
+**Visual Feedback:**
+*   Update node visual indicators when collapsed
+*   Smooth animations for node/edge removal
+*   Maintain visual consistency with existing graph styling
+*   Show expandable indicator on collapsed nodes
 
 **Key Considerations:**
-*   The frontend graph traversal logic needs to be implemented carefully to correctly identify descendants *currently shown* in the UI state.
-*   Requires robust state tracking to know which nodes are currently "expanded" to enable the "Collapse" option correctly.
-*   Need a way to visually indicate that a node is collapsed but *can* be expanded again (perhaps using the same visual indicator as Plan A).
+*   **Hierarchy Isolation**: Collapsing in one hierarchy shouldn't affect expansion state in other hierarchies
+*   **State Consistency**: Ensure expansion tracking accurately reflects what was actually added during expansion
+*   **Performance**: Efficient traversal algorithms for large hierarchies
+*   **User Experience**: Clear visual feedback and smooth animations
+*   **Edge Cases**: Handle nodes that exist in multiple hierarchies or have complex relationship patterns
+
+**Advanced Features:**
+*   **Partial Collapse**: Option to collapse only certain levels of descendants
+*   **Cascade Collapse**: Automatically collapse child expansions when parent is collapsed
+*   **Expansion Memory**: Remember expansion states when switching between hierarchies
+*   **Bulk Operations**: Collapse multiple nodes simultaneously
+
+**File Changes:**
+1. Enhance existing files:
+   - `frontend/src/hooks/useNodeExpansion.ts` - Add collapse functionality
+   - `frontend/src/components/ContextMenu.tsx` - Add collapse option
+   - `frontend/src/context/ContextMenuContext.tsx` - Add collapse actions
+   - `frontend/src/hooks/useGraphState.ts` - Add removal methods
+   - `frontend/src/utils/hierarchyExpansion.ts` - Add traversal utilities
+   - `frontend/src/components/GraphView.tsx` - Handle visual updates
+
+**Testing Considerations:**
+*   Unit tests for descendant discovery algorithms
+*   Integration tests with hierarchy switching
+*   Edge case testing (circular references, multi-hierarchy nodes)
+*   Performance testing with deeply nested hierarchies
+*   Visual regression testing for collapse animations
+*   Accessibility testing for keyboard-driven collapse operations
+
+**Error Handling:**
+*   Graceful handling of missing nodes/edges during collapse
+*   Recovery from inconsistent expansion states
+*   User feedback for failed collapse operations
+*   Logging for debugging complex hierarchy structures

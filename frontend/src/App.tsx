@@ -17,6 +17,10 @@ function AppInner() {
     error,
     hiddenNodeIds,
     expandNode,
+    expandChildren,
+    expandAll,
+    collapseNode,
+    isNodeExpanded,
     addNode,
     loadCompleteGraph, // Will be called on mount
     editNode,
@@ -77,6 +81,19 @@ return (
           log('App', `Expand node requested for: ${nodeId}`);
           expandNode(nodeId);
         }}
+        onExpandChildren={(nodeId) => {
+          log('App', `Expand children requested for: ${nodeId}`);
+          expandChildren(nodeId);
+        }}
+        onExpandAll={(nodeId) => {
+          log('App', `Expand all requested for: ${nodeId}`);
+          expandAll(nodeId);
+        }}
+        onCollapseNode={(nodeId) => {
+          log('App', `Collapse node requested for: ${nodeId}`);
+          collapseNode(nodeId);
+        }}
+        isNodeExpanded={isNodeExpanded}
         onAddNode={(parentId, position) => {
           log('App', `Add node requested at position: ${JSON.stringify(position)}`);
           openAddModal(parentId);

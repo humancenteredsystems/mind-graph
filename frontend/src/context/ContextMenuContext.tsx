@@ -47,19 +47,42 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({ childre
         ];
         break;
 
-          case 'node': {
-            const node: NodeData = payload.node;
-            menuItems = [
-              { id: 'add-connected', label: 'Add Connected Node', icon: '➕', shortcut: 'A', action: () => ui.openAddModal(node.id) },
-              { id: 'edit-node', label: 'Edit Node', icon: '✏️', shortcut: 'Ctrl+E', action: () => payload.onEditNode?.(node) },
-              { id: 'delete-node', label: 'Delete Node', icon: '🗑️', shortcut: 'Del', action: () => payload.onDeleteNode?.(node.id) },
-              { id: 'hide-node', label: 'Hide Node', icon: '👁️‍🗨️', shortcut: 'H', action: () => payload.onHideNode?.(node.id) },
-              { id: 'expand-children', label: 'Expand Children', icon: '▶️', shortcut: 'E', action: () => payload.onNodeExpand?.(node.id) },
-              { id: 'expand-desc', label: 'Expand Descendents', icon: '▶️▶️', shortcut: 'E,E', action: () => payload.onNodeExpand?.(node.id) },
-              { id: 'collapse-desc', label: 'Collapse Descendents', icon: '◀️◀️', shortcut: 'C', action: () => showComingSoonAlert() },
-            ];
-            break;
-          }
+      case 'node': {
+        const node: NodeData = payload.node;
+        const isExpanded = payload.isNodeExpanded?.(node.id) ?? false;
+        
+        menuItems = [
+          { id: 'add-connected', label: 'Add Connected Node', icon: '➕', shortcut: 'A', action: () => ui.openAddModal(node.id) },
+          { id: 'edit-node', label: 'Edit Node', icon: '✏️', shortcut: 'Ctrl+E', action: () => payload.onEditNode?.(node) },
+          { id: 'delete-node', label: 'Delete Node', icon: '🗑️', shortcut: 'Del', action: () => payload.onDeleteNode?.(node.id) },
+          { id: 'hide-node', label: 'Hide Node', icon: '👁️‍🗨️', shortcut: 'H', action: () => payload.onHideNode?.(node.id) },
+          ...(isExpanded ? [
+            { 
+              id: 'collapse', 
+              label: 'Collapse', 
+              icon: '◀️', 
+              shortcut: 'C', 
+              action: () => payload.onCollapseNode?.(node.id) 
+            }
+          ] : [
+            { 
+              id: 'expand-children', 
+              label: 'Expand Children', 
+              icon: '▶️', 
+              shortcut: 'E', 
+              action: () => payload.onExpandChildren?.(node.id) 
+            },
+            { 
+              id: 'expand-all', 
+              label: 'Expand All', 
+              icon: '▶️▶️', 
+              shortcut: 'Shift+E', 
+              action: () => payload.onExpandAll?.(node.id) 
+            }
+          ])
+        ];
+        break;
+      }
 
       case 'edge': {
         const ids: string[] = payload.edgeIds || [];
@@ -96,8 +119,8 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({ childre
             { id: 'delete-multi', label: 'Delete Nodes', icon: '🗑️', shortcut: 'Del', action: () => payload.onDeleteNodes?.(ids) },
             { id: 'hide-multi', label: 'Hide Nodes', icon: '👁️‍🗨️', shortcut: 'H', action: () => payload.onHideNodes?.(ids) },
             { id: 'expand-multi', label: 'Expand Children (All)', icon: '▶️', shortcut: 'E', action: () => showComingSoonAlert() },
-            { id: 'expand-desc-multi', label: 'Expand Descendents (All)', icon: '▶️▶️', shortcut: 'E,E', action: () => showComingSoonAlert() },
-            { id: 'collapse-desc-multi', label: 'Collapse Descendents (All)', icon: '◀️◀️', shortcut: 'C', action: () => showComingSoonAlert() },
+            { id: 'expand-desc-multi', label: 'Expand All (All)', icon: '▶️▶️', shortcut: 'Shift+E', action: () => showComingSoonAlert() },
+            { id: 'collapse-multi', label: 'Collapse (All)', icon: '◀️', shortcut: 'C', action: () => showComingSoonAlert() },
           ];
         }
         break;

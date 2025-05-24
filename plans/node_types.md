@@ -1,212 +1,271 @@
-# Node Types and Hierarchy Configuration Plan
+# Enhanced Hierarchy Management UI Plan
 
 ## Overview
-This document outlines the implementation plan for adding a settings interface that allows users to configure node types and their hierarchical levels. This will enable custom hierarchies like taxonomic classifications (Kingdom → Phylum → Class...) or capability structures (Capability → Technology → Implementation...).
+This document outlines the implementation plan for enhancing the existing hierarchy management system with improved user interfaces for configuring hierarchies, levels, and allowed node types. The current system already supports multi-hierarchy structures with proper database persistence - this plan focuses on making these capabilities more accessible through better UX.
+
+## Current Architecture (As of 2025)
+The system already implements:
+- **Multi-hierarchy support** via `HierarchyContext` and database entities
+- **Hierarchy entities**: `Hierarchy`, `HierarchyLevel`, `HierarchyLevelType`, `HierarchyAssignment`
+- **Server-side validation** in `services/validation.js` and `services/nodeEnrichment.js`
+- **API endpoints** for hierarchy management (`/api/hierarchy/*`)
+- **Frontend integration** in `NodeFormModal` with type filtering based on hierarchy levels
 
 ## Feature Requirements
-1. **Settings Interface**:
+1. **Enhanced Settings Interface**:
    - Persistent gear icon in the upper left corner of the main UI
-   - Multi-tab settings modal with "Hierarchy" as the first tab
+   - Multi-tab settings modal with "Hierarchy Management" as the primary tab
    
-2. **Hierarchy Configuration**:
-   - List with two columns: "Node Type" and "Level"
-   - Initially display 5 rows for configuration
-   - "+" button to add more rows as needed
-   - Number input field for Level with direct entry and up/down arrows
-   - Save and Cancel buttons
+2. **Hierarchy Management Dashboard**:
+   - List/manage existing hierarchies
+   - Create new hierarchies with custom level structures
+   - Configure allowed node types per hierarchy level
+   - Bulk operations for hierarchy setup
 
-3. **Persistence**:
-   - Store configurations in localStorage for simplicity and to avoid schema changes
-   - Provide clear error handling and recovery mechanisms
+3. **Improved User Experience**:
+   - Visual hierarchy tree representation
+   - Drag-and-drop level reordering
+   - Type assignment with visual feedback
+   - Import/export hierarchy configurations
 
-4. **Node Type Renaming Compatibility**:
-   - Detect when node types are renamed (same level, different name)
-   - Use existing GraphQL mutation APIs to update all affected nodes
-   - Provide feedback on the number of nodes updated during rename operations
-
-5. **Integration**:
-   - Use configured node types in node creation and editing interfaces
-   - Apply level values based on node type selection
-   - Update existing UIs to respect these configurations
+4. **Admin Operations**:
+   - Hierarchy cloning/templating
+   - Bulk node type updates across hierarchies
+   - Migration tools for hierarchy restructuring
 
 ## Implementation Phases
 
-### Phase 1: Settings Storage and Context
-1. **Create Settings Storage Utility**:
-   - Implement functions to save/load settings from localStorage
-   - Add error handling and validation
-   - Provide default values for when settings don't exist
+### Phase 1: Enhanced Settings Infrastructure
+1. **Extend Settings Context**:
+   - Build upon existing `HierarchyContext`
+   - Add admin-focused hierarchy management state
+   - Integrate with existing API endpoints (`/api/hierarchy/*`)
 
-2. **Create Settings Context**:
-   - Create a new React context for app settings
-   - Include state for node types and their levels
-   - Provide default values matching the current hardcoded types
-   - Implement functions for updating settings
+2. **Create Settings Modal Framework**:
+   - Implement gear icon component fixed to upper left corner
+   - Create tabbed settings modal (extensible for future settings)
+   - Add proper admin authentication checks
 
-3. **Type Rename Detection & Migration**:
-   - Create utility to detect renamed types (same level, different name)
-   - Implement a function to update nodes using existing GraphQL mutation API
-   - Add feedback mechanism to inform users of migration results
+### Phase 2: Hierarchy Management Dashboard
+1. **Hierarchy Overview Component**:
+   - List all existing hierarchies with metadata
+   - Quick actions: edit, clone, delete
+   - Create new hierarchy wizard
 
-### Phase 2: UI Components
-1. **Create Settings Icon and Modal**:
-   - Implement a gear icon component fixed to upper left corner
-   - Implement SettingsModal component with tab interface
-   - Create base structure for modal with tabs
+2. **Hierarchy Editor Component**:
+   - Visual level management (add/remove/reorder levels)
+   - Level configuration: number, label, description
+   - Allowed node types configuration per level
+   - Real-time validation and preview
 
-2. **Implement Hierarchy Tab**:
-   - Create a form with dynamic rows for node type configuration
-   - Implement add/remove row functionality
-   - Add validation for duplicate types and valid level values
-   - Include saving indicators and confirmation
+3. **Node Type Management**:
+   - Manage `HierarchyLevelType` entities through UI
+   - Bulk assignment of types to levels
+   - Visual type-to-level mapping interface
 
-3. **Update UI Context**:
-   - Add state and functions for controlling settings modal visibility
-   - Integrate with existing context system
+### Phase 3: Advanced Features
+1. **Hierarchy Templates**:
+   - Pre-built hierarchy templates (Academic, Taxonomic, Business, etc.)
+   - Template import/export functionality
+   - Custom template creation and sharing
 
-### Phase 3: Integration with Existing Components
-1. **Update NodeFormModal**:
-   - Modify to use configured node types from settings context
-   - Update UI to show all available types
+2. **Migration Tools**:
+   - Hierarchy restructuring with node migration
+   - Bulk node type updates using existing API endpoints
+   - Preview changes before applying
 
-2. **Update NodeDrawer**:
-   - Update to use configured node types
-   - Add logic to automatically set level based on selected type
-   - Maintain ability to manually override level if needed
+3. **Visual Enhancements**:
+   - Hierarchy tree visualization
+   - Drag-and-drop level reordering
+   - Color coding for different node types
 
-3. **Level Calculation Logic**:
-   - Update `addNode` function in `useGraphState.ts` to determine level based on node type from settings
-   - Maintain fallback to parent-based calculation when needed
-   - Add error handling for missing settings
+### Phase 4: Integration and Polish
+1. **Enhanced Node Creation Flow**:
+   - Improve existing `NodeFormModal` with better hierarchy selection
+   - Add hierarchy-aware type suggestions
+   - Quick hierarchy switching in node creation
 
-### Phase 4: Testing and Refinement
-1. **Unit Tests**:
-   - Test settings persistence in localStorage
-   - Test type rename detection and migration logic
-   - Test component rendering with different configurations
-   - Test integration with node creation/editing
-
-2. **Edge Cases**:
-   - Handle scenario when settings are cleared/corrupted
-   - Test migration from hardcoded to configured types
-   - Ensure proper behavior when localStorage is unavailable
-
-3. **UI/UX Review**:
-   - Ensure modal appears correctly on different screen sizes
-   - Verify settings are applied immediately after saving
-   - Check for any visual inconsistencies
+2. **Bulk Operations**:
+   - Multi-select node operations
+   - Batch hierarchy assignment changes
+   - Import nodes with hierarchy assignments
 
 ## Component Structure
 
 ```
 App
-└── SettingsProvider (new)
-    ├── SettingsIcon (new)
-    ├── SettingsModal (new)
-    │   └── HierarchyTab (new)
-    │       └── NodeTypeRow (new)
-    └── [existing components]
+├── HierarchyContext (existing - enhanced)
+├── SettingsIcon (new)
+├── SettingsModal (new)
+│   ├── HierarchyManagementTab (new)
+│   │   ├── HierarchyOverview (new)
+│   │   ├── HierarchyEditor (new)
+│   │   └── NodeTypeManager (new)
+│   └── [future settings tabs]
+└── [existing components - enhanced]
 ```
 
-## Data Structures
+## Data Structures (Leveraging Existing Schema)
 
 ```typescript
-// Node type configuration interface
-interface NodeTypeConfig {
-  type: string;    // The name/label of the type (e.g., "concept", "Kingdom", "Capability")
-  level: number;   // The hierarchical level (e.g., 1, 2, 3)
+// Existing entities (already implemented)
+interface Hierarchy {
+  id: string;
+  name: string;
+  levels: HierarchyLevel[];
 }
 
-// Settings context state
-interface SettingsState {
-  nodeTypes: NodeTypeConfig[];
-  // Other settings can be added here later
+interface HierarchyLevel {
+  id: string;
+  hierarchy: Hierarchy;
+  levelNumber: number;
+  label: string;
+  allowedTypes: HierarchyLevelType[];
+}
+
+interface HierarchyLevelType {
+  id: string;
+  level: HierarchyLevel;
+  typeName: string;
+}
+
+// New UI-specific interfaces
+interface HierarchyTemplate {
+  name: string;
+  description: string;
+  levels: {
+    levelNumber: number;
+    label: string;
+    allowedTypes: string[];
+  }[];
+}
+
+interface HierarchyManagementState {
+  hierarchies: Hierarchy[];
+  selectedHierarchy: Hierarchy | null;
+  templates: HierarchyTemplate[];
+  isEditing: boolean;
 }
 ```
+
+## API Integration (Using Existing Endpoints)
+
+The implementation will use existing API endpoints:
+- `GET /api/hierarchy` - List hierarchies
+- `POST /api/hierarchy` - Create hierarchy
+- `PUT /api/hierarchy/:id` - Update hierarchy
+- `DELETE /api/hierarchy/:id` - Delete hierarchy
+- `POST /api/hierarchy/level` - Create level
+- `PUT /api/hierarchy/level/:id` - Update level
+- `DELETE /api/hierarchy/level/:id` - Delete level
+- `POST /api/mutate` - Create `HierarchyLevelType` entities
 
 ## File Changes
 
 1. Create new files:
-   - `frontend/src/context/SettingsContext.tsx`
    - `frontend/src/components/settings/SettingsIcon.tsx`
    - `frontend/src/components/settings/SettingsModal.tsx`
-   - `frontend/src/components/settings/HierarchyTab.tsx`
-   - `frontend/src/hooks/useSettings.ts`
-   - `frontend/src/utils/settingsStorage.ts`
+   - `frontend/src/components/settings/HierarchyManagementTab.tsx`
+   - `frontend/src/components/settings/HierarchyOverview.tsx`
+   - `frontend/src/components/settings/HierarchyEditor.tsx`
+   - `frontend/src/components/settings/NodeTypeManager.tsx`
+   - `frontend/src/hooks/useHierarchyManagement.ts`
+   - `frontend/src/utils/hierarchyTemplates.ts`
 
-2. Modify existing files:
-   - `frontend/src/App.tsx` - Add SettingsProvider and SettingsIcon
-   - `frontend/src/components/NodeFormModal.tsx` - Use dynamic node types
-   - `frontend/src/components/NodeDrawer.tsx` - Use dynamic node types
-   - `frontend/src/hooks/useGraphState.ts` - Update level calculation logic
+2. Enhance existing files:
+   - `frontend/src/App.tsx` - Add SettingsIcon
+   - `frontend/src/context/HierarchyContext.tsx` - Add management functions
+   - `frontend/src/components/NodeFormModal.tsx` - Enhance hierarchy selection UX
    - `frontend/src/context/UIContext.tsx` - Add settings modal control
 
 ## Technical Considerations
 
 1. **Performance**:
-   - Settings should be cached to avoid repeated localStorage reads
-   - Modal should be lazy-loaded to avoid impact on initial page load
-   - Use optimistic updates for better UX when saving settings
+   - Cache hierarchy data in `HierarchyContext`
+   - Lazy-load settings modal components
+   - Optimize API calls with proper caching
 
-2. **Compatibility**:
-   - Ensure backwards compatibility with existing nodes
-   - Handle case where a type is removed but nodes of that type exist
-   - Provide clear migration path for renamed types
+2. **Data Consistency**:
+   - Use existing server-side validation
+   - Implement optimistic updates with rollback
+   - Real-time validation of hierarchy configurations
 
-3. **Resilience**:
-   - Implement graceful error handling for localStorage operations
-   - Add recovery mechanisms for corrupted settings data
-   - Provide clear user feedback during settings operations
+3. **User Experience**:
+   - Progressive disclosure of advanced features
+   - Clear visual feedback for all operations
+   - Undo/redo functionality for hierarchy changes
 
-4. **Extensibility**:
-   - Design the settings system to easily add more tabs/configurations in the future
-   - Structure code to support future persistence mechanisms without major rewrites
-   - Keep settings data model flexible for future expansion
+4. **Security**:
+   - Leverage existing admin authentication (`X-Admin-API-Key`)
+   - Proper authorization checks for hierarchy management
+   - Audit logging for hierarchy changes
 
-5. **Accessibility**:
-   - Ensure modal is keyboard navigable
-   - Provide appropriate ARIA labels for all form elements
-   - Include focus management for modal interactions
+5. **Extensibility**:
+   - Design settings framework for future expansion
+   - Modular hierarchy management components
+   - Plugin architecture for custom hierarchy types
 
-## Type Rename Implementation
+## Migration Strategy
 
-For handling type renames, we'll use the existing GraphQL mutation API:
+Since the core hierarchy system already exists:
+
+1. **Phase 1**: Add UI layer on top of existing APIs
+2. **Phase 2**: Enhance existing components with new management features
+3. **Phase 3**: Add advanced features while maintaining backward compatibility
+4. **Phase 4**: Optimize and polish based on user feedback
+
+## Node Type Updates (Using Existing System)
+
+For bulk node type updates, leverage existing mutation endpoints:
 
 ```typescript
-const updateNodesWithRenamedTypes = async (oldType, newType) => {
-  try {
-    const mutation = `
-      mutation {
-        updateNode(input: {
-          filter: { type: { eq: "${oldType}" } },
-          set: { type: "${newType}" }
-        }) {
-          numUids
-        }
+const updateNodeTypes = async (hierarchyId: string, oldType: string, newType: string) => {
+  // Use existing /api/mutate endpoint with proper hierarchy context
+  const mutation = `
+    mutation UpdateNodeTypes($oldType: String!, $newType: String!) {
+      updateNode(input: {
+        filter: { 
+          and: [
+            { type: { eq: $oldType } },
+            { hierarchyAssignments: { hierarchy: { id: { eq: "${hierarchyId}" } } } }
+          ]
+        },
+        set: { type: $newType }
+      }) {
+        numUids
       }
-    `;
-    const result = await executeMutation(mutation);
-    return result.updateNode?.numUids || 0;
-  } catch (error) {
-    console.error('Error updating nodes with renamed types:', error);
-    return 0;
-  }
+    }
+  `;
+  
+  return await ApiService.executeMutation(mutation, { oldType, newType });
 };
 ```
 
-This approach lets us maintain consistency of node types without requiring any schema changes.
-
 ## Future Enhancements
 
-1. **Server-side Storage**:
-   - If needed in the future, implement API endpoints to save/load settings from the database
-   - Support user-specific settings
+1. **Advanced Hierarchy Features**:
+   - Conditional level progression rules
+   - Dynamic level creation based on content
+   - Cross-hierarchy relationships
 
-2. **Additional Settings**:
-   - Node appearance (colors, shapes)
-   - Default view configurations
-   - Edge type configurations
+2. **Collaboration Features**:
+   - Hierarchy sharing between users
+   - Collaborative hierarchy editing
+   - Version control for hierarchy changes
 
-3. **Import/Export**:
-   - Allow exporting settings configurations
-   - Support importing configurations from file
+3. **Analytics and Insights**:
+   - Hierarchy usage statistics
+   - Node distribution analysis
+   - Optimization suggestions
+
+4. **Integration Enhancements**:
+   - API webhooks for hierarchy changes
+   - External system synchronization
+   - Bulk import/export tools
+
+## Success Metrics
+
+1. **Usability**: Reduced time to create and configure hierarchies
+2. **Adoption**: Increased use of custom hierarchies vs. default
+3. **Efficiency**: Faster node creation with proper hierarchy assignment
+4. **Flexibility**: Support for diverse hierarchy structures across use cases

@@ -14,6 +14,16 @@ import {
   DELETE_EDGE_MUTATION
 } from '../graphql/mutations';
 
+interface ExpansionDetails {
+  addedNodes: string[];
+  addedEdges: string[];
+}
+
+interface HierarchyExpansionState {
+  expandedNodeIds: Set<string>;
+  expansionDetails: Map<string, ExpansionDetails>;
+}
+
 interface UseGraphState {
   nodes: NodeData[];
   edges: EdgeData[];
@@ -24,6 +34,10 @@ interface UseGraphState {
   loadInitialGraph: (rootId: string) => Promise<void>;
   loadCompleteGraph: () => Promise<void>;
   expandNode: (nodeId: string) => Promise<void>;
+  expandChildren: (nodeId: string) => Promise<void>;
+  expandAll: (nodeId: string) => Promise<void>;
+  collapseNode: (nodeId: string) => void;
+  isNodeExpanded: (nodeId: string) => boolean;
   addNode: (values: { label: string; type: string; hierarchyId: string; levelId: string }, parentId?: string) => Promise<void>;
   editNode: (nodeId: string, values: { label: string; type: string }) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<void>;
@@ -36,47 +50,76 @@ interface UseGraphState {
 }
 
 export const useGraphState = (): UseGraphState => {
-  const { hierarchyId } = useHierarchyContext(); // hierarchyId is now a string
-  // const hierarchyNum = parseInt(hierarchyId, 10); // No longer needed
+  const { hierarchyId } = useHierarchyContext();
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isExpanding, setIsExpanding] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const expandedNodeIds = useRef<Set<string>>(new Set());
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
+  
+  // Hierarchy-aware expansion tracking
+  const [expansionStates, setExpansionStates] = useState<Map<string, HierarchyExpansionState>>(new Map());
+
+  // Helper function to get current hierarchy expansion state
+  const getHierarchyState = useCallback((): HierarchyExpansionState => {
+    const existing = expansionStates.get(hierarchyId);
+    if (existing) return existing;
+    
+    const newState: HierarchyExpansionState = {
+      expandedNodeIds: new Set(),
+      expansionDetails: new Map()
+    };
+    setExpansionStates(prev => new Map(prev).set(hierarchyId, newState));
+    return newState;
+  }, [hierarchyId, expansionStates]);
+
+  // Check if a node is expanded in the current hierarchy
+  const isNodeExpanded = useCallback((nodeId: string): boolean => {
+    const hierarchyState = expansionStates.get(hierarchyId);
+    return hierarchyState?.expandedNodeIds.has(nodeId) ?? false;
+  }, [hierarchyId, expansionStates]);
 
   const loadInitialGraph = useCallback(async (rootId: string) => {
     log('useGraphState', `Loading initial graph for ${rootId} in hierarchy ${hierarchyId}`);
     setIsLoading(true);
     setError(null);
     try {
-      const rawData = await fetchTraversalData(rootId, hierarchyId); // hierarchyId is a string
+      const rawData = await fetchTraversalData(rootId, hierarchyId);
       const { nodes: initNodes, edges: initEdges } = transformTraversalData(rawData);
       setNodes(initNodes);
       setEdges(initEdges);
       setHiddenNodeIds(new Set());
-      expandedNodeIds.current.clear();
+      // Clear expansion state for this hierarchy
+      setExpansionStates(prev => {
+        const newStates = new Map(prev);
+        newStates.delete(hierarchyId);
+        return newStates;
+      });
     } catch (err) {
       log('useGraphState', `Error loading initial graph for ${rootId}`, err);
       setError('Failed to load initial graph data.');
     } finally {
       setIsLoading(false);
     }
-  }, [hierarchyId]); // Removed loadInitialGraph from dependencies
+  }, [hierarchyId]);
 
   const loadCompleteGraph = useCallback(async () => {
     log('useGraphState', `Loading complete graph for hierarchy ${hierarchyId}`);
     setIsLoading(true);
     setError(null);
     try {
-      // Use the proper query to get all nodes with complete hierarchy assignments
       const rawData = await executeQuery(GET_ALL_NODES_AND_EDGES_QUERY);
       const { nodes: allNodes, edges: allEdges } = transformAllGraphData(rawData);
       setNodes(allNodes);
       setEdges(allEdges);
       setHiddenNodeIds(new Set());
-      expandedNodeIds.current.clear();
+      // Clear expansion state for this hierarchy
+      setExpansionStates(prev => {
+        const newStates = new Map(prev);
+        newStates.delete(hierarchyId);
+        return newStates;
+      });
     } catch (err) {
       log('useGraphState', 'Error loading complete graph', err);
       setError('Failed to load complete graph data.');
@@ -85,34 +128,147 @@ export const useGraphState = (): UseGraphState => {
     }
   }, [hierarchyId]);
 
-  const expandNode = useCallback(async (nodeId: string) => {
-    if (isExpanding || isLoading || expandedNodeIds.current.has(nodeId)) return;
+  // Enhanced expansion function that tracks what was added
+  const expandChildren = useCallback(async (nodeId: string) => {
+    if (isExpanding || isLoading || isNodeExpanded(nodeId)) return;
+    
     const clickedNode = nodes.find(n => n.id === nodeId);
     if (!clickedNode) {
       setError(`Cannot expand node ${nodeId}: node not found`);
       return;
     }
+    
     setIsExpanding(true);
     setError(null);
+    
     try {
-      const rawData = await fetchTraversalData(nodeId, hierarchyId); // hierarchyId is a string
+      const rawData = await fetchTraversalData(nodeId, hierarchyId);
       const { nodes: newNodes, edges: newEdges } = transformTraversalData(rawData);
+      
       const existingNodeIds = new Set(nodes.map(n => n.id));
       const existingEdgeKeys = new Set(edges.map(e => `${e.source}-${e.target}-${e.type}`));
+      
       const uniqueNodes = newNodes.filter(n => !existingNodeIds.has(n.id));
       const uniqueEdges = newEdges.filter(e => !existingEdgeKeys.has(`${e.source}-${e.target}-${e.type}`));
+      
       if (uniqueNodes.length || uniqueEdges.length) {
         setNodes(prev => [...prev, ...uniqueNodes]);
         setEdges(prev => [...prev, ...uniqueEdges]);
+        
+        // Track what was added for this expansion
+        const hierarchyState = getHierarchyState();
+        hierarchyState.expandedNodeIds.add(nodeId);
+        hierarchyState.expansionDetails.set(nodeId, {
+          addedNodes: uniqueNodes.map(n => n.id),
+          addedEdges: uniqueEdges.map(e => `${e.source}_${e.target}`)
+        });
+        
+        setExpansionStates(prev => new Map(prev).set(hierarchyId, hierarchyState));
       }
-      expandedNodeIds.current.add(nodeId);
     } catch (err) {
       log('useGraphState', `Error expanding node ${nodeId}`, err);
       setError(`Failed to expand node ${nodeId}.`);
     } finally {
       setIsExpanding(false);
     }
-  }, [nodes, edges, isLoading, isExpanding, hierarchyId]);
+  }, [nodes, edges, isLoading, isExpanding, hierarchyId, isNodeExpanded, getHierarchyState]);
+
+  // Recursive expansion function
+  const expandAll = useCallback(async (nodeId: string) => {
+    if (isExpanding || isLoading || isNodeExpanded(nodeId)) return;
+    
+    const clickedNode = nodes.find(n => n.id === nodeId);
+    if (!clickedNode) {
+      setError(`Cannot expand node ${nodeId}: node not found`);
+      return;
+    }
+    
+    setIsExpanding(true);
+    setError(null);
+    
+    try {
+      const allAddedNodes: string[] = [];
+      const allAddedEdges: string[] = [];
+      const nodesToProcess = [nodeId];
+      const processedNodes = new Set<string>();
+      
+      while (nodesToProcess.length > 0) {
+        const currentNodeId = nodesToProcess.shift()!;
+        if (processedNodes.has(currentNodeId)) continue;
+        processedNodes.add(currentNodeId);
+        
+        const rawData = await fetchTraversalData(currentNodeId, hierarchyId);
+        const { nodes: newNodes, edges: newEdges } = transformTraversalData(rawData);
+        
+        const existingNodeIds = new Set([...nodes.map(n => n.id), ...allAddedNodes]);
+        const existingEdgeKeys = new Set([...edges.map(e => `${e.source}-${e.target}-${e.type}`), ...allAddedEdges.map(id => {
+          const [source, target] = id.split('_');
+          return `${source}-${target}-simple`;
+        })]);
+        
+        const uniqueNodes = newNodes.filter(n => !existingNodeIds.has(n.id));
+        const uniqueEdges = newEdges.filter(e => !existingEdgeKeys.has(`${e.source}-${e.target}-${e.type}`));
+        
+        if (uniqueNodes.length || uniqueEdges.length) {
+          setNodes(prev => [...prev, ...uniqueNodes]);
+          setEdges(prev => [...prev, ...uniqueEdges]);
+          
+          allAddedNodes.push(...uniqueNodes.map(n => n.id));
+          allAddedEdges.push(...uniqueEdges.map(e => `${e.source}_${e.target}`));
+          
+          // Add child nodes to processing queue
+          uniqueNodes.forEach(node => {
+            if (!processedNodes.has(node.id)) {
+              nodesToProcess.push(node.id);
+            }
+          });
+        }
+      }
+      
+      // Track what was added for this expansion
+      if (allAddedNodes.length || allAddedEdges.length) {
+        const hierarchyState = getHierarchyState();
+        hierarchyState.expandedNodeIds.add(nodeId);
+        hierarchyState.expansionDetails.set(nodeId, {
+          addedNodes: allAddedNodes,
+          addedEdges: allAddedEdges
+        });
+        
+        setExpansionStates(prev => new Map(prev).set(hierarchyId, hierarchyState));
+      }
+    } catch (err) {
+      log('useGraphState', `Error expanding all from node ${nodeId}`, err);
+      setError(`Failed to expand all from node ${nodeId}.`);
+    } finally {
+      setIsExpanding(false);
+    }
+  }, [nodes, edges, isLoading, isExpanding, hierarchyId, isNodeExpanded, getHierarchyState]);
+
+  // Collapse function
+  const collapseNode = useCallback((nodeId: string) => {
+    const hierarchyState = expansionStates.get(hierarchyId);
+    if (!hierarchyState || !hierarchyState.expandedNodeIds.has(nodeId)) return;
+    
+    const expansionDetails = hierarchyState.expansionDetails.get(nodeId);
+    if (!expansionDetails) return;
+    
+    // Remove nodes and edges that were added during expansion
+    setNodes(prev => prev.filter(n => !expansionDetails.addedNodes.includes(n.id)));
+    setEdges(prev => prev.filter(e => !expansionDetails.addedEdges.includes(`${e.source}_${e.target}`)));
+    
+    // Update expansion state
+    hierarchyState.expandedNodeIds.delete(nodeId);
+    hierarchyState.expansionDetails.delete(nodeId);
+    
+    setExpansionStates(prev => new Map(prev).set(hierarchyId, hierarchyState));
+    
+    log('useGraphState', `Collapsed node ${nodeId} in hierarchy ${hierarchyId}`);
+  }, [hierarchyId, expansionStates]);
+
+  // Keep the original expandNode for backward compatibility
+  const expandNode = useCallback(async (nodeId: string) => {
+    await expandChildren(nodeId);
+  }, [expandChildren]);
 
   const addNode = useCallback(async (values: { label: string; type: string; hierarchyId: string; levelId: string }, parentId?: string) => {
     const newId = uuidv4();
@@ -304,6 +460,10 @@ export const useGraphState = (): UseGraphState => {
     loadInitialGraph,
     loadCompleteGraph,
     expandNode,
+    expandChildren,
+    expandAll,
+    collapseNode,
+    isNodeExpanded,
     addNode,
     editNode,
     deleteNode,

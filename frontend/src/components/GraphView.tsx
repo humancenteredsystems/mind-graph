@@ -23,6 +23,10 @@ interface GraphViewProps {
   style?: React.CSSProperties;
   hiddenNodeIds?: Set<string>;
   onNodeExpand?: (nodeId: string) => void;
+  onExpandChildren?: (nodeId: string) => void;
+  onExpandAll?: (nodeId: string) => void;
+  onCollapseNode?: (nodeId: string) => void;
+  isNodeExpanded?: (nodeId: string) => boolean;
   onAddNode?: (parentId?: string, position?: { x: number; y: number }) => void;
   onEditNode?: (node: NodeData) => void; // Changed to pass full NodeData
   onNodeSelect?: (node: NodeData) => void; // Prop for single-click selection
@@ -42,6 +46,10 @@ const GraphView: React.FC<GraphViewProps> = ({
   style,
   hiddenNodeIds = new Set(),
   onNodeExpand,
+  onExpandChildren,
+  onExpandAll,
+  onCollapseNode,
+  isNodeExpanded,
   onAddNode,
   onEditNode,
   onNodeSelect, // Add new prop
@@ -101,6 +109,10 @@ const GraphView: React.FC<GraphViewProps> = ({
       const idx = levelCounters[levelNum] ?? 0;
       levelCounters[levelNum] = idx + 1;
       const displayLabel = label ?? id;
+      
+      // Check if node is expanded for visual indicator
+      const expanded = isNodeExpanded?.(id) ?? false;
+      
       return {
         data: {
           id,
@@ -112,11 +124,13 @@ const GraphView: React.FC<GraphViewProps> = ({
           branch,
           levelNumber: levelNum,
           levelLabel: assignmentForCurrent?.levelLabel,
+          expanded,
         },
         position: { x: levelNum * 200, y: idx * 100 },
         style: {
           'background-color': getLevelColor(levelNum),
-          'border-color': '#555',
+          'border-color': expanded ? '#FF9800' : '#555',
+          'border-width': expanded ? 3 : 1,
         },
       };
     });
@@ -127,7 +141,7 @@ const GraphView: React.FC<GraphViewProps> = ({
         data: { id: id ?? `${source}_${target}`, source, target, type },
       }));
     return [...nodeEls, ...edgeEls];
-  }, [nodes, edges, hiddenNodeIds]);
+  }, [nodes, edges, hiddenNodeIds, hierarchyId, isNodeExpanded]);
 
   // Stylesheet: disable selection and style nodes/edges
   const stylesheet = [
@@ -147,6 +161,13 @@ const GraphView: React.FC<GraphViewProps> = ({
         'text-max-width': '70px',
         'border-width': 1,
         'border-color': '#555',
+      },
+    },
+    {
+      selector: 'node[expanded = true]',
+      style: {
+        'border-width': 3,
+        'border-color': '#FF9800',
       },
     },
     {
@@ -365,6 +386,10 @@ const GraphView: React.FC<GraphViewProps> = ({
           nodeIds: sel,
           ...(canAddChild ? { onAddNode } : {}),
           onNodeExpand,
+          onExpandChildren,
+          onExpandAll,
+          onCollapseNode,
+          isNodeExpanded,
           onEditNode,
           onDeleteNode,
           onDeleteNodes,
@@ -385,7 +410,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     return () => {
       cy.off('cxttap', handler);
     };
-  }, [openMenu, onAddNode, onNodeExpand, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, edges]);
+  }, [openMenu, onAddNode, onNodeExpand, onExpandChildren, onExpandAll, onCollapseNode, isNodeExpanded, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, edges]);
 
   // Layout on elements update: use preset positions based on level
   useEffect(() => {
