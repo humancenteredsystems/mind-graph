@@ -2,6 +2,7 @@ import React, { FC, useState, useEffect, useMemo } from 'react';
 import { NodeData } from '../types/graph';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { useGraphState } from '../hooks/useGraphState';
+import { resolveNodeHierarchyAssignment } from '../utils/graphUtils';
 
 export interface NodeFormValues {
   label: string;
@@ -42,16 +43,14 @@ const NodeFormModal: FC<NodeFormModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(false);
 
-  // Memoize calculated values to prevent unnecessary re-renders
-  const parentAssign = useMemo(() => {
-    return parentId
-      ? nodes.find(n => n.id === parentId)?.assignments?.find(a => a.hierarchyId === hierarchyId)
-      : undefined;
+  // Use the new utility function to resolve parent hierarchy assignment
+  const parentInfo = useMemo(() => {
+    return parentId ? resolveNodeHierarchyAssignment(parentId, nodes, hierarchyId) : { levelNumber: 0 };
   }, [parentId, nodes, hierarchyId]);
 
   const parentLevelNum = useMemo(() => {
-    return parentAssign?.levelNumber ?? 0;
-  }, [parentAssign]);
+    return parentInfo.levelNumber;
+  }, [parentInfo.levelNumber]);
 
   const childLevelNum = useMemo(() => {
     return parentLevelNum > 0 ? parentLevelNum + 1 : undefined;
@@ -182,7 +181,6 @@ const NodeFormModal: FC<NodeFormModalProps> = ({
               value={parentId && childLevel ? childLevel.id : selectedLevelId}
               onChange={e => setSelectedLevelId(e.target.value)}
               style={{ width: '100%', padding: 4 }}
-              disabled={!!parentId}
             >
               {levels.map(l => (
                 <option key={l.id} value={l.id}>

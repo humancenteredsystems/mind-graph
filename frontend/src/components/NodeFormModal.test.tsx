@@ -89,7 +89,7 @@ describe('NodeFormModal', () => {
     expect(mockOnCancel).toHaveBeenCalled();
   });
 
-  it('selects correct child level when parentId is provided', () => {
+  it('selects correct child level when parentId is provided and allows level selection', () => {
     const parentId = 'parent1';
     (useGraphState as Mock).mockReturnValue({
       nodes: [
@@ -101,6 +101,7 @@ describe('NodeFormModal', () => {
     );
     const levelSelect = screen.getByLabelText('Level');
     expect(levelSelect).toHaveValue('lvl2');
-    expect(levelSelect).toBeDisabled();
+    // Level dropdown should now be enabled to allow user selection
+    expect(levelSelect).not.toBeDisabled();
   });
 });

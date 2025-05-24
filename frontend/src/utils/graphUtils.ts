@@ -172,3 +172,42 @@ export const transformAllGraphData = (data: AllGraphDataResponse): { nodes: Node
 
   return { nodes, edges };
 };
+
+/**
+ * Resolves hierarchy assignment for a node, handling ID format mismatches
+ * between different backend sources (e.g., "1" vs "h1")
+ */
+export const resolveNodeHierarchyAssignment = (
+  nodeId: string, 
+  nodes: NodeData[], 
+  hierarchyId: string
+) => {
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node?.assignments) {
+    return { assignment: undefined, levelNumber: 0 };
+  }
+
+  // Try exact match first
+  let matchingAssignments = node.assignments.filter(a => a.hierarchyId === hierarchyId);
+  
+  // Handle format mismatch between hierarchy sources
+  if (matchingAssignments.length === 0) {
+    if (hierarchyId.startsWith('h')) {
+      const numericId = hierarchyId.substring(1);
+      matchingAssignments = node.assignments.filter(a => a.hierarchyId === numericId);
+    } else {
+      const prefixedId = `h${hierarchyId}`;
+      matchingAssignments = node.assignments.filter(a => a.hierarchyId === prefixedId);
+    }
+  }
+  
+  // Sort by level number (descending) and take the highest level
+  matchingAssignments.sort((a, b) => b.levelNumber - a.levelNumber);
+  const assignment = matchingAssignments[0];
+  
+  return {
+    assignment,
+    levelNumber: assignment?.levelNumber ?? 0,
+    levelLabel: assignment?.levelLabel
+  };
+};
