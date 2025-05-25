@@ -155,6 +155,13 @@ export const useGraphState = (): UseGraphState => {
         setNodes(prev => [...prev, ...uniqueNodes]);
         setEdges(prev => [...prev, ...uniqueEdges]);
         
+        // FIX: Auto-unhide newly expanded nodes
+        setHiddenNodeIds(prev => {
+          const newSet = new Set(prev);
+          uniqueNodes.forEach(node => newSet.delete(node.id));
+          return newSet;
+        });
+        
         // Track what was added for this expansion
         const hierarchyState = getHierarchyState();
         hierarchyState.expandedNodeIds.add(nodeId);
@@ -212,6 +219,13 @@ export const useGraphState = (): UseGraphState => {
         if (uniqueNodes.length || uniqueEdges.length) {
           setNodes(prev => [...prev, ...uniqueNodes]);
           setEdges(prev => [...prev, ...uniqueEdges]);
+          
+          // FIX: Auto-unhide newly expanded nodes
+          setHiddenNodeIds(prev => {
+            const newSet = new Set(prev);
+            uniqueNodes.forEach(node => newSet.delete(node.id));
+            return newSet;
+          });
           
           allAddedNodes.push(...uniqueNodes.map(n => n.id));
           allAddedEdges.push(...uniqueEdges.map(e => `${e.source}_${e.target}`));

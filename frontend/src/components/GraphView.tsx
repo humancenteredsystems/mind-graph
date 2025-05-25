@@ -128,7 +128,6 @@ const GraphView: React.FC<GraphViewProps> = ({
         },
         position: { x: levelNum * 200, y: idx * 100 },
         style: {
-          'background-color': getLevelColor(levelNum),
           'border-color': expanded ? '#FF9800' : '#555',
           'border-width': expanded ? 3 : 1,
         },
@@ -161,6 +160,55 @@ const GraphView: React.FC<GraphViewProps> = ({
         'text-max-width': '70px',
         'border-width': 1,
         'border-color': '#555',
+      },
+    },
+    {
+      selector: 'node[levelNumber = 1]',
+      style: {
+        shape: 'ellipse',
+        'background-color': 'hsl(40, 60%, 60%)',
+      },
+    },
+    {
+      selector: 'node[levelNumber = 2]',
+      style: {
+        'background-color': 'red',
+      },
+    },
+    {
+      selector: 'node[levelNumber = 3]',
+      style: {
+        'background-color': 'hsl(120, 60%, 60%)',
+      },
+    },
+    {
+      selector: 'node[levelNumber = 4]',
+      style: {
+        'background-color': 'hsl(160, 60%, 60%)',
+      },
+    },
+    {
+      selector: 'node[levelNumber = 5]',
+      style: {
+        'background-color': 'hsl(200, 60%, 60%)',
+      },
+    },
+    {
+      selector: 'node[levelNumber = 6]',
+      style: {
+        'background-color': 'hsl(240, 60%, 60%)',
+      },
+    },
+    {
+      selector: 'node[levelNumber = 7]',
+      style: {
+        'background-color': 'hsl(280, 60%, 60%)',
+      },
+    },
+    {
+      selector: 'node[levelNumber = 8]',
+      style: {
+        'background-color': 'hsl(320, 60%, 60%)',
       },
     },
     {

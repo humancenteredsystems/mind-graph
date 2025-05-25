@@ -18,7 +18,7 @@ Key capabilities include multi-hierarchy support for nodes and automatic hierarc
 
 *   **Database:** Dgraph (via Docker)
 *   **Backend API:** Node.js, Express.js
-*   **Frontend:** React, Vite, TypeScript, Cytoscape.js, Axios
+*   **Frontend:** React 19, Vite, TypeScript, Cytoscape.js, Axios
 *   **Utility Tools:** Python, requests
 *   **Development Environment:** Docker Compose, Nodemon, Concurrently
 *   **Testing:** Vitest (Frontend), Jest (API), Playwright (E2E)
@@ -28,14 +28,14 @@ Key capabilities include multi-hierarchy support for nodes and automatic hierarc
 *   **Docker & Docker Compose:** Essential for running the Dgraph database services.
 *   **Node.js & npm:** Version 18+ recommended.
 *   **Python:** Version 3.7+ recommended.
-*   **Conda (Recommended):** For managing Python environments (e.g., an environment named 'pointcloud').
+*   **Python Environment (Recommended):** Use conda, venv, or similar for managing Python environments.
     *   The `requests` library is needed for Python tools: `pip install requests` (preferably within your Python environment).
 
 ## Local Development Setup
 
 1.  **Clone the Repository:**
     ```bash
-    git clone <repository_url>
+    git clone https://github.com/heythisisgordon/mims-graph.git
     cd mims-graph
     ```
 2.  **Install Dependencies:**
@@ -44,7 +44,7 @@ Key capabilities include multi-hierarchy support for nodes and automatic hierarc
     *   Frontend: `cd frontend && npm install && cd ..`
 
 3.  **Environment Variables (API):**
-    *   The API server (`api/server.js`) requires certain environment variables. Copy `api/.env.example` to `api/.env` and fill in necessary values, especially `MIMS_ADMIN_API_KEY` for using admin-protected tool scripts. `DGRAPH_BASE_URL` will default to `http://localhost:8080` if not set in `.env`, which is suitable for local development with the provided Docker Compose setup.
+    *   The API server (`api/server.js`) requires certain environment variables. Copy `api/.env.example` to `api/.env` and fill in necessary values, especially `ADMIN_API_KEY` for using admin-protected tool scripts. `DGRAPH_BASE_URL` will default to `http://localhost:8080` if not set in `.env`, which is suitable for local development with the provided Docker Compose setup.
 
 4.  **Start Development Environment:**
     From the project root directory:
@@ -64,8 +64,8 @@ Key capabilities include multi-hierarchy support for nodes and automatic hierarc
 6.  **Initial Schema Push (Required on first run or after schema changes):**
     In a separate terminal (ensure Dgraph from `start-dev-env` is running):
     ```bash
-    # Activate your Python environment if needed (e.g., conda activate pointcloud)
-    # Set your admin API key (must match MIMS_ADMIN_API_KEY in api/.env if set)
+    # Activate your Python environment if needed (e.g., conda activate myenv or source venv/bin/activate)
+    # Set your admin API key (must match ADMIN_API_KEY in api/.env if set)
     export MIMS_ADMIN_API_KEY=your_secure_key_here 
     
     # Push schema to the local Dgraph instance via the API
@@ -115,7 +115,8 @@ Once the development environment is running and the schema is pushed:
 
 ## API Endpoints
 
-The backend API exposes several endpoints, primarily under the `/api` prefix. Key endpoints include:
+The backend API features a modular architecture with separate route modules for different functional domains, improving maintainability while preserving full backward compatibility. The API exposes several endpoints, primarily under the `/api` prefix:
+
 *   `POST /api/query`: Execute GraphQL queries.
 *   `POST /api/mutate`: Execute GraphQL mutations.
 *   `POST /api/traverse`: Fetch a node and its immediate neighbors.
@@ -130,13 +131,13 @@ For detailed descriptions, see [API Endpoints Documentation](docs/api_endpoints.
 
 Python scripts for database interaction and data management:
 *   `api_push_schema.py`: Pushes schema via the API (recommended).
-*   `seed_data.py`: Populates the database with sample data.
-*   `query_graph.py`: Executes GraphQL queries against the database.
+*   `seed_data.py`: Populates the database with sample data via the API.
 *   `drop_data.py`: Clears data from Dgraph via the API.
-*   `export_graph.py`: Exports graph data to JSON.
+*   `query_graph.py`: Executes GraphQL queries directly against Dgraph.
+*   `export_graph.py`: Exports graph data to JSON directly from Dgraph.
 *   `visualize_mermaid.html`: Browser-based tool to view exported JSON using Mermaid.js.
 
-Refer to `tools/README.md` for detailed usage.
+**Note:** Tools marked "via the API" use the backend API server, while others connect directly to Dgraph. Refer to `tools/README.md` for detailed usage and configuration requirements.
 
 ## Documentation
 

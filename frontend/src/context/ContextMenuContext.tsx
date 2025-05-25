@@ -56,30 +56,12 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({ childre
           { id: 'edit-node', label: 'Edit Node', icon: '✏️', shortcut: 'Ctrl+E', action: () => payload.onEditNode?.(node) },
           { id: 'delete-node', label: 'Delete Node', icon: '🗑️', shortcut: 'Del', action: () => payload.onDeleteNode?.(node.id) },
           { id: 'hide-node', label: 'Hide Node', icon: '👁️‍🗨️', shortcut: 'H', action: () => payload.onHideNode?.(node.id) },
+          { id: 'expand-children', label: 'Expand Children', icon: '▶️', shortcut: 'E', action: () => payload.onExpandChildren?.(node.id) },
+          { id: 'expand-descendants', label: 'Expand Descendants', icon: '▶️▶️', shortcut: 'Shift+E', action: () => payload.onExpandAll?.(node.id) },
+          // FIX: Always show collapse option if expanded
           ...(isExpanded ? [
-            { 
-              id: 'collapse', 
-              label: 'Collapse', 
-              icon: '◀️', 
-              shortcut: 'C', 
-              action: () => payload.onCollapseNode?.(node.id) 
-            }
-          ] : [
-            { 
-              id: 'expand-children', 
-              label: 'Expand Children', 
-              icon: '▶️', 
-              shortcut: 'E', 
-              action: () => payload.onExpandChildren?.(node.id) 
-            },
-            { 
-              id: 'expand-all', 
-              label: 'Expand All', 
-              icon: '▶️▶️', 
-              shortcut: 'Shift+E', 
-              action: () => payload.onExpandAll?.(node.id) 
-            }
-          ])
+            { id: 'collapse-descendants', label: 'Collapse Descendants', icon: '◀️◀️', shortcut: 'C', action: () => payload.onCollapseNode?.(node.id) }
+          ] : [])
         ];
         break;
       }
