@@ -49,7 +49,6 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({ childre
 
       case 'node': {
         const node: NodeData = payload.node;
-        const isExpanded = payload.isNodeExpanded?.(node.id) ?? false;
         
         menuItems = [
           { id: 'add-connected', label: 'Add Connected Node', icon: '➕', shortcut: 'A', action: () => ui.openAddModal(node.id) },
@@ -58,10 +57,7 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({ childre
           { id: 'hide-node', label: 'Hide Node', icon: '👁️‍🗨️', shortcut: 'H', action: () => payload.onHideNode?.(node.id) },
           { id: 'expand-children', label: 'Expand Children', icon: '▶️', shortcut: 'E', action: () => payload.onExpandChildren?.(node.id) },
           { id: 'expand-descendants', label: 'Expand Descendants', icon: '▶️▶️', shortcut: 'Shift+E', action: () => payload.onExpandAll?.(node.id) },
-          // FIX: Always show collapse option if expanded
-          ...(isExpanded ? [
-            { id: 'collapse-descendants', label: 'Collapse Descendants', icon: '◀️◀️', shortcut: 'C', action: () => payload.onCollapseNode?.(node.id) }
-          ] : [])
+          { id: 'collapse-descendants', label: 'Collapse Descendants', icon: '◀️◀️', shortcut: 'C', action: () => payload.onCollapseNode?.(node.id) }
         ];
         break;
       }
