@@ -1,14 +1,21 @@
 import axios from 'axios';
 
-// Axios interceptor to inject hierarchy header for all mutations
+// Axios interceptor to inject hierarchy and tenant headers for all requests
 axios.interceptors.request.use(config => {
+  config.headers = config.headers || {};
+  
+  // Add hierarchy header for mutations
   if (config.data && config.data.mutation) {
     const hierarchyId = localStorage.getItem('hierarchyId');
     if (hierarchyId) {
-      config.headers = config.headers || {};
       config.headers['X-Hierarchy-Id'] = hierarchyId;
     }
   }
+  
+  // Add tenant header for all API requests
+  const tenantId = localStorage.getItem('tenantId') || 'test-tenant';
+  config.headers['X-Tenant-Id'] = tenantId;
+  
   return config;
 }, error => Promise.reject(error));
 
@@ -36,6 +43,17 @@ interface HealthStatus {
   apiStatus: string;
   dgraphStatus: string;
   error?: string;
+}
+
+interface SystemStatus {
+  dgraphEnterprise: boolean;
+  multiTenantVerified: boolean;
+  currentTenant: string;
+  namespace: string | null;
+  mode: 'multi-tenant' | 'single-tenant';
+  detectedAt: string;
+  version?: string;
+  detectionError?: string;
 }
 
 /**
@@ -160,6 +178,19 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
     return response.data;
   } catch (error) {
     log('ApiService', 'Error fetching health status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch system status including multi-tenant capabilities.
+ */
+export const fetchSystemStatus = async (): Promise<SystemStatus> => {
+  try {
+    const response = await axios.get<SystemStatus>(`${API_BASE_URL}/system/status`);
+    return response.data;
+  } catch (error) {
+    log('ApiService', 'Error fetching system status:', error);
     throw error;
   }
 };

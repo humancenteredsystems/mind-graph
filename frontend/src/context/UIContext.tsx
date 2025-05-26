@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, ReactNode, useRef } from 'react';
 import { NodeData } from '../types/graph';
 
+interface SystemStatus {
+  dgraphEnterprise: boolean;
+  multiTenantVerified: boolean;
+  currentTenant: string;
+  namespace: string | null;
+  mode: 'multi-tenant' | 'single-tenant';
+  detectedAt: string;
+  version?: string;
+  detectionError?: string;
+  licenseType?: 'oss-only' | 'oss-trial' | 'enterprise-licensed' | 'unknown';
+  licenseExpiry?: string | null;
+}
+
 interface UIContextValue {
   // Add node modal
   addModalOpen: boolean;
@@ -13,6 +26,13 @@ interface UIContextValue {
   openEditDrawer: (node: NodeData) => void;
   closeEditDrawer: () => void;
   setEditNode: (node: NodeData) => void; // Function to update node data while drawer is open
+  // Settings modal
+  settingsModalOpen: boolean;
+  openSettingsModal: () => void;
+  closeSettingsModal: () => void;
+  // System status
+  systemStatus: SystemStatus | null;
+  refreshSystemStatus: () => Promise<void>;
 }
 
 const UIContext = createContext<UIContextValue | undefined>(undefined);
@@ -22,6 +42,8 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [addParentId, setAddParentId] = useState<string | undefined>(undefined);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
   const [editNodeData, setEditNodeData] = useState<NodeData | undefined>(undefined);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const lastOpenTimeRef = useRef<number>(0);
 
   const openAddModal = (parentId?: string) => {
@@ -57,6 +79,38 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     setEditNodeData(node);
   };
 
+  // Settings modal functions
+  const openSettingsModal = () => {
+    setSettingsModalOpen(true);
+    // Refresh system status when opening settings
+    refreshSystemStatus();
+  };
+  const closeSettingsModal = () => {
+    setSettingsModalOpen(false);
+  };
+
+  // System status functions
+  const refreshSystemStatus = async () => {
+    try {
+      const tenantId = localStorage.getItem('tenantId') || 'test-tenant';
+      const response = await fetch('/api/system/status', {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-Id': tenantId
+        }
+      });
+      
+      if (response.ok) {
+        const status = await response.json();
+        setSystemStatus(status);
+      } else {
+        console.error('Failed to fetch system status:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching system status:', error);
+    }
+  };
+
   return (
     <UIContext.Provider
       value={{
@@ -68,7 +122,12 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         editNodeData,
         openEditDrawer,
         closeEditDrawer,
-        setEditNode, // Expose the new function
+        setEditNode,
+        settingsModalOpen,
+        openSettingsModal,
+        closeSettingsModal,
+        systemStatus,
+        refreshSystemStatus,
       }}
     >
       {children}

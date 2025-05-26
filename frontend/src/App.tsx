@@ -7,6 +7,8 @@ import { useUIContext } from './context/UIContext';
 import { HierarchyProvider, useHierarchyContext } from './context/HierarchyContext';
 import NodeFormModal from './components/NodeFormModal';
 import NodeDrawer from './components/NodeDrawer';
+import SettingsIcon from './components/SettingsIcon';
+import SettingsModal from './components/SettingsModal';
 
 function AppInner() {
   const {
@@ -57,6 +59,9 @@ function AppInner() {
 
 return (
     <div className="App">
+      <SettingsIcon />
+      <SettingsModal />
+      
       <h1>MakeItMakeSense.io Graph</h1>
       <select
         value={hierarchyId}

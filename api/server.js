@@ -51,20 +51,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// Tenant Context Middleware - Add tenant context to all API requests
-const { setTenantContext, ensureTenant, validateTenantAccess } = require('./middleware/tenantContext');
-
-// Apply tenant middleware to all API routes
-app.use('/api', setTenantContext);
-app.use('/api', validateTenantAccess);
-// Note: ensureTenant is applied selectively in routes that need it
-
 // Root endpoint
 app.get('/', (req, res) => {
   res.send('MakeItMakeSense.io API is running!');
 });
 
-// Mount route modules
+// Mount system routes FIRST (before tenant middleware)
+// System routes don't need tenant context and should be accessible without tenant validation
+const systemRoutes = require('./routes/system');
+app.use('/api', systemRoutes);
+
+// Tenant Context Middleware - Add tenant context to remaining API requests
+const { setTenantContext, ensureTenant, validateTenantAccess } = require('./middleware/tenantContext');
+
+// Apply tenant middleware to all other API routes
+app.use('/api', setTenantContext);
+app.use('/api', validateTenantAccess);
+// Note: ensureTenant is applied selectively in routes that need it
+
+// Mount other route modules that require tenant context
 const graphqlRoutes = require('./routes/graphql');
 const schemaRoutes = require('./routes/schema');
 const adminRoutes = require('./routes/admin');
