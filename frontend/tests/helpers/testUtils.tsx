@@ -2,21 +2,48 @@ import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { vi } from 'vitest';
 
+// Create mock functions before vi.mock calls to avoid hoisting issues
+const mockUIContextValue = {
+  isAddModalOpen: false,
+  isEditDrawerOpen: false,
+  editingNode: null,
+  openAddModal: vi.fn(),
+  closeAddModal: vi.fn(),
+  openEditDrawer: vi.fn(),
+  closeEditDrawer: vi.fn(),
+};
+
+const mockHierarchyContextValue = {
+  hierarchies: [
+    { id: 'h1', name: 'Test Hierarchy 1' },
+    { id: 'h2', name: 'Test Hierarchy 2' }
+  ],
+  hierarchyId: 'h1',
+  setHierarchyId: vi.fn(),
+  levels: [
+    { id: 'l1', levelNumber: 1, label: 'Domain', allowedTypes: ['concept'] },
+    { id: 'l2', levelNumber: 2, label: 'Category', allowedTypes: ['concept', 'example'] }
+  ],
+  isLoading: false,
+  error: null,
+};
+
+const mockContextMenuContextValue = {
+  isVisible: false,
+  position: { x: 0, y: 0 },
+  menuType: 'background',
+  selectedNodes: [],
+  showMenu: vi.fn(),
+  hideMenu: vi.fn(),
+};
+
 // Mock the contexts with proper exports
 vi.mock('../../src/context/UIContext', async (importOriginal) => {
   const actual = await importOriginal() as any;
   return {
     ...actual,
     UIProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="ui-provider">{children}</div>,
-    useUIContext: () => ({
-      isAddModalOpen: false,
-      isEditDrawerOpen: false,
-      editingNode: null,
-      openAddModal: vi.fn(),
-      closeAddModal: vi.fn(),
-      openEditDrawer: vi.fn(),
-      closeEditDrawer: vi.fn(),
-    }),
+    useUIContext: () => mockUIContextValue,
   };
 });
 
@@ -25,20 +52,7 @@ vi.mock('../../src/context/HierarchyContext', async (importOriginal) => {
   return {
     ...actual,
     HierarchyProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="hierarchy-provider">{children}</div>,
-    useHierarchyContext: () => ({
-      hierarchies: [
-        { id: 'h1', name: 'Test Hierarchy 1' },
-        { id: 'h2', name: 'Test Hierarchy 2' }
-      ],
-      hierarchyId: 'h1',
-      setHierarchyId: vi.fn(),
-      levels: [
-        { id: 'l1', levelNumber: 1, label: 'Domain', allowedTypes: ['concept'] },
-        { id: 'l2', levelNumber: 2, label: 'Category', allowedTypes: ['concept', 'example'] }
-      ],
-      isLoading: false,
-      error: null,
-    }),
+    useHierarchyContext: () => mockHierarchyContextValue,
   };
 });
 
@@ -47,14 +61,7 @@ vi.mock('../../src/context/ContextMenuContext', async (importOriginal) => {
   return {
     ...actual,
     ContextMenuProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="context-menu-provider">{children}</div>,
-    useContextMenuContext: () => ({
-      isVisible: false,
-      position: { x: 0, y: 0 },
-      menuType: 'background',
-      selectedNodes: [],
-      showMenu: vi.fn(),
-      hideMenu: vi.fn(),
-    }),
+    useContextMenuContext: () => mockContextMenuContextValue,
   };
 });
 

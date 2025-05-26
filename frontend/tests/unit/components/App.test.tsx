@@ -1,21 +1,41 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { screen, waitFor, act } from '@testing-library/react';
-import { render } from '../../helpers/testUtils';
-import { mockNodes, mockEdges, createMockNode } from '../../helpers/mockData';
+import { screen, waitFor, act, render } from '@testing-library/react';
+import { mockNodes, mockEdges } from '../../helpers/mockData';
 import App from '../../../src/App';
-import * as ApiService from '../../../src/services/ApiService';
-import * as GraphUtils from '../../../src/utils/graphUtils';
-import type { NodeData, EdgeData } from '../../../src/types/graph';
 
-// Mock the ApiService and GraphUtils modules
-vi.mock('../../../src/services/ApiService');
-vi.mock('../../../src/utils/graphUtils');
+// Use vi.hoisted to properly handle mock hoisting
+const { 
+  mockFetchHierarchies,
+  mockExecuteQuery,
+  mockExecuteMutation,
+  mockFetchAllNodeIds,
+  mockTransformAllGraphData
+} = vi.hoisted(() => ({
+  mockFetchHierarchies: vi.fn(),
+  mockExecuteQuery: vi.fn(),
+  mockExecuteMutation: vi.fn(),
+  mockFetchAllNodeIds: vi.fn(),
+  mockTransformAllGraphData: vi.fn()
+}));
+
+// Mock the ApiService module
+vi.mock('../../../src/services/ApiService', () => ({
+  fetchHierarchies: mockFetchHierarchies,
+  executeQuery: mockExecuteQuery,
+  executeMutation: mockExecuteMutation,
+  fetchAllNodeIds: mockFetchAllNodeIds,
+}));
+
+// Mock GraphUtils module
+vi.mock('../../../src/utils/graphUtils', () => ({
+  transformAllGraphData: mockTransformAllGraphData,
+}));
 
 // Mock GraphView component to avoid complex Cytoscape dependencies
 vi.mock('../../../src/components/GraphView', () => ({
-  default: ({ nodes, edges, onNodeExpand, onLoadCompleteGraph, onDeleteNode, onDeleteNodes }: any) => {
+  default: ({ nodes, edges, onNodeExpand, onLoadCompleteGraph, onDeleteNode }: any) => {
     return (
       <div data-testid="graph-view">
         <span data-testid="node-count">{nodes.length}</span>
@@ -44,23 +64,35 @@ vi.mock('../../../src/components/GraphView', () => ({
 }));
 
 describe('App Component', () => {
-  const mockApiService = ApiService as any;
-  const mockGraphUtils = GraphUtils as any;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    mockApiService.fetchAllNodeIds.mockResolvedValue(['node1', 'node2']);
-    mockApiService.fetchTraversalData.mockResolvedValue({
-      queryNode: [mockNodes[0]]
+    
+    // Setup default API responses
+    mockFetchHierarchies.mockResolvedValue([
+      { id: 'h1', name: 'Test Hierarchy 1' },
+      { id: 'h2', name: 'Test Hierarchy 2' }
+    ]);
+    
+    mockExecuteQuery.mockResolvedValue({
+      queryNode: mockNodes
     });
-    mockGraphUtils.transformTraversalData.mockReturnValue({
-      nodes: [mockNodes[0]],
-      edges: []
+    
+    mockFetchAllNodeIds.mockResolvedValue(['node1', 'node2']);
+    
+    mockTransformAllGraphData.mockReturnValue({
+      nodes: mockNodes,
+      edges: mockEdges
+    });
+    
+    mockExecuteMutation.mockResolvedValue({
+      data: { deleteNode: { numUids: 1 } }
     });
   });
 
   it('renders loading state initially', () => {
-    mockApiService.fetchTraversalData.mockReturnValue(new Promise(() => {}));
+    // Make the API call hang to test loading state
+    mockExecuteQuery.mockReturnValue(new Promise(() => {}));
+    
     render(<App />);
     expect(screen.getByText(/Loading graph data.../i)).toBeInTheDocument();
   });
@@ -73,16 +105,17 @@ describe('App Component', () => {
     });
     
     expect(screen.getByTestId('graph-view')).toBeInTheDocument();
-    expect(screen.getByTestId('node-count')).toHaveTextContent('1');
+    expect(screen.getByTestId('node-count')).toHaveTextContent('3');
   });
 
   it('handles API errors gracefully', async () => {
-    mockApiService.fetchTraversalData.mockRejectedValue(new Error('API Error'));
+    mockExecuteQuery.mockRejectedValue(new Error('API Error'));
     
     render(<App />);
     
     await waitFor(() => {
-      expect(screen.getByText(/Error: Failed to load initial graph data/i)).toBeInTheDocument();
+      expect(screen.getByText(/Error:/)).toBeInTheDocument();
+      expect(screen.getByText(/Failed to load complete graph data/)).toBeInTheDocument();
     });
   });
 
@@ -94,10 +127,10 @@ describe('App Component', () => {
     });
 
     // Mock expansion data
-    mockApiService.fetchTraversalData.mockResolvedValueOnce({
+    mockExecuteQuery.mockResolvedValueOnce({
       queryNode: [mockNodes[1]]
     });
-    mockGraphUtils.transformTraversalData.mockReturnValueOnce({
+    mockTransformAllGraphData.mockReturnValueOnce({
       nodes: [mockNodes[1]],
       edges: []
     });
@@ -107,7 +140,10 @@ describe('App Component', () => {
     });
 
     await waitFor(() => {
-      expect(mockApiService.fetchTraversalData).toHaveBeenCalledWith('test-node', expect.any(String));
+      expect(mockExecuteQuery).toHaveBeenCalledWith(
+        expect.stringContaining('test-node'),
+        expect.any(Object)
+      );
     });
   });
 
@@ -119,12 +155,12 @@ describe('App Component', () => {
     });
 
     // Mock complete graph data
-    mockApiService.fetchAllNodeIds.mockResolvedValueOnce(['node1', 'node2']);
-    mockApiService.fetchTraversalData.mockResolvedValue({
-      queryNode: [mockNodes[0]]
+    mockFetchAllNodeIds.mockResolvedValueOnce(['node1', 'node2', 'node3']);
+    mockExecuteQuery.mockResolvedValue({
+      queryNode: mockNodes
     });
-    mockGraphUtils.transformTraversalData.mockReturnValue({
-      nodes: mockNodes.slice(0, 2),
+    mockTransformAllGraphData.mockReturnValue({
+      nodes: mockNodes,
       edges: mockEdges
     });
 
@@ -133,7 +169,7 @@ describe('App Component', () => {
     });
 
     await waitFor(() => {
-      expect(mockApiService.fetchAllNodeIds).toHaveBeenCalled();
+      expect(mockFetchAllNodeIds).toHaveBeenCalled();
     });
   });
 
@@ -144,14 +180,16 @@ describe('App Component', () => {
       expect(screen.getByTestId('graph-view')).toBeInTheDocument();
     });
 
-    mockApiService.executeMutation.mockResolvedValueOnce({});
+    mockExecuteMutation.mockResolvedValueOnce({
+      data: { deleteNode: { numUids: 1 } }
+    });
 
     act(() => {
       screen.getByTestId('delete-trigger').click();
     });
 
     await waitFor(() => {
-      expect(mockApiService.executeMutation).toHaveBeenCalled();
+      expect(mockExecuteMutation).toHaveBeenCalled();
     });
   });
 });

@@ -57,7 +57,18 @@ global.testUtils = {
       clearCookie: jest.fn().mockReturnThis()
     };
     return res;
-  }
+  },
+
+  // Aliases for backward compatibility with existing tests
+  createMockReq: function(overrides = {}) {
+    return this.createMockRequest(overrides);
+  },
+  
+  createMockRes: function() {
+    return this.createMockResponse();
+  },
+  
+  createMockNext: () => jest.fn()
 };
 
 // Global error handler for unhandled promise rejections

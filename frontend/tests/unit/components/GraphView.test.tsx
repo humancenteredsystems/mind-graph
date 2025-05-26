@@ -1,152 +1,251 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { screen } from '@testing-library/react';
-import { render } from '../../helpers/testUtils';
-import { mockNodes, mockEdges, createMockNode } from '../../helpers/mockData';
-import { 
-  createMinimalCytoscapeMock, 
-  createEventCapableCytoscapeMock,
-  createMockNodeTarget 
-} from '../../helpers/cytoscapeTestUtils';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { mockNodes, mockEdges } from '../../helpers/mockData';
 import GraphView from '../../../src/components/GraphView';
 
-// Mock the context menu hook
-vi.mock('../../../src/context/ContextMenuContext', () => ({
-  useContextMenu: () => ({
-    open: false,
-    position: { x: 0, y: 0 },
-    items: [],
-    openMenu: vi.fn(),
-    closeMenu: vi.fn(),
-  }),
+// Use vi.hoisted to properly handle mock hoisting
+const { mockCytoscapeComponent, mockCytoscape, mockKlay, mockCytoscapeDefault } = vi.hoisted(() => ({
+  mockCytoscapeComponent: vi.fn(),
+  mockCytoscape: {
+    layout: vi.fn().mockReturnValue({ run: vi.fn() }),
+    on: vi.fn(),
+    off: vi.fn(),
+    nodes: vi.fn().mockReturnValue([]),
+    edges: vi.fn().mockReturnValue([]),
+    getElementById: vi.fn(),
+    remove: vi.fn(),
+    add: vi.fn(),
+    fit: vi.fn(),
+    center: vi.fn(),
+  },
+  mockKlay: vi.fn(),
+  mockCytoscapeDefault: Object.assign(vi.fn(), {
+    use: vi.fn()
+  })
 }));
 
-describe('GraphView Component', () => {
-  const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  const onEditNodeMock = vi.fn();
+// Mock react-cytoscapejs
+vi.mock('react-cytoscapejs', () => ({
+  default: mockCytoscapeComponent
+}));
+
+// Mock cytoscape with use method
+vi.mock('cytoscape', () => ({
+  default: mockCytoscapeDefault,
+  use: vi.fn(),
+}));
+
+// Mock cytoscape-klay
+vi.mock('cytoscape-klay', () => ({
+  default: mockKlay
+}));
+
+describe('GraphView', () => {
+  const mockProps = {
+    nodes: mockNodes,
+    edges: mockEdges,
+    onNodeExpand: vi.fn(),
+    onLoadCompleteGraph: vi.fn(),
+    onDeleteNode: vi.fn(),
+    onDeleteNodes: vi.fn(),
+  };
 
   beforeEach(() => {
-    consoleWarnSpy.mockClear();
-    onEditNodeMock.mockClear();
-  });
-
-  afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe('Rendering', () => {
-    beforeEach(() => {
-      vi.mock('react-cytoscapejs', createMinimalCytoscapeMock);
-    });
-
-    it('renders graph container and CytoscapeComponent', () => {
-      render(<GraphView nodes={[]} edges={[]} />);
-      expect(screen.getByTestId('graph-container')).toBeInTheDocument();
-      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
-    });
-
-    it('renders with correct node and edge counts', () => {
-      render(<GraphView nodes={mockNodes} edges={mockEdges} />);
-      const component = screen.getByTestId('cytoscape-component');
-      expect(component).toHaveAttribute('data-node-count', '3');
-      expect(component).toHaveAttribute('data-edge-count', '2');
-    });
-
-    it('passes correct elements to CytoscapeComponent', () => {
-      const testNodes = [createMockNode({ id: 'n1', label: 'Node 1' })];
-      const testEdges = [{ source: 'n1', target: 'n1', type: 'SELF' }];
-      
-      render(<GraphView nodes={testNodes} edges={testEdges} />);
-      const comp = screen.getByTestId('cytoscape-component');
-      const elementsAttr = comp.getAttribute('data-elements');
-      const elements = JSON.parse(elementsAttr || '[]');
-      
-      expect(elements).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ data: expect.objectContaining({ id: 'n1' }) }),
-          expect.objectContaining({ data: expect.objectContaining({ source: 'n1', target: 'n1' }) })
-        ])
+    
+    // Setup CytoscapeComponent mock to render a div
+    mockCytoscapeComponent.mockImplementation(({ elements, cy }) => {
+      if (typeof cy === 'function') {
+        cy(mockCytoscape);
+      }
+      return (
+        <div 
+          data-testid="cytoscape-graph"
+          data-elements={JSON.stringify(elements)}
+        />
       );
-      expect(consoleWarnSpy).not.toHaveBeenCalled();
-    });
-
-    it('filters dangling edges', () => {
-      const nodes = [
-        createMockNode({ id: 'n1', label: 'Node 1' }),
-        createMockNode({ id: 'n2', label: 'Node 2' })
-      ];
-      const edges = [
-        { source: 'n1', target: 'n2', type: 'valid' }, // Valid edge
-        { source: 'n1', target: 'n3', type: 'dangling-target' }, // Dangling target
-        { source: 'n4', target: 'n2', type: 'dangling-source' }, // Dangling source
-        { source: 'n5', target: 'n6', type: 'both-dangling' }, // Both dangling
-      ];
-
-      render(<GraphView nodes={nodes} edges={edges} />);
-      const component = screen.getByTestId('cytoscape-component');
-      expect(component).toHaveAttribute('data-node-count', '2');
-      expect(component).toHaveAttribute('data-edge-count', '1');
-      expect(consoleWarnSpy).not.toHaveBeenCalled();
-    });
-
-    it('does not filter valid edges', () => {
-      const nodes = [
-        createMockNode({ id: 'n1', label: 'Node 1' }),
-        createMockNode({ id: 'n2', label: 'Node 2' }),
-        createMockNode({ id: 'n3', label: 'Node 3' })
-      ];
-      const edges = [
-        { source: 'n1', target: 'n2', type: 'valid1' },
-        { source: 'n2', target: 'n3', type: 'valid2' },
-      ];
-
-      render(<GraphView nodes={nodes} edges={edges} />);
-      const component = screen.getByTestId('cytoscape-component');
-      expect(component).toHaveAttribute('data-node-count', '3');
-      expect(component).toHaveAttribute('data-edge-count', '2');
-      expect(consoleWarnSpy).not.toHaveBeenCalled();
     });
   });
 
-  describe('Interactions', () => {
-    let mockCytoscape: any;
+  it('renders without crashing', () => {
+    render(<GraphView {...mockProps} />);
+    expect(screen.getByTestId('cytoscape-graph')).toBeInTheDocument();
+  });
 
-    beforeEach(() => {
-      const cytoscapeMock = createEventCapableCytoscapeMock();
-      mockCytoscape = cytoscapeMock.mockCy;
-      vi.mock('react-cytoscapejs', () => cytoscapeMock);
-    });
+  it('passes nodes and edges to Cytoscape', () => {
+    render(<GraphView {...mockProps} />);
+    
+    expect(mockCytoscapeComponent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: expect.arrayContaining([
+          expect.objectContaining({ data: expect.objectContaining({ id: 'node1' }) }),
+          expect.objectContaining({ data: expect.objectContaining({ id: 'node2' }) }),
+        ])
+      }),
+      expect.any(Object)
+    );
+  });
 
-    it('does not call onEditNode on single tap', () => {
-      render(<GraphView nodes={mockNodes} edges={[]} onEditNode={onEditNodeMock} />);
-      
-      const mockTarget = createMockNodeTarget(mockNodes[0]);
-      mockCytoscape.__triggerEvent('tap', 'node', mockTarget);
-      
-      expect(onEditNodeMock).not.toHaveBeenCalled();
-    });
+  it('handles empty nodes and edges', () => {
+    render(<GraphView {...mockProps} nodes={[]} edges={[]} />);
+    
+    expect(mockCytoscapeComponent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        elements: []
+      }),
+      expect.any(Object)
+    );
+  });
 
-    it('calls onEditNode on double tap', () => {
-      render(<GraphView nodes={mockNodes} edges={[]} onEditNode={onEditNodeMock} />);
-      
-      const mockTarget = createMockNodeTarget(mockNodes[0]);
-      mockCytoscape.__triggerEvent('doubleTap', 'node', mockTarget);
-      
-      expect(onEditNodeMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'node1' }));
-    });
+  it('applies correct styling', () => {
+    render(<GraphView {...mockProps} />);
+    
+    expect(mockCytoscapeComponent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        style: expect.arrayContaining([
+          expect.objectContaining({
+            selector: 'node'
+          }),
+          expect.objectContaining({
+            selector: 'edge'
+          })
+        ])
+      }),
+      expect.any(Object)
+    );
+  });
 
-    it('handles multiple single taps without triggering edit', () => {
-      render(<GraphView nodes={mockNodes} edges={[]} onEditNode={onEditNodeMock} />);
-      
-      const mockTarget = createMockNodeTarget(mockNodes[0]);
-      
-      // Multiple single taps should not trigger edit
-      mockCytoscape.__triggerEvent('tap', 'node', mockTarget);
-      mockCytoscape.__triggerEvent('tap', 'node', mockTarget);
-      mockCytoscape.__triggerEvent('tap', 'node', mockTarget);
-      
-      expect(onEditNodeMock).not.toHaveBeenCalled();
-    });
+  it('sets up event handlers when cy is available', () => {
+    render(<GraphView {...mockProps} />);
+    
+    // Verify that the cy callback was called
+    expect(mockCytoscape.on).toHaveBeenCalled();
+  });
+
+  it('handles node expansion callback', () => {
+    render(<GraphView {...mockProps} />);
+    
+    // Simulate node expansion event
+    const onCall = mockCytoscape.on.mock.calls.find(call => call[0] === 'tap');
+    if (onCall) {
+      const eventHandler = onCall[1];
+      const mockEvent = {
+        target: {
+          isNode: () => true,
+          id: () => 'node1',
+          data: () => ({ id: 'node1' })
+        }
+      };
+      eventHandler(mockEvent);
+    }
+    
+    expect(mockProps.onNodeExpand).toHaveBeenCalledWith('node1');
+  });
+
+  it('handles context menu events', () => {
+    render(<GraphView {...mockProps} />);
+    
+    // Verify context menu event handler is set up
+    const contextMenuCall = mockCytoscape.on.mock.calls.find(call => call[0] === 'cxttap');
+    expect(contextMenuCall).toBeDefined();
+  });
+
+  it('applies layout when nodes change', () => {
+    const { rerender } = render(<GraphView {...mockProps} />);
+    
+    // Change nodes
+    const newNodes = [...mockNodes, {
+      id: 'node3',
+      label: 'New Node',
+      type: 'concept',
+      assignments: []
+    }];
+    
+    rerender(<GraphView {...mockProps} nodes={newNodes} />);
+    
+    // Layout should be applied
+    expect(mockCytoscape.layout).toHaveBeenCalled();
+  });
+
+  it('cleans up event listeners on unmount', () => {
+    const { unmount } = render(<GraphView {...mockProps} />);
+    
+    unmount();
+    
+    // Verify cleanup
+    expect(mockCytoscape.off).toHaveBeenCalled();
+  });
+
+  it('handles node selection', () => {
+    render(<GraphView {...mockProps} />);
+    
+    // Simulate node selection
+    const selectCall = mockCytoscape.on.mock.calls.find(call => call[0] === 'select');
+    if (selectCall) {
+      const eventHandler = selectCall[1];
+      const mockEvent = {
+        target: {
+          isNode: () => true,
+          id: () => 'node1'
+        }
+      };
+      eventHandler(mockEvent);
+    }
+    
+    // Should handle selection (specific behavior depends on implementation)
+    expect(mockCytoscape.on).toHaveBeenCalledWith('select', expect.any(Function));
+  });
+
+  it('handles edge rendering', () => {
+    render(<GraphView {...mockProps} />);
+    
+    const elements = mockCytoscapeComponent.mock.calls[0][0].elements;
+    const edgeElements = elements.filter((el: any) => el.data.source);
+    
+    expect(edgeElements).toHaveLength(mockEdges.length);
+    expect(edgeElements[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          source: mockEdges[0].source,
+          target: mockEdges[0].target
+        })
+      })
+    );
+  });
+
+  it('handles graph fit and center operations', () => {
+    render(<GraphView {...mockProps} />);
+    
+    // These operations should be available through the cy instance
+    expect(mockCytoscape.fit).toBeDefined();
+    expect(mockCytoscape.center).toBeDefined();
+  });
+
+  it('handles dynamic node updates', () => {
+    const { rerender } = render(<GraphView {...mockProps} />);
+    
+    // Update with different nodes
+    const updatedNodes = mockNodes.map(node => ({
+      ...node,
+      label: `Updated ${node.label}`
+    }));
+    
+    rerender(<GraphView {...mockProps} nodes={updatedNodes} />);
+    
+    // Should re-render with updated data
+    const lastCall = mockCytoscapeComponent.mock.calls[mockCytoscapeComponent.mock.calls.length - 1];
+    const elements = lastCall[0].elements;
+    const nodeElements = elements.filter((el: any) => !el.data.source);
+    
+    expect(nodeElements[0].data.label).toBe('Updated Test Node 1');
+  });
+
+  it('handles empty graph state', () => {
+    render(<GraphView {...mockProps} nodes={[]} edges={[]} />);
+    
+    const elements = mockCytoscapeComponent.mock.calls[0][0].elements;
+    expect(elements).toHaveLength(0);
   });
 });

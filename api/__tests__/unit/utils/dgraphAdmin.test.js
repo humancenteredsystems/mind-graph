@@ -1,5 +1,4 @@
-const { jest } = require('@jest/globals');
-const { checkDgraphHealth, dropAllData } = require('../../../utils/dgraphAdmin');
+const { sendDgraphAdminRequest } = require('../../../utils/dgraphAdmin');
 
 // Mock axios
 jest.mock('axios');
@@ -8,86 +7,91 @@ const axios = require('axios');
 describe('dgraphAdmin utils', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.DGRAPH_BASE_URL = 'http://localhost:8080';
   });
 
-  describe('checkDgraphHealth', () => {
-    it('should return healthy status when Dgraph is accessible', async () => {
-      axios.get.mockResolvedValueOnce({
+  describe('sendDgraphAdminRequest', () => {
+    it('should return success for successful requests', async () => {
+      const mockResponse = {
         status: 200,
-        data: { status: 'healthy' }
-      });
+        data: { message: 'Success' }
+      };
+      axios.post.mockResolvedValueOnce(mockResponse);
 
-      const result = await checkDgraphHealth();
-
-      expect(result.status).toBe('healthy');
-      expect(axios.get).toHaveBeenCalledWith('http://localhost:8080/health');
-    });
-
-    it('should return unhealthy status when Dgraph is not accessible', async () => {
-      axios.get.mockRejectedValueOnce(new Error('Connection refused'));
-
-      const result = await checkDgraphHealth();
-
-      expect(result.status).toBe('unhealthy');
-      expect(result.error).toBe('Connection refused');
-    });
-
-    it('should handle timeout errors', async () => {
-      const timeoutError = new Error('timeout of 5000ms exceeded');
-      timeoutError.code = 'ECONNABORTED';
-      axios.get.mockRejectedValueOnce(timeoutError);
-
-      const result = await checkDgraphHealth();
-
-      expect(result.status).toBe('unhealthy');
-      expect(result.error).toContain('timeout');
-    });
-  });
-
-  describe('dropAllData', () => {
-    it('should successfully drop all data', async () => {
-      axios.post.mockResolvedValueOnce({
-        status: 200,
-        data: { message: 'Data dropped successfully' }
-      });
-
-      const result = await dropAllData();
+      const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
 
       expect(result.success).toBe(true);
+      expect(result.data).toEqual({ message: 'Success' });
       expect(axios.post).toHaveBeenCalledWith(
-        'http://localhost:8080/alter',
-        { drop_all: true },
-        expect.any(Object)
+        'http://localhost:8080/admin/schema',
+        { schema: 'test' },
+        { headers: { 'Content-Type': 'application/json' } }
       );
     });
 
-    it('should handle drop operation failures', async () => {
-      axios.post.mockRejectedValueOnce(new Error('Drop operation failed'));
+    it('should handle non-2xx status codes', async () => {
+      const mockResponse = {
+        status: 400,
+        data: { error: 'Bad request' }
+      };
+      axios.post.mockResolvedValueOnce(mockResponse);
 
-      const result = await dropAllData();
+      const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Drop operation failed');
+      expect(result.error).toContain('Dgraph admin request failed with status: 400');
+      expect(result.details).toEqual({ error: 'Bad request' });
     });
 
-    it('should use correct headers for drop operation', async () => {
-      axios.post.mockResolvedValueOnce({
-        status: 200,
-        data: { message: 'Data dropped successfully' }
-      });
+    it('should handle network errors with response', async () => {
+      const networkError = new Error('Network Error');
+      networkError.response = {
+        status: 500,
+        statusText: 'Internal Server Error',
+        data: { error: 'Server error' }
+      };
+      axios.post.mockRejectedValueOnce(networkError);
 
-      await dropAllData();
+      const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Dgraph admin request failed: 500 - Internal Server Error');
+      expect(result.details).toEqual({ error: 'Server error' });
+    });
+
+    it('should handle network errors without response', async () => {
+      const networkError = new Error('Network Error');
+      networkError.request = {};
+      axios.post.mockRejectedValueOnce(networkError);
+
+      const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('No response received from Dgraph admin');
+    });
+
+    it('should handle request setup errors', async () => {
+      const setupError = new Error('Request setup failed');
+      axios.post.mockRejectedValueOnce(setupError);
+
+      const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Error setting up Dgraph admin request: Request setup failed');
+    });
+
+    it('should use correct headers', async () => {
+      const mockResponse = {
+        status: 200,
+        data: { message: 'Success' }
+      };
+      axios.post.mockResolvedValueOnce(mockResponse);
+
+      await sendDgraphAdminRequest('http://localhost:8080/alter', { drop_all: true });
 
       expect(axios.post).toHaveBeenCalledWith(
         'http://localhost:8080/alter',
         { drop_all: true },
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          timeout: 30000
-        }
+        { headers: { 'Content-Type': 'application/json' } }
       );
     });
   });

@@ -1,292 +1,242 @@
-const { SchemaRegistry } = require('../../../services/schemaRegistry');
-const fs = require('fs').promises;
-const path = require('path');
+const {
+  getAllSchemas,
+  getSchemaById,
+  getProductionSchema,
+  getSchemaContent,
+  addSchema,
+  updateSchema
+} = require('../../../services/schemaRegistry');
 
-// Mock fs module
+// Mock fs
 jest.mock('fs', () => ({
   promises: {
     readFile: jest.fn(),
     writeFile: jest.fn(),
-    access: jest.fn(),
     mkdir: jest.fn()
   }
 }));
 
-describe('SchemaRegistry Service', () => {
-  let schemaRegistry;
-  const mockRegistryPath = '/mock/path/schema_registry.json';
-  const mockSchemasDir = '/mock/path/schemas';
+const fs = require('fs');
 
+describe('SchemaRegistry Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    schemaRegistry = new SchemaRegistry(mockRegistryPath, mockSchemasDir);
   });
 
-  describe('loadRegistry', () => {
-    it('should load existing registry file', async () => {
+  describe('getAllSchemas', () => {
+    it('should return all schemas from registry', async () => {
       const mockRegistry = {
-        schemas: {
-          'test-schema': {
-            id: 'test-schema',
-            name: 'Test Schema',
-            version: '1.0.0',
-            filename: 'test.graphql'
-          }
-        }
+        schemas: [
+          { id: 'schema1', name: 'Test Schema 1' },
+          { id: 'schema2', name: 'Test Schema 2' }
+        ]
       };
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
 
-      fs.readFile.mockResolvedValue(JSON.stringify(mockRegistry));
+      const result = await getAllSchemas();
 
-      const result = await schemaRegistry.loadRegistry();
-
-      expect(fs.readFile).toHaveBeenCalledWith(mockRegistryPath, 'utf8');
-      expect(result).toEqual(mockRegistry);
-    });
-
-    it('should return empty registry when file does not exist', async () => {
-      fs.readFile.mockRejectedValue({ code: 'ENOENT' });
-
-      const result = await schemaRegistry.loadRegistry();
-
-      expect(result).toEqual({ schemas: {} });
-    });
-
-    it('should throw error for other file system errors', async () => {
-      const error = new Error('Permission denied');
-      fs.readFile.mockRejectedValue(error);
-
-      await expect(schemaRegistry.loadRegistry()).rejects.toThrow('Permission denied');
-    });
-  });
-
-  describe('saveRegistry', () => {
-    it('should save registry to file', async () => {
-      const mockRegistry = {
-        schemas: {
-          'test-schema': {
-            id: 'test-schema',
-            name: 'Test Schema'
-          }
-        }
-      };
-
-      fs.writeFile.mockResolvedValue();
-
-      await schemaRegistry.saveRegistry(mockRegistry);
-
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        mockRegistryPath,
-        JSON.stringify(mockRegistry, null, 2),
+      expect(result).toEqual(mockRegistry.schemas);
+      expect(fs.promises.readFile).toHaveBeenCalledWith(
+        expect.stringContaining('schema_registry.json'),
         'utf8'
       );
     });
 
-    it('should handle write errors', async () => {
-      const mockRegistry = { schemas: {} };
-      const error = new Error('Write failed');
-      fs.writeFile.mockRejectedValue(error);
+    it('should return empty array when no schemas exist', async () => {
+      const mockRegistry = { schemas: [] };
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
 
-      await expect(schemaRegistry.saveRegistry(mockRegistry)).rejects.toThrow('Write failed');
+      const result = await getAllSchemas();
+
+      expect(result).toEqual([]);
+    });
+
+    it('should throw error when registry file cannot be read', async () => {
+      fs.promises.readFile.mockRejectedValueOnce(new Error('File not found'));
+
+      await expect(getAllSchemas()).rejects.toThrow('Failed to read schema registry');
     });
   });
 
-  describe('getSchema', () => {
-    beforeEach(() => {
-      const mockRegistry = {
-        schemas: {
-          'existing-schema': {
-            id: 'existing-schema',
-            name: 'Existing Schema',
-            filename: 'existing.graphql'
-          }
-        }
-      };
-      fs.readFile.mockResolvedValue(JSON.stringify(mockRegistry));
+  describe('getSchemaById', () => {
+    it('should return schema when found', async () => {
+      const mockSchemas = [
+        { id: 'schema1', name: 'Test Schema 1' },
+        { id: 'schema2', name: 'Test Schema 2' }
+      ];
+      const mockRegistry = { schemas: mockSchemas };
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
+
+      const result = await getSchemaById('schema1');
+
+      expect(result).toEqual(mockSchemas[0]);
     });
 
-    it('should return schema metadata when schema exists', async () => {
-      const result = await schemaRegistry.getSchema('existing-schema');
+    it('should return null when schema not found', async () => {
+      const mockRegistry = { schemas: [] };
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
 
-      expect(result).toEqual({
-        id: 'existing-schema',
-        name: 'Existing Schema',
-        filename: 'existing.graphql'
-      });
+      const result = await getSchemaById('nonexistent');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getProductionSchema', () => {
+    it('should return production schema when found', async () => {
+      const mockSchemas = [
+        { id: 'schema1', name: 'Test Schema 1', is_production: false },
+        { id: 'schema2', name: 'Test Schema 2', is_production: true }
+      ];
+      const mockRegistry = { schemas: mockSchemas };
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
+
+      const result = await getProductionSchema();
+
+      expect(result).toEqual(mockSchemas[1]);
     });
 
-    it('should return null when schema does not exist', async () => {
-      const result = await schemaRegistry.getSchema('non-existent');
+    it('should return null when no production schema exists', async () => {
+      const mockRegistry = { schemas: [{ id: 'schema1', is_production: false }] };
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
+
+      const result = await getProductionSchema();
 
       expect(result).toBeNull();
     });
   });
 
   describe('getSchemaContent', () => {
-    beforeEach(() => {
-      const mockRegistry = {
-        schemas: {
-          'test-schema': {
-            id: 'test-schema',
-            filename: 'test.graphql'
-          }
-        }
-      };
-      fs.readFile.mockImplementation((path) => {
-        if (path === mockRegistryPath) {
-          return Promise.resolve(JSON.stringify(mockRegistry));
-        }
-        if (path.endsWith('test.graphql')) {
-          return Promise.resolve('type Node { id: String! @id }');
-        }
-        return Promise.reject(new Error('File not found'));
-      });
-    });
-
     it('should return schema content when schema exists', async () => {
-      const result = await schemaRegistry.getSchemaContent('test-schema');
+      const mockSchema = { id: 'schema1', path: 'schemas/test.graphql' };
+      const mockRegistry = { schemas: [mockSchema] };
+      const mockContent = 'type Node { id: String! }';
 
-      expect(result).toBe('type Node { id: String! @id }');
-      expect(fs.readFile).toHaveBeenCalledWith(
-        path.join(mockSchemasDir, 'test.graphql'),
-        'utf8'
-      );
+      fs.promises.readFile
+        .mockResolvedValueOnce(JSON.stringify(mockRegistry))
+        .mockResolvedValueOnce(mockContent);
+
+      const result = await getSchemaContent('schema1');
+
+      expect(result).toBe(mockContent);
+      expect(fs.promises.readFile).toHaveBeenCalledTimes(2);
     });
 
-    it('should return null when schema does not exist', async () => {
-      const result = await schemaRegistry.getSchemaContent('non-existent');
+    it('should throw error when schema not found', async () => {
+      const mockRegistry = { schemas: [] };
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
 
-      expect(result).toBeNull();
+      await expect(getSchemaContent('nonexistent')).rejects.toThrow('Schema not found');
     });
   });
 
   describe('addSchema', () => {
-    beforeEach(() => {
-      fs.readFile.mockResolvedValue(JSON.stringify({ schemas: {} }));
-      fs.writeFile.mockResolvedValue();
-      fs.access.mockResolvedValue();
-      fs.mkdir.mockResolvedValue();
-    });
-
     it('should add new schema successfully', async () => {
+      const mockRegistry = { schemas: [] };
       const schemaInfo = {
         id: 'new-schema',
         name: 'New Schema',
-        version: '1.0.0',
-        description: 'A new test schema'
+        description: 'Test schema'
       };
-      const content = 'type Node { id: String! @id }';
+      const schemaContent = 'type Node { id: String! }';
 
-      const result = await schemaRegistry.addSchema(schemaInfo, content);
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
+      fs.promises.writeFile.mockResolvedValue();
+      fs.promises.mkdir.mockResolvedValue();
+
+      const result = await addSchema(schemaInfo, schemaContent);
 
       expect(result.id).toBe('new-schema');
-      expect(result.filename).toBe('new-schema.graphql');
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        path.join(mockSchemasDir, 'new-schema.graphql'),
-        content,
-        'utf8'
-      );
+      expect(result.name).toBe('New Schema');
+      expect(fs.promises.writeFile).toHaveBeenCalledTimes(2); // Registry + schema file
+      expect(fs.promises.mkdir).toHaveBeenCalled();
     });
 
     it('should throw error when schema ID already exists', async () => {
-      const existingRegistry = {
-        schemas: {
-          'existing-schema': { id: 'existing-schema' }
-        }
+      const mockRegistry = {
+        schemas: [{ id: 'existing-schema', name: 'Existing' }]
       };
-      fs.readFile.mockResolvedValue(JSON.stringify(existingRegistry));
-
       const schemaInfo = { id: 'existing-schema', name: 'Duplicate' };
-      const content = 'type Node { id: String! @id }';
 
-      await expect(schemaRegistry.addSchema(schemaInfo, content))
-        .rejects.toThrow('Schema with ID existing-schema already exists');
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
+
+      await expect(addSchema(schemaInfo, 'content')).rejects.toThrow('Schema ID already exists');
     });
 
-    it('should create schemas directory if it does not exist', async () => {
-      fs.access.mockRejectedValue({ code: 'ENOENT' });
+    it('should handle production schema marking', async () => {
+      const mockRegistry = {
+        schemas: [{ id: 'old-prod', is_production: true }]
+      };
+      const schemaInfo = {
+        id: 'new-prod',
+        name: 'New Production',
+        is_production: true
+      };
 
-      const schemaInfo = { id: 'new-schema', name: 'New Schema' };
-      const content = 'type Node { id: String! @id }';
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
+      fs.promises.writeFile.mockResolvedValue();
+      fs.promises.mkdir.mockResolvedValue();
 
-      await schemaRegistry.addSchema(schemaInfo, content);
+      const result = await addSchema(schemaInfo, 'content');
 
-      expect(fs.mkdir).toHaveBeenCalledWith(mockSchemasDir, { recursive: true });
+      expect(result.is_production).toBe(true);
+      // Should have written registry with old production unmarked
+      const registryCall = fs.promises.writeFile.mock.calls.find(call => 
+        call[0].includes('schema_registry.json')
+      );
+      const writtenRegistry = JSON.parse(registryCall[1]);
+      const oldProdSchema = writtenRegistry.schemas.find(s => s.id === 'old-prod');
+      expect(oldProdSchema.is_production).toBe(false);
     });
   });
 
   describe('updateSchema', () => {
-    beforeEach(() => {
-      const existingRegistry = {
-        schemas: {
-          'existing-schema': {
-            id: 'existing-schema',
-            name: 'Original Name',
-            version: '1.0.0',
-            filename: 'existing-schema.graphql'
-          }
-        }
-      };
-      fs.readFile.mockResolvedValue(JSON.stringify(existingRegistry));
-      fs.writeFile.mockResolvedValue();
-    });
-
     it('should update schema metadata successfully', async () => {
-      const updates = {
-        name: 'Updated Name',
-        version: '1.1.0'
+      const mockRegistry = {
+        schemas: [{ id: 'schema1', name: 'Old Name', path: 'schemas/test.graphql' }]
       };
+      const updates = { name: 'New Name', description: 'Updated description' };
 
-      const result = await schemaRegistry.updateSchema('existing-schema', updates);
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
+      fs.promises.writeFile.mockResolvedValue();
 
-      expect(result.name).toBe('Updated Name');
-      expect(result.version).toBe('1.1.0');
-      expect(result.id).toBe('existing-schema'); // Should remain unchanged
+      const result = await updateSchema('schema1', updates);
+
+      expect(result.name).toBe('New Name');
+      expect(result.description).toBe('Updated description');
+      expect(result.updated_at).toBeDefined();
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('schema_registry.json'),
+        expect.any(String),
+        'utf8'
+      );
     });
 
     it('should update schema content when provided', async () => {
-      const updates = { name: 'Updated Name' };
-      const newContent = 'type UpdatedNode { id: String! @id }';
+      const mockRegistry = {
+        schemas: [{ id: 'schema1', name: 'Test', path: 'schemas/test.graphql' }]
+      };
+      const updates = { name: 'Updated' };
+      const newContent = 'type UpdatedNode { id: String! }';
 
-      await schemaRegistry.updateSchema('existing-schema', updates, newContent);
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
+      fs.promises.writeFile.mockResolvedValue();
 
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        path.join(mockSchemasDir, 'existing-schema.graphql'),
+      await updateSchema('schema1', updates, newContent);
+
+      expect(fs.promises.writeFile).toHaveBeenCalledTimes(2); // Registry + content
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('schemas/test.graphql'),
         newContent,
         'utf8'
       );
     });
 
     it('should throw error when schema does not exist', async () => {
-      const updates = { name: 'Updated Name' };
+      const mockRegistry = { schemas: [] };
+      fs.promises.readFile.mockResolvedValueOnce(JSON.stringify(mockRegistry));
 
-      await expect(schemaRegistry.updateSchema('non-existent', updates))
-        .rejects.toThrow('Schema with ID non-existent not found');
-    });
-  });
-
-  describe('listSchemas', () => {
-    it('should return array of schema metadata', async () => {
-      const mockRegistry = {
-        schemas: {
-          'schema1': { id: 'schema1', name: 'Schema 1' },
-          'schema2': { id: 'schema2', name: 'Schema 2' }
-        }
-      };
-      fs.readFile.mockResolvedValue(JSON.stringify(mockRegistry));
-
-      const result = await schemaRegistry.listSchemas();
-
-      expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({ id: 'schema1', name: 'Schema 1' });
-      expect(result[1]).toEqual({ id: 'schema2', name: 'Schema 2' });
-    });
-
-    it('should return empty array when no schemas exist', async () => {
-      fs.readFile.mockResolvedValue(JSON.stringify({ schemas: {} }));
-
-      const result = await schemaRegistry.listSchemas();
-
-      expect(result).toEqual([]);
+      await expect(updateSchema('nonexistent', {})).rejects.toThrow('Schema not found');
     });
   });
 });

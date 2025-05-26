@@ -2,22 +2,45 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { screen, fireEvent } from '@testing-library/react';
-import { render } from '../../helpers/testUtils';
-import { mockHierarchies, mockNodeFormValues } from '../../helpers/mockData';
+import { render } from '@testing-library/react';
 import NodeFormModal from '../../../src/components/NodeFormModal';
-import type { NodeFormValues } from '../../../src/components/NodeFormModal';
+
+// Create mock data before vi.mock calls to avoid hoisting issues
+const mockHierarchies = [
+  {
+    id: 'hierarchy1',
+    name: 'Test Hierarchy',
+    levels: [
+      {
+        id: 'level1',
+        levelNumber: 1,
+        label: 'Domain',
+        allowedTypes: ['concept', 'question']
+      },
+      {
+        id: 'level2',
+        levelNumber: 2,
+        label: 'Subdomain',
+        allowedTypes: ['example', 'concept']
+      }
+    ]
+  }
+];
+
+const mockLevels = mockHierarchies[0].levels;
+const mockAllNodeTypes = ['concept', 'example', 'question'];
 
 // Mock the context hooks
 vi.mock('../../../src/context/HierarchyContext', () => ({
   useHierarchyContext: () => ({
     hierarchies: mockHierarchies,
     hierarchyId: 'hierarchy1',
-    levels: mockHierarchies[0].levels,
+    levels: mockLevels,
     allowedTypesMap: {
-      'hierarchy1l1': ['concept', 'question'],
-      'hierarchy1l2': ['example', 'concept']
+      'hierarchy1level1': ['concept', 'question'],
+      'hierarchy1level2': ['example', 'concept']
     },
-    allNodeTypes: ['concept', 'example', 'question'],
+    allNodeTypes: mockAllNodeTypes,
     setHierarchyId: vi.fn(),
   }),
 }));
@@ -25,6 +48,15 @@ vi.mock('../../../src/context/HierarchyContext', () => ({
 vi.mock('../../../src/hooks/useGraphState', () => ({
   useGraphState: () => ({
     nodes: [],
+  }),
+}));
+
+// Mock the utility function
+vi.mock('../../../src/utils/graphUtils', () => ({
+  resolveNodeHierarchyAssignment: () => ({
+    assignment: undefined,
+    levelNumber: 0,
+    levelLabel: undefined
   }),
 }));
 
@@ -74,6 +106,7 @@ describe('NodeFormModal', () => {
     
     const typeSelect = screen.getByLabelText('Type');
     expect(screen.getByRole('option', { name: 'concept' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'example' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'question' })).toBeInTheDocument();
   });
 
@@ -127,8 +160,9 @@ describe('NodeFormModal', () => {
       />
     );
     
-    // Try to submit without filling required fields
-    fireEvent.click(screen.getByText('Save'));
+    // Save button should be disabled when label is empty
+    const saveButton = screen.getByText('Save');
+    expect(saveButton).toBeDisabled();
     
     // Should not call onSubmit if validation fails
     expect(mockOnSubmit).not.toHaveBeenCalled();
@@ -136,10 +170,17 @@ describe('NodeFormModal', () => {
 
   it('populates initial values when provided', () => {
     const initialValues = {
+      id: 'test-node',
       label: 'Initial Label',
       type: 'concept',
-      hierarchyId: 'hierarchy1',
-      levelId: 'level1'
+      assignments: [
+        {
+          hierarchyId: 'hierarchy1',
+          hierarchyName: 'Test Hierarchy',
+          levelId: 'level1',
+          levelNumber: 1
+        }
+      ]
     };
     
     render(

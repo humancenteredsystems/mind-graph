@@ -9,6 +9,13 @@ export default defineConfig({
     globals: true, // Use global APIs (describe, it, expect, etc.)
     environment: 'jsdom', // Simulate DOM environment for React Testing Library
     setupFiles: './src/setupTests.ts', // Path to the setup file
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/cypress/**',
+      '**/.{idea,git,cache,output,temp}/**',
+      '**/tests/e2e/**', // Exclude E2E tests from Vitest
+    ],
     // Optional: include css processing if needed for component styles affecting tests
     // css: true,
   },

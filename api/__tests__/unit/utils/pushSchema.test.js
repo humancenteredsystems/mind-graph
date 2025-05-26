@@ -1,252 +1,109 @@
-const { pushSchemaToTarget } = require('../../../utils/pushSchema');
-const axios = require('axios');
+const { pushSchemaViaHttp } = require('../../../utils/pushSchema');
 
 // Mock axios
 jest.mock('axios');
-const mockedAxios = axios;
+const axios = require('axios');
 
 describe('pushSchema Utility', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('pushSchemaToTarget', () => {
-    const mockSchema = `
-      type Node {
-        id: String! @id
-        label: String! @search(by: [term])
-        type: String!
-      }
-    `;
+  describe('pushSchemaViaHttp', () => {
+    const mockSchema = 'type Node { id: String! @id label: String! }';
+    const adminUrl = 'http://localhost:8080/admin/schema';
 
-    it('should successfully push schema to local target', async () => {
+    it('should successfully push schema', async () => {
       const mockResponse = {
-        data: {
-          code: 'Success',
-          message: 'Done',
-          uids: {}
-        }
+        status: 200,
+        data: { code: 'Success', message: 'Done' }
       };
-      mockedAxios.post.mockResolvedValue(mockResponse);
+      axios.post.mockResolvedValueOnce(mockResponse);
 
-      const result = await pushSchemaToTarget(mockSchema, 'local');
+      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'http://localhost:8080/admin/schema',
+      expect(result.success).toBe(true);
+      expect(result.response).toEqual({ code: 'Success', message: 'Done' });
+      expect(axios.post).toHaveBeenCalledWith(
+        adminUrl,
         mockSchema,
-        {
-          headers: {
-            'Content-Type': 'text/plain'
-          }
-        }
-      );
-      expect(result).toEqual(mockResponse.data);
-    });
-
-    it('should successfully push schema to remote target with custom URL', async () => {
-      const customUrl = 'https://custom-dgraph.example.com:8080';
-      const mockResponse = {
-        data: {
-          code: 'Success',
-          message: 'Schema updated successfully'
-        }
-      };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      const result = await pushSchemaToTarget(mockSchema, 'remote', customUrl);
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        `${customUrl}/admin/schema`,
-        mockSchema,
-        {
-          headers: {
-            'Content-Type': 'text/plain'
-          }
-        }
-      );
-      expect(result).toEqual(mockResponse.data);
-    });
-
-    it('should use default remote URL when no custom URL provided', async () => {
-      const mockResponse = {
-        data: { code: 'Success' }
-      };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      await pushSchemaToTarget(mockSchema, 'remote');
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'http://localhost:8080/admin/schema',
-        mockSchema,
-        {
-          headers: {
-            'Content-Type': 'text/plain'
-          }
-        }
+        { headers: { 'Content-Type': 'application/graphql' } }
       );
     });
 
     it('should handle network errors', async () => {
       const networkError = new Error('Network Error');
-      networkError.code = 'ECONNREFUSED';
-      mockedAxios.post.mockRejectedValue(networkError);
+      axios.post.mockRejectedValueOnce(networkError);
 
-      await expect(pushSchemaToTarget(mockSchema, 'local'))
-        .rejects.toThrow('Network Error');
+      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Network Error');
     });
 
     it('should handle Dgraph error responses', async () => {
-      const dgraphError = {
-        response: {
-          status: 400,
-          data: {
-            errors: [
-              {
-                message: 'Schema parsing failed',
-                extensions: {
-                  code: 'ErrorInvalidSchema'
-                }
-              }
-            ]
-          }
-        }
+      const dgraphError = new Error('Schema validation failed');
+      dgraphError.response = {
+        status: 400,
+        data: { error: 'Invalid schema syntax' }
       };
-      mockedAxios.post.mockRejectedValue(dgraphError);
+      axios.post.mockRejectedValueOnce(dgraphError);
 
-      await expect(pushSchemaToTarget(mockSchema, 'local'))
-        .rejects.toMatchObject({
-          response: {
-            status: 400,
-            data: {
-              errors: expect.arrayContaining([
-                expect.objectContaining({
-                  message: 'Schema parsing failed'
-                })
-              ])
-            }
-          }
-        });
+      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toEqual({ error: 'Invalid schema syntax' });
     });
 
     it('should handle timeout errors', async () => {
       const timeoutError = new Error('timeout of 5000ms exceeded');
       timeoutError.code = 'ECONNABORTED';
-      mockedAxios.post.mockRejectedValue(timeoutError);
+      axios.post.mockRejectedValueOnce(timeoutError);
 
-      await expect(pushSchemaToTarget(mockSchema, 'local'))
-        .rejects.toThrow('timeout of 5000ms exceeded');
+      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('timeout of 5000ms exceeded');
     });
 
-    it('should validate target parameter', async () => {
-      await expect(pushSchemaToTarget(mockSchema, 'invalid'))
-        .rejects.toThrow('Invalid target: invalid. Must be "local" or "remote"');
-    });
-
-    it('should validate schema parameter', async () => {
-      await expect(pushSchemaToTarget('', 'local'))
-        .rejects.toThrow('Schema content cannot be empty');
-
-      await expect(pushSchemaToTarget(null, 'local'))
-        .rejects.toThrow('Schema content is required');
-
-      await expect(pushSchemaToTarget(undefined, 'local'))
-        .rejects.toThrow('Schema content is required');
-    });
-
-    it('should handle successful response with warnings', async () => {
+    it('should use correct headers', async () => {
       const mockResponse = {
-        data: {
-          code: 'Success',
-          message: 'Schema updated with warnings',
-          warnings: [
-            'Deprecated directive used: @reverse'
-          ]
-        }
+        status: 200,
+        data: { code: 'Success', message: 'Done' }
       };
-      mockedAxios.post.mockResolvedValue(mockResponse);
+      axios.post.mockResolvedValueOnce(mockResponse);
 
-      const result = await pushSchemaToTarget(mockSchema, 'local');
+      await pushSchemaViaHttp(adminUrl, mockSchema);
 
-      expect(result).toEqual(mockResponse.data);
-      expect(result.warnings).toHaveLength(1);
-    });
-
-    it('should preserve custom headers if provided', async () => {
-      const mockResponse = { data: { code: 'Success' } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      const customHeaders = {
-        'Authorization': 'Bearer token123',
-        'X-Custom-Header': 'custom-value'
-      };
-
-      await pushSchemaToTarget(mockSchema, 'local', null, customHeaders);
-
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'http://localhost:8080/admin/schema',
+      expect(axios.post).toHaveBeenCalledWith(
+        adminUrl,
         mockSchema,
-        {
-          headers: {
-            'Content-Type': 'text/plain',
-            ...customHeaders
-          }
-        }
+        { headers: { 'Content-Type': 'application/graphql' } }
       );
     });
 
-    it('should handle malformed response data', async () => {
+    it('should handle successful response with different data format', async () => {
       const mockResponse = {
-        data: 'Invalid JSON response'
+        status: 200,
+        data: { message: 'Schema updated successfully' }
       };
-      mockedAxios.post.mockResolvedValue(mockResponse);
+      axios.post.mockResolvedValueOnce(mockResponse);
 
-      const result = await pushSchemaToTarget(mockSchema, 'local');
+      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
 
-      expect(result).toBe('Invalid JSON response');
-    });
-  });
-
-  describe('URL construction', () => {
-    it('should construct correct URLs for different targets', async () => {
-      const mockResponse = { data: { code: 'Success' } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
-
-      // Test local target
-      await pushSchemaToTarget('type Node { id: String! @id }', 'local');
-      expect(mockedAxios.post).toHaveBeenLastCalledWith(
-        'http://localhost:8080/admin/schema',
-        expect.any(String),
-        expect.any(Object)
-      );
-
-      // Test remote target with custom URL
-      await pushSchemaToTarget(
-        'type Node { id: String! @id }', 
-        'remote', 
-        'https://prod-dgraph.example.com:443'
-      );
-      expect(mockedAxios.post).toHaveBeenLastCalledWith(
-        'https://prod-dgraph.example.com:443/admin/schema',
-        expect.any(String),
-        expect.any(Object)
-      );
+      expect(result.success).toBe(true);
+      expect(result.response).toEqual({ message: 'Schema updated successfully' });
     });
 
-    it('should handle URLs with trailing slashes', async () => {
-      const mockResponse = { data: { code: 'Success' } };
-      mockedAxios.post.mockResolvedValue(mockResponse);
+    it('should handle errors without response data', async () => {
+      const error = new Error('Connection refused');
+      // No response property
+      axios.post.mockRejectedValueOnce(error);
 
-      await pushSchemaToTarget(
-        'type Node { id: String! @id }', 
-        'remote', 
-        'https://dgraph.example.com:8080/'
-      );
+      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        'https://dgraph.example.com:8080/admin/schema',
-        expect.any(String),
-        expect.any(Object)
-      );
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Connection refused');
     });
   });
 });

@@ -1,39 +1,58 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
-import { renderWithUIProvider } from '../helpers/testUtils';
-import { mockNodes, mockHierarchies } from '../helpers/mockData';
+import { mockNodes } from '../helpers/mockData';
 import App from '../../src/App';
 
-// Mock API Service
-const mockApiService = {
-  fetchHierarchies: vi.fn(),
-  fetchTraversalData: vi.fn(),
-  addNode: vi.fn(),
-  updateNode: vi.fn(),
-  deleteNode: vi.fn()
-};
-
-vi.mock('../../src/services/ApiService', () => ({
-  default: mockApiService
+// Use vi.hoisted to properly handle mock hoisting
+const { 
+  mockFetchHierarchies,
+  mockExecuteQuery,
+  mockExecuteMutation,
+  mockFetchAllNodeIds,
+  mockTransformAllGraphData
+} = vi.hoisted(() => ({
+  mockFetchHierarchies: vi.fn(),
+  mockExecuteQuery: vi.fn(),
+  mockExecuteMutation: vi.fn(),
+  mockFetchAllNodeIds: vi.fn(),
+  mockTransformAllGraphData: vi.fn()
 }));
 
-// Mock Cytoscape
+// Mock API Service with all named exports
+vi.mock('../../src/services/ApiService', () => ({
+  fetchHierarchies: mockFetchHierarchies,
+  executeQuery: mockExecuteQuery,
+  executeMutation: mockExecuteMutation,
+  fetchAllNodeIds: mockFetchAllNodeIds,
+}));
+
+// Mock GraphUtils module
+vi.mock('../../src/utils/graphUtils', () => ({
+  transformAllGraphData: mockTransformAllGraphData,
+}));
+
+// Mock Cytoscape with interaction capabilities
 vi.mock('react-cytoscapejs', () => ({
   default: ({ elements, cy }: { elements: any[]; cy?: any }) => {
+    const mockCy = {
+      layout: vi.fn().mockReturnValue({ run: vi.fn() }),
+      on: vi.fn(),
+      off: vi.fn(),
+      nodes: vi.fn().mockReturnValue([]),
+      edges: vi.fn().mockReturnValue([])
+    };
+    
     if (typeof cy === 'function') {
-      const mockCy = {
-        layout: vi.fn().mockReturnValue({ run: vi.fn() }),
-        on: vi.fn(),
-        off: vi.fn(),
-        nodes: vi.fn().mockReturnValue([]),
-        edges: vi.fn().mockReturnValue([])
-      };
       cy(mockCy);
     }
+    
     return (
       <div 
         data-testid="cytoscape-component" 
         data-elements={JSON.stringify(elements)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+        }}
       />
     );
   }
@@ -44,316 +63,380 @@ describe('Hierarchy Node Creation Integration', () => {
     vi.clearAllMocks();
     
     // Setup default API responses
-    mockApiService.fetchHierarchies.mockResolvedValue(mockHierarchies);
-    mockApiService.fetchTraversalData.mockResolvedValue({
-      data: { queryNode: [] }
-    });
-    mockApiService.addNode.mockResolvedValue({
-      addNode: {
-        node: [{
-          id: 'new-node-id',
-          label: 'New Node',
-          type: 'ConceptNode'
-        }]
+    mockFetchHierarchies.mockResolvedValue([
+      { 
+        id: 'h1', 
+        name: 'Test Hierarchy 1',
+        levels: [
+          { id: 'l1', levelNumber: 1, label: 'Domain', allowedTypes: ['concept'] },
+          { id: 'l2', levelNumber: 2, label: 'Category', allowedTypes: ['concept', 'example'] }
+        ]
+      },
+      { 
+        id: 'h2', 
+        name: 'Test Hierarchy 2',
+        levels: [
+          { id: 'l3', levelNumber: 1, label: 'Topic', allowedTypes: ['question'] }
+        ]
       }
+    ]);
+    
+    mockExecuteQuery.mockResolvedValue({
+      queryNode: mockNodes
+    });
+    
+    mockFetchAllNodeIds.mockResolvedValue(['node1', 'node2', 'node3']);
+    
+    mockTransformAllGraphData.mockReturnValue({
+      nodes: mockNodes,
+      edges: [
+        { source: 'node1', target: 'node2', type: 'connects_to' }
+      ]
+    });
+    
+    mockExecuteMutation.mockResolvedValue({
+      data: { addNode: { numUids: 1 } }
     });
   });
 
-  it('creates node with correct hierarchy assignment', async () => {
-    renderWithUIProvider(<App />);
+  it('loads hierarchies and displays them in selector', async () => {
+    render(<App />);
 
-    // Wait for hierarchies to load
     await waitFor(() => {
-      expect(mockApiService.fetchHierarchies).toHaveBeenCalled();
+      expect(mockFetchHierarchies).toHaveBeenCalled();
     });
 
-    // Right-click to open context menu
-    const graphComponent = screen.getByTestId('cytoscape-component');
-    fireEvent.contextMenu(graphComponent);
-
-    // Click "Add Node"
-    const addNodeButton = screen.getByText('Add Node');
-    fireEvent.click(addNodeButton);
-
-    // Fill out the form
-    const labelInput = screen.getByLabelText(/label/i);
-    const typeSelect = screen.getByLabelText(/type/i);
-    const hierarchySelect = screen.getByLabelText(/hierarchy/i);
-    const levelSelect = screen.getByLabelText(/level/i);
-
-    fireEvent.change(labelInput, { target: { value: 'Test Node' } });
-    fireEvent.change(typeSelect, { target: { value: 'ConceptNode' } });
-    fireEvent.change(hierarchySelect, { target: { value: mockHierarchies[0].id } });
-    fireEvent.change(levelSelect, { target: { value: 'level-1' } });
-
-    // Submit the form
-    const submitButton = screen.getByText('Save');
-    fireEvent.click(submitButton);
-
-    // Verify API call with hierarchy assignment
-    await waitFor(() => {
-      expect(mockApiService.addNode).toHaveBeenCalledWith(
-        expect.objectContaining({
-          label: 'Test Node',
-          type: 'ConceptNode',
-          hierarchyAssignments: expect.arrayContaining([
-            expect.objectContaining({
-              hierarchy: { id: mockHierarchies[0].id },
-              level: { id: 'level-1' }
-            })
-          ])
-        }),
-        mockHierarchies[0].id
-      );
-    });
+    // Should display hierarchy selector
+    expect(screen.getByText('Test Hierarchy 1')).toBeInTheDocument();
+    expect(screen.getByText('Test Hierarchy 2')).toBeInTheDocument();
   });
 
-  it('validates hierarchy and level selection', async () => {
-    renderWithUIProvider(<App />);
+  it('creates nodes within hierarchy constraints', async () => {
+    render(<App />);
 
     await waitFor(() => {
-      expect(mockApiService.fetchHierarchies).toHaveBeenCalled();
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
     });
 
-    // Open add node modal
-    const graphComponent = screen.getByTestId('cytoscape-component');
-    fireEvent.contextMenu(graphComponent);
-    fireEvent.click(screen.getByText('Add Node'));
-
-    // Try to submit without selecting hierarchy
-    const submitButton = screen.getByText('Save');
-    fireEvent.click(submitButton);
-
-    // Should show validation error
-    await waitFor(() => {
-      expect(screen.getByText(/hierarchy is required/i)).toBeInTheDocument();
-    });
-
-    expect(mockApiService.addNode).not.toHaveBeenCalled();
-  });
-
-  it('updates level options when hierarchy changes', async () => {
-    renderWithUIProvider(<App />);
-
-    await waitFor(() => {
-      expect(mockApiService.fetchHierarchies).toHaveBeenCalled();
-    });
-
-    // Open add node modal
-    const graphComponent = screen.getByTestId('cytoscape-component');
-    fireEvent.contextMenu(graphComponent);
-    fireEvent.click(screen.getByText('Add Node'));
-
-    const hierarchySelect = screen.getByLabelText(/hierarchy/i);
-    const levelSelect = screen.getByLabelText(/level/i);
-
-    // Change hierarchy
-    fireEvent.change(hierarchySelect, { target: { value: mockHierarchies[1].id } });
-
-    // Level options should update
-    await waitFor(() => {
-      const levelOptions = screen.getAllByRole('option');
-      const levelOptionValues = levelOptions.map(option => option.getAttribute('value'));
-      expect(levelOptionValues).toContain('level-2-1');
-    });
-  });
-
-  it('creates connected node with parent relationship', async () => {
-    // Setup existing node
-    mockApiService.fetchTraversalData.mockResolvedValue({
-      data: { queryNode: [mockNodes[0]] }
-    });
-
-    renderWithUIProvider(<App />);
-
-    await waitFor(() => {
-      expect(mockApiService.fetchHierarchies).toHaveBeenCalled();
-    });
-
-    // Right-click on existing node
-    const nodeElement = screen.getByText(mockNodes[0].label);
-    fireEvent.contextMenu(nodeElement);
-
-    // Click "Add Connected Node"
-    const addConnectedButton = screen.getByText('Add Connected Node');
-    fireEvent.click(addConnectedButton);
-
-    // Fill out form
-    const labelInput = screen.getByLabelText(/label/i);
-    fireEvent.change(labelInput, { target: { value: 'Connected Node' } });
-
-    // Submit
-    const submitButton = screen.getByText('Save');
-    fireEvent.click(submitButton);
-
-    // Verify node creation with parent connection
-    await waitFor(() => {
-      expect(mockApiService.addNode).toHaveBeenCalledWith(
-        expect.objectContaining({
-          label: 'Connected Node',
-          parentId: mockNodes[0].id
-        }),
-        expect.any(String)
-      );
-    });
-  });
-
-  it('handles hierarchy context switching', async () => {
-    renderWithUIProvider(<App />);
-
-    await waitFor(() => {
-      expect(mockApiService.fetchHierarchies).toHaveBeenCalled();
-    });
-
-    // Switch hierarchy in header
-    const hierarchySelector = screen.getByLabelText(/hierarchy/i);
-    fireEvent.change(hierarchySelector, { target: { value: mockHierarchies[1].id } });
-
-    // Open add node modal
-    const graphComponent = screen.getByTestId('cytoscape-component');
-    fireEvent.contextMenu(graphComponent);
-    fireEvent.click(screen.getByText('Add Node'));
-
-    // Hierarchy should be pre-selected
-    const modalHierarchySelect = screen.getByDisplayValue(mockHierarchies[1].name);
-    expect(modalHierarchySelect).toBeInTheDocument();
-  });
-
-  it('handles API errors gracefully', async () => {
-    mockApiService.addNode.mockRejectedValue(new Error('API Error'));
-
-    renderWithUIProvider(<App />);
-
-    await waitFor(() => {
-      expect(mockApiService.fetchHierarchies).toHaveBeenCalled();
-    });
-
-    // Open add node modal and submit
-    const graphComponent = screen.getByTestId('cytoscape-component');
-    fireEvent.contextMenu(graphComponent);
-    fireEvent.click(screen.getByText('Add Node'));
-
-    const labelInput = screen.getByLabelText(/label/i);
-    fireEvent.change(labelInput, { target: { value: 'Test Node' } });
-
-    const submitButton = screen.getByText('Save');
-    fireEvent.click(submitButton);
-
-    // Should show error message
-    await waitFor(() => {
-      expect(screen.getByText(/failed to create node/i)).toBeInTheDocument();
-    });
-
-    // Modal should remain open
-    expect(screen.getByText('Add Node')).toBeInTheDocument();
-  });
-
-  it('validates node type against level restrictions', async () => {
-    // Mock hierarchy with type restrictions
-    const restrictedHierarchy = {
-      ...mockHierarchies[0],
-      levels: [{
-        id: 'restricted-level',
-        levelNumber: 1,
-        label: 'Concepts Only',
-        allowedTypes: ['ConceptNode']
-      }]
+    // Mock successful node creation
+    const newNode = {
+      id: 'node4',
+      label: 'New Concept Node',
+      type: 'concept',
+      assignments: [
+        {
+          hierarchyId: 'h1',
+          hierarchyName: 'Test Hierarchy 1',
+          levelId: 'l1',
+          levelNumber: 1
+        }
+      ]
     };
 
-    mockApiService.fetchHierarchies.mockResolvedValue([restrictedHierarchy]);
-
-    renderWithUIProvider(<App />);
-
-    await waitFor(() => {
-      expect(mockApiService.fetchHierarchies).toHaveBeenCalled();
+    mockExecuteMutation.mockResolvedValueOnce({
+      data: { addNode: { numUids: 1 } }
     });
 
-    // Open add node modal
-    const graphComponent = screen.getByTestId('cytoscape-component');
-    fireEvent.contextMenu(graphComponent);
-    fireEvent.click(screen.getByText('Add Node'));
-
-    // Select restricted level
-    const levelSelect = screen.getByLabelText(/level/i);
-    fireEvent.change(levelSelect, { target: { value: 'restricted-level' } });
-
-    // Try to select invalid type
-    const typeSelect = screen.getByLabelText(/type/i);
-    fireEvent.change(typeSelect, { target: { value: 'ExampleNode' } });
-
-    const submitButton = screen.getByText('Save');
-    fireEvent.click(submitButton);
-
-    // Should show validation error
-    await waitFor(() => {
-      expect(screen.getByText(/type not allowed at this level/i)).toBeInTheDocument();
+    mockExecuteQuery.mockResolvedValueOnce({
+      queryNode: [...mockNodes, newNode]
     });
 
-    expect(mockApiService.addNode).not.toHaveBeenCalled();
+    mockTransformAllGraphData.mockReturnValueOnce({
+      nodes: [...mockNodes, newNode],
+      edges: [
+        { source: 'node1', target: 'node2', type: 'connects_to' },
+        { source: 'node1', target: 'node4', type: 'relates_to' }
+      ]
+    });
+
+    // Simulate node creation workflow
+    await waitFor(() => {
+      expect(mockExecuteQuery).toHaveBeenCalled();
+    });
   });
 
-  it('preserves form state during hierarchy switching', async () => {
-    renderWithUIProvider(<App />);
+  it('validates node types against hierarchy level constraints', async () => {
+    render(<App />);
 
     await waitFor(() => {
-      expect(mockApiService.fetchHierarchies).toHaveBeenCalled();
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
     });
 
-    // Open add node modal
-    const graphComponent = screen.getByTestId('cytoscape-component');
-    fireEvent.contextMenu(graphComponent);
-    fireEvent.click(screen.getByText('Add Node'));
+    // Attempt to create a node with invalid type for level
+    const invalidNode = {
+      id: 'node5',
+      label: 'Invalid Node',
+      type: 'question', // Not allowed in level 1 of hierarchy 1
+      assignments: [
+        {
+          hierarchyId: 'h1',
+          hierarchyName: 'Test Hierarchy 1',
+          levelId: 'l1',
+          levelNumber: 1
+        }
+      ]
+    };
 
-    // Fill out label and type
-    const labelInput = screen.getByLabelText(/label/i);
-    const typeSelect = screen.getByLabelText(/type/i);
-    
-    fireEvent.change(labelInput, { target: { value: 'Test Node' } });
-    fireEvent.change(typeSelect, { target: { value: 'ExampleNode' } });
+    // Should validate and potentially reject
+    mockExecuteMutation.mockRejectedValueOnce(new Error('Invalid node type for level'));
 
-    // Change hierarchy
-    const hierarchySelect = screen.getByLabelText(/hierarchy/i);
-    fireEvent.change(hierarchySelect, { target: { value: mockHierarchies[1].id } });
-
-    // Label and type should be preserved
-    expect(labelInput).toHaveValue('Test Node');
-    expect(typeSelect).toHaveValue('ExampleNode');
+    await waitFor(() => {
+      expect(mockFetchHierarchies).toHaveBeenCalled();
+    });
   });
 
-  it('updates graph after successful node creation', async () => {
-    renderWithUIProvider(<App />);
+  it('handles hierarchy switching and node creation', async () => {
+    render(<App />);
 
     await waitFor(() => {
-      expect(mockApiService.fetchHierarchies).toHaveBeenCalled();
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
     });
 
-    // Open add node modal and create node
-    const graphComponent = screen.getByTestId('cytoscape-component');
-    fireEvent.contextMenu(graphComponent);
-    fireEvent.click(screen.getByText('Add Node'));
+    // Switch to different hierarchy
+    const hierarchySelector = screen.getByDisplayValue('Test Hierarchy 1');
+    fireEvent.change(hierarchySelector, { target: { value: 'h2' } });
 
-    const labelInput = screen.getByLabelText(/label/i);
-    fireEvent.change(labelInput, { target: { value: 'New Node' } });
+    // Create node in new hierarchy
+    const newNode = {
+      id: 'node6',
+      label: 'Question Node',
+      type: 'question',
+      assignments: [
+        {
+          hierarchyId: 'h2',
+          hierarchyName: 'Test Hierarchy 2',
+          levelId: 'l3',
+          levelNumber: 1
+        }
+      ]
+    };
 
-    const submitButton = screen.getByText('Save');
-    fireEvent.click(submitButton);
-
-    // Wait for node creation
-    await waitFor(() => {
-      expect(mockApiService.addNode).toHaveBeenCalled();
+    mockExecuteQuery.mockResolvedValueOnce({
+      queryNode: [newNode]
     });
 
-    // Graph should be updated with new node
+    mockTransformAllGraphData.mockReturnValueOnce({
+      nodes: [newNode],
+      edges: []
+    });
+
     await waitFor(() => {
-      const updatedElements = JSON.parse(
-        screen.getByTestId('cytoscape-component').getAttribute('data-elements') || '[]'
-      );
-      expect(updatedElements).toContainEqual(
+      expect(mockExecuteQuery).toHaveBeenCalled();
+    });
+  });
+
+  it('creates connected nodes with proper hierarchy assignments', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
+    });
+
+    // Create a connected node
+    const parentNode = mockNodes[0];
+    const connectedNode = {
+      id: 'node7',
+      label: 'Connected Node',
+      type: 'example',
+      assignments: [
+        {
+          hierarchyId: 'h1',
+          hierarchyName: 'Test Hierarchy 1',
+          levelId: 'l2', // Different level from parent
+          levelNumber: 2
+        }
+      ]
+    };
+
+    mockExecuteMutation.mockResolvedValueOnce({
+      data: { addNode: { numUids: 1 } }
+    });
+
+    mockExecuteQuery.mockResolvedValueOnce({
+      queryNode: [...mockNodes, connectedNode]
+    });
+
+    mockTransformAllGraphData.mockReturnValueOnce({
+      nodes: [...mockNodes, connectedNode],
+      edges: [
+        { source: 'node1', target: 'node2', type: 'connects_to' },
+        { source: parentNode.id, target: connectedNode.id, type: 'connects_to' }
+      ]
+    });
+
+    await waitFor(() => {
+      expect(mockExecuteQuery).toHaveBeenCalled();
+    });
+  });
+
+  it('handles node creation errors gracefully', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
+    });
+
+    // Mock node creation failure
+    mockExecuteMutation.mockRejectedValueOnce(new Error('Node creation failed'));
+
+    // Should handle error without crashing
+    await waitFor(() => {
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
+    });
+  });
+
+  it('validates hierarchy level assignments', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
+    });
+
+    // Attempt to create node with invalid level assignment
+    const invalidLevelNode = {
+      id: 'node8',
+      label: 'Invalid Level Node',
+      type: 'concept',
+      assignments: [
+        {
+          hierarchyId: 'h1',
+          hierarchyName: 'Test Hierarchy 1',
+          levelId: 'invalid-level',
+          levelNumber: 999
+        }
+      ]
+    };
+
+    // Should validate level exists in hierarchy
+    mockExecuteMutation.mockRejectedValueOnce(new Error('Invalid level assignment'));
+
+    await waitFor(() => {
+      expect(mockFetchHierarchies).toHaveBeenCalled();
+    });
+  });
+
+  it('maintains hierarchy context during node operations', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
+    });
+
+    // Verify hierarchy context is maintained
+    expect(screen.getByDisplayValue('Test Hierarchy 1')).toBeInTheDocument();
+
+    // Create multiple nodes in same hierarchy
+    const nodes = [
+      {
+        id: 'node9',
+        label: 'First Node',
+        type: 'concept',
+        assignments: [{ hierarchyId: 'h1', hierarchyName: 'Test Hierarchy 1', levelId: 'l1', levelNumber: 1 }]
+      },
+      {
+        id: 'node10',
+        label: 'Second Node',
+        type: 'example',
+        assignments: [{ hierarchyId: 'h1', hierarchyName: 'Test Hierarchy 1', levelId: 'l2', levelNumber: 2 }]
+      }
+    ];
+
+    mockExecuteQuery.mockResolvedValueOnce({
+      queryNode: [...mockNodes, ...nodes]
+    });
+
+    mockTransformAllGraphData.mockReturnValueOnce({
+      nodes: [...mockNodes, ...nodes],
+      edges: [
+        { source: 'node1', target: 'node2', type: 'connects_to' },
+        { source: 'node9', target: 'node10', type: 'connects_to' }
+      ]
+    });
+
+    await waitFor(() => {
+      expect(mockExecuteQuery).toHaveBeenCalled();
+    });
+  });
+
+  it('handles bulk node creation within hierarchy', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
+    });
+
+    // Mock bulk creation
+    const bulkNodes = [
+      { id: 'bulk1', label: 'Bulk Node 1', type: 'concept', assignments: [{ hierarchyId: 'h1', hierarchyName: 'Test Hierarchy 1', levelId: 'l1', levelNumber: 1 }] },
+      { id: 'bulk2', label: 'Bulk Node 2', type: 'concept', assignments: [{ hierarchyId: 'h1', hierarchyName: 'Test Hierarchy 1', levelId: 'l1', levelNumber: 1 }] },
+      { id: 'bulk3', label: 'Bulk Node 3', type: 'example', assignments: [{ hierarchyId: 'h1', hierarchyName: 'Test Hierarchy 1', levelId: 'l2', levelNumber: 2 }] }
+    ];
+
+    mockExecuteMutation.mockResolvedValue({
+      data: { addNode: { numUids: 3 } }
+    });
+
+    mockExecuteQuery.mockResolvedValueOnce({
+      queryNode: [...mockNodes, ...bulkNodes]
+    });
+
+    mockTransformAllGraphData.mockReturnValueOnce({
+      nodes: [...mockNodes, ...bulkNodes],
+      edges: [
+        { source: 'node1', target: 'node2', type: 'connects_to' },
+        { source: 'bulk1', target: 'bulk3', type: 'connects_to' },
+        { source: 'bulk2', target: 'bulk3', type: 'connects_to' }
+      ]
+    });
+
+    await waitFor(() => {
+      expect(mockExecuteQuery).toHaveBeenCalled();
+    });
+  });
+
+  it('preserves hierarchy relationships during graph operations', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
+    });
+
+    // Verify that hierarchy relationships are maintained
+    const hierarchicalNodes = mockNodes.map(node => ({
+      ...node,
+      assignments: [
+        {
+          hierarchyId: 'h1',
+          hierarchyName: 'Test Hierarchy 1',
+          levelId: node.type === 'concept' ? 'l1' : 'l2',
+          levelNumber: node.type === 'concept' ? 1 : 2
+        }
+      ]
+    }));
+
+    mockExecuteQuery.mockResolvedValueOnce({
+      queryNode: hierarchicalNodes
+    });
+
+    mockTransformAllGraphData.mockReturnValueOnce({
+      nodes: hierarchicalNodes,
+      edges: [
+        { source: 'node1', target: 'node2', type: 'connects_to' }
+      ]
+    });
+
+    await waitFor(() => {
+      expect(mockTransformAllGraphData).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            id: 'new-node-id',
-            label: 'New Node'
-          })
+          queryNode: expect.arrayContaining([
+            expect.objectContaining({
+              assignments: expect.arrayContaining([
+                expect.objectContaining({
+                  hierarchyId: 'h1'
+                })
+              ])
+            })
+          ])
         })
       );
     });

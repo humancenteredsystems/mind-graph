@@ -1,452 +1,335 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { vi } from 'vitest';
-import NodeDrawer from '../../../src/components/NodeDrawer';
-import { renderWithUIProvider } from '../../helpers/testUtils';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { mockNodes } from '../../helpers/mockData';
+import NodeDrawer from '../../../src/components/NodeDrawer';
 
-// Mock the HierarchyContext
-const mockHierarchyContext = {
-  hierarchies: [],
-  hierarchyId: 'test-hierarchy',
-  setHierarchyId: vi.fn(),
-  isLoading: false,
-  error: null
-};
-
-vi.mock('../../../src/context/HierarchyContext', () => ({
-  useHierarchyContext: () => mockHierarchyContext
-}));
-
-// Mock the graphUtils
-const mockResolveNodeHierarchyAssignment = vi.fn(() => ({
-  assignment: {
-    levelNumber: 1,
-    levelLabel: 'Test Level',
-    hierarchyName: 'Test Hierarchy'
+// Use vi.hoisted to properly handle mock hoisting
+const { mockResolveNodeHierarchyAssignment, mockHierarchyContext } = vi.hoisted(() => ({
+  mockResolveNodeHierarchyAssignment: vi.fn(),
+  mockHierarchyContext: {
+    hierarchies: [
+      { id: 'h1', name: 'Test Hierarchy 1' },
+      { id: 'h2', name: 'Test Hierarchy 2' }
+    ],
+    hierarchyId: 'h1',
+    setHierarchyId: vi.fn(),
+    levels: [
+      { id: 'l1', levelNumber: 1, label: 'Domain', allowedTypes: ['concept'] },
+      { id: 'l2', levelNumber: 2, label: 'Category', allowedTypes: ['concept', 'example'] }
+    ],
+    isLoading: false,
+    error: null,
   }
 }));
 
+// Mock the utility function
 vi.mock('../../../src/utils/graphUtils', () => ({
-  resolveNodeHierarchyAssignment: mockResolveNodeHierarchyAssignment
+  resolveNodeHierarchyAssignment: mockResolveNodeHierarchyAssignment,
 }));
 
-describe('NodeDrawer Component', () => {
-  const mockOnSave = vi.fn();
+// Mock the context
+vi.mock('../../../src/context/HierarchyContext', () => ({
+  useHierarchyContext: () => mockHierarchyContext,
+}));
+
+describe('NodeDrawer', () => {
+  const mockNode = mockNodes[0];
   const mockOnClose = vi.fn();
-  const testNode = mockNodes[0];
+  const mockOnSave = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    // Reset context state
+    mockHierarchyContext.isLoading = false;
+    mockHierarchyContext.error = null;
+    
+    // Setup default return value for hierarchy assignment
     mockResolveNodeHierarchyAssignment.mockReturnValue({
       assignment: {
+        hierarchyId: 'h1',
+        hierarchyName: 'Test Hierarchy 1',
+        levelId: 'l1',
         levelNumber: 1,
-        levelLabel: 'Test Level',
-        hierarchyName: 'Test Hierarchy'
-      }
+        levelLabel: 'Domain'
+      },
+      levelNumber: 1,
+      levelLabel: 'Domain'
     });
   });
 
-  describe('Rendering', () => {
-    it('renders when open with node data', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
+  it('renders node information when open', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    expect(screen.getByText(`Node: ${mockNode.label}`)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(mockNode.id)).toBeInTheDocument();
+  });
 
-      expect(screen.getByText(`Node: ${testNode.label}`)).toBeInTheDocument();
-      expect(screen.getByDisplayValue(testNode.label)).toBeInTheDocument();
-      expect(screen.getByDisplayValue(testNode.type)).toBeInTheDocument();
+  it('does not render when closed', () => {
+    render(
+      <NodeDrawer 
+        open={false}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    expect(screen.queryByText(`Node: ${mockNode.label}`)).not.toBeInTheDocument();
+  });
+
+  it('does not render when no node provided', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    expect(screen.queryByText(/Node:/)).not.toBeInTheDocument();
+  });
+
+  it('displays hierarchy assignment information', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    expect(screen.getByDisplayValue('Test Hierarchy 1')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Domain')).toBeInTheDocument();
+  });
+
+  it('handles missing hierarchy assignment', () => {
+    mockResolveNodeHierarchyAssignment.mockReturnValue({
+      assignment: undefined,
+      levelNumber: 0,
+      levelLabel: undefined
     });
+    
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    // Should show empty values for hierarchy and level
+    const hierarchyInput = screen.getByDisplayValue('');
+    expect(hierarchyInput).toBeInTheDocument();
+  });
 
-    it('does not render when closed', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={false} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
+  it('calls onClose when close button is clicked', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    const closeButton = screen.getByText('×');
+    fireEvent.click(closeButton);
+    
+    expect(mockOnClose).toHaveBeenCalled();
+  });
 
-      expect(screen.queryByText(`Node: ${testNode.label}`)).not.toBeInTheDocument();
-    });
+  it('calls onClose when Cancel button is clicked', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    const cancelButton = screen.getByText('Cancel');
+    fireEvent.click(cancelButton);
+    
+    expect(mockOnClose).toHaveBeenCalled();
+  });
 
-    it('does not render when no node provided', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={undefined} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      expect(screen.queryByText(/Node:/)).not.toBeInTheDocument();
-    });
-
-    it('renders with correct node information', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      // Check that node details are displayed
-      expect(screen.getByDisplayValue(testNode.id)).toBeInTheDocument();
-      expect(screen.getByDisplayValue(testNode.label)).toBeInTheDocument();
-      expect(screen.getByDisplayValue(testNode.type)).toBeInTheDocument();
-    });
-
-    it('renders tabs correctly', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      expect(screen.getByText('Info')).toBeInTheDocument();
-      expect(screen.getByText('Links')).toBeInTheDocument();
-      expect(screen.getByText('History')).toBeInTheDocument();
-    });
-
-    it('shows Info tab content by default', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      expect(screen.getByDisplayValue(testNode.label)).toBeInTheDocument();
-      expect(screen.getByDisplayValue(testNode.type)).toBeInTheDocument();
+  it('calls onSave when Save button is clicked with valid data', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    // Change the label
+    const labelInput = screen.getByDisplayValue(mockNode.label || '');
+    fireEvent.change(labelInput, { target: { value: 'Updated Label' } });
+    
+    const saveButton = screen.getByText('Save');
+    fireEvent.click(saveButton);
+    
+    expect(mockOnSave).toHaveBeenCalledWith({
+      label: 'Updated Label',
+      type: mockNode.type,
+      level: 1
     });
   });
 
-  describe('Form Interactions', () => {
-    it('allows editing node label', async () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
+  it('disables Save button when label is empty', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    // Clear the label
+    const labelInput = screen.getByDisplayValue(mockNode.label || '');
+    fireEvent.change(labelInput, { target: { value: '' } });
+    
+    const saveButton = screen.getByText('Save');
+    expect(saveButton).toBeDisabled();
+  });
 
-      const labelInput = screen.getByDisplayValue(testNode.label);
-      
-      fireEvent.change(labelInput, { target: { value: 'Updated Label' } });
-
-      expect(labelInput).toHaveValue('Updated Label');
-    });
-
-    it('allows editing node type', async () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      const typeSelect = screen.getByDisplayValue(testNode.type);
-      
-      fireEvent.change(typeSelect, { target: { value: 'example' } });
-
-      expect(typeSelect).toHaveValue('example');
-    });
-
-    it('disables save button when label is empty', async () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      const labelInput = screen.getByDisplayValue(testNode.label);
-      const saveButton = screen.getByText('Save');
-
-      // Clear the label
-      fireEvent.change(labelInput, { target: { value: '' } });
-
-      expect(saveButton).toBeDisabled();
-    });
-
-    it('saves changes when form is valid', async () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      const labelInput = screen.getByDisplayValue(testNode.label);
-      const typeSelect = screen.getByDisplayValue(testNode.type);
-      const saveButton = screen.getByText('Save');
-
-      fireEvent.change(labelInput, { target: { value: 'Updated Label' } });
-      fireEvent.change(typeSelect, { target: { value: 'example' } });
-      fireEvent.click(saveButton);
-
-      expect(mockOnSave).toHaveBeenCalledWith({
-        label: 'Updated Label',
-        type: 'example',
-        level: 1
-      });
-    });
-
-    it('cancels changes and closes drawer', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      const cancelButton = screen.getByText('Cancel');
-      fireEvent.click(cancelButton);
-
-      expect(mockOnClose).toHaveBeenCalled();
-      expect(mockOnSave).not.toHaveBeenCalled();
-    });
-
-    it('closes drawer when X button is clicked', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      const closeButton = screen.getByText('×');
-      fireEvent.click(closeButton);
-
-      expect(mockOnClose).toHaveBeenCalled();
+  it('allows changing node type', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    const typeSelect = screen.getByDisplayValue(mockNode.type || 'concept');
+    fireEvent.change(typeSelect, { target: { value: 'example' } });
+    
+    const saveButton = screen.getByText('Save');
+    fireEvent.click(saveButton);
+    
+    expect(mockOnSave).toHaveBeenCalledWith({
+      label: mockNode.label,
+      type: 'example',
+      level: 1
     });
   });
 
-  describe('Tab Navigation', () => {
-    it('switches to Links tab when clicked', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      const linksTab = screen.getByText('Links');
-      fireEvent.click(linksTab);
-
-      expect(screen.getByText('Links editing coming soon.')).toBeInTheDocument();
-    });
-
-    it('switches to History tab when clicked', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      const historyTab = screen.getByText('History');
-      fireEvent.click(historyTab);
-
-      expect(screen.getByText('History view coming soon.')).toBeInTheDocument();
-    });
-
-    it('switches back to Info tab', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      // Switch to Links tab first
-      fireEvent.click(screen.getByText('Links'));
-      expect(screen.getByText('Links editing coming soon.')).toBeInTheDocument();
-
-      // Switch back to Info tab
-      fireEvent.click(screen.getByText('Info'));
-      expect(screen.getByDisplayValue(testNode.label)).toBeInTheDocument();
-    });
+  it('shows different tabs', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    expect(screen.getByText('Info')).toBeInTheDocument();
+    expect(screen.getByText('Links')).toBeInTheDocument();
+    expect(screen.getByText('History')).toBeInTheDocument();
   });
 
-  describe('Form State Management', () => {
-    it('resets form when node changes', () => {
-      const { rerender } = renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      // Modify the form
-      const labelInput = screen.getByDisplayValue(testNode.label);
-      fireEvent.change(labelInput, { target: { value: 'Modified Label' } });
-      expect(labelInput).toHaveValue('Modified Label');
-
-      // Change to a different node
-      const newNode = { ...mockNodes[1] };
-      rerender(
-        <NodeDrawer 
-          open={true} 
-          node={newNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      // Form should reset to new node's values
-      expect(screen.getByDisplayValue(newNode.label)).toBeInTheDocument();
-    });
-
-    it('resets to Info tab when reopened', () => {
-      const { rerender } = renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      // Switch to Links tab
-      fireEvent.click(screen.getByText('Links'));
-      expect(screen.getByText('Links editing coming soon.')).toBeInTheDocument();
-
-      // Close and reopen
-      rerender(
-        <NodeDrawer 
-          open={false} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      rerender(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      // Should be back on Info tab
-      expect(screen.getByDisplayValue(testNode.label)).toBeInTheDocument();
-    });
+  it('switches between tabs', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    // Click on Links tab
+    fireEvent.click(screen.getByText('Links'));
+    expect(screen.getByText('Links editing coming soon.')).toBeInTheDocument();
+    
+    // Click on History tab
+    fireEvent.click(screen.getByText('History'));
+    expect(screen.getByText('History view coming soon.')).toBeInTheDocument();
+    
+    // Click back to Info tab
+    fireEvent.click(screen.getByText('Info'));
+    expect(screen.getByDisplayValue(mockNode.id)).toBeInTheDocument();
   });
 
-  describe('Hierarchy Integration', () => {
-    it('displays hierarchy information', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      expect(screen.getByDisplayValue('Test Hierarchy')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('Test Level')).toBeInTheDocument();
-    });
-
-    it('handles missing hierarchy assignment', () => {
-      mockResolveNodeHierarchyAssignment.mockReturnValue({ assignment: undefined });
-
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      // Should still render without errors
-      expect(screen.getByText(`Node: ${testNode.label}`)).toBeInTheDocument();
-    });
+  it('resets form values when node changes', () => {
+    const { rerender } = render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    // Change the label
+    const labelInput = screen.getByDisplayValue(mockNode.label || '');
+    fireEvent.change(labelInput, { target: { value: 'Changed Label' } });
+    
+    // Change to a different node
+    const newNode = { ...mockNodes[1] };
+    rerender(
+      <NodeDrawer 
+        open={true}
+        node={newNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    // Should show the new node's label, not the changed one
+    expect(screen.getByDisplayValue(newNode.label || '')).toBeInTheDocument();
   });
 
-  describe('Node Type Options', () => {
-    it('provides correct type options', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      const typeSelect = screen.getByDisplayValue(testNode.type);
-      
-      // Check that all expected options are available
-      expect(screen.getByRole('option', { name: 'concept' })).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: 'example' })).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: 'question' })).toBeInTheDocument();
-    });
+  it('displays node status and branch when available', () => {
+    const nodeWithStatus = {
+      ...mockNode,
+      status: 'active',
+      branch: 'main'
+    };
+    
+    render(
+      <NodeDrawer 
+        open={true}
+        node={nodeWithStatus}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    expect(screen.getByDisplayValue('active')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('main')).toBeInTheDocument();
   });
 
-  describe('Read-only Fields', () => {
-    it('displays read-only fields correctly', () => {
-      renderWithUIProvider(
-        <NodeDrawer 
-          open={true} 
-          node={testNode} 
-          onSave={mockOnSave} 
-          onClose={mockOnClose} 
-        />
-      );
-
-      // ID should be disabled
-      const idInput = screen.getByDisplayValue(testNode.id);
-      expect(idInput).toBeDisabled();
-
-      // Status should be disabled if present
-      if (testNode.status) {
-        const statusInput = screen.getByDisplayValue(testNode.status);
-        expect(statusInput).toBeDisabled();
-      }
-
-      // Branch should be disabled if present
-      if (testNode.branch) {
-        const branchInput = screen.getByDisplayValue(testNode.branch);
-        expect(branchInput).toBeDisabled();
-      }
-    });
+  it('handles empty status and branch gracefully', () => {
+    render(
+      <NodeDrawer 
+        open={true}
+        node={mockNode}
+        onClose={mockOnClose}
+        onSave={mockOnSave}
+      />
+    );
+    
+    // Should have empty inputs for status and branch
+    const inputs = screen.getAllByDisplayValue('');
+    expect(inputs.length).toBeGreaterThan(0);
   });
 });

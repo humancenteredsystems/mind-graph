@@ -1,5 +1,4 @@
-const { jest } = require('@jest/globals');
-const { validateAdminApiKey } = require('../../../middleware/auth');
+const { authenticateAdmin } = require('../../../middleware/auth');
 
 describe('auth middleware', () => {
   let req, res, next;
@@ -13,57 +12,62 @@ describe('auth middleware', () => {
     process.env.ADMIN_API_KEY = 'test-admin-key';
   });
 
-  describe('validateAdminApiKey', () => {
+  describe('authenticateAdmin', () => {
     it('should call next() with valid API key', () => {
       req.headers['x-admin-api-key'] = 'test-admin-key';
       
-      validateAdminApiKey(req, res, next);
+      authenticateAdmin(req, res, next);
       
       expect(next).toHaveBeenCalledWith();
       expect(res.status).not.toHaveBeenCalled();
     });
 
     it('should return 401 with missing API key', () => {
-      validateAdminApiKey(req, res, next);
+      authenticateAdmin(req, res, next);
       
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
-        error: 'Admin API key required'
+        error: 'Unauthorized'
       });
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('should return 403 with invalid API key', () => {
+    it('should return 401 with invalid API key', () => {
       req.headers['x-admin-api-key'] = 'invalid-key';
       
-      validateAdminApiKey(req, res, next);
+      authenticateAdmin(req, res, next);
       
-      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
-        error: 'Invalid admin API key'
+        error: 'Unauthorized'
       });
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('should handle missing environment variable', () => {
+    it('should return 401 when environment variable is missing', () => {
       delete process.env.ADMIN_API_KEY;
       req.headers['x-admin-api-key'] = 'any-key';
       
-      validateAdminApiKey(req, res, next);
+      authenticateAdmin(req, res, next);
       
-      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
-        error: 'Admin API key not configured'
+        error: 'Unauthorized'
       });
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('should be case-insensitive for header name', () => {
+    it('should be case-sensitive for header name', () => {
       req.headers['X-Admin-API-Key'] = 'test-admin-key';
       
-      validateAdminApiKey(req, res, next);
+      authenticateAdmin(req, res, next);
       
-      expect(next).toHaveBeenCalledWith();
+      // Should fail because header is case-sensitive
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Unauthorized'
+      });
+      expect(next).not.toHaveBeenCalled();
     });
   });
 });
