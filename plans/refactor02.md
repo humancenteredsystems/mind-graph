@@ -1,53 +1,59 @@
 # Refactor 02: Multi-Tenant Architecture with Dgraph Namespaces
 
 **Date:** 2025-05-26  
-**Objective:** Implement multi-tenant capability using Dgraph namespaces, establishing our Test Graph as a prototype for the future multi-user architecture.
+**Objective:** Complete multi-tenant implementation using Dgraph namespaces, building on existing infrastructure to establish production-ready tenant isolation.
 
 ## Strategic Vision
 
-### Current State
-- Single Dgraph cluster serving all data in default namespace (0x0)
-- All tests use mocks instead of real database interactions
-- No user isolation or multi-tenancy support
-- Manual data management without user-specific contexts
+### Current State ✅ (Already Implemented)
+- **TenantManager** - Complete tenant lifecycle management with namespace generation
+- **AdaptiveTenantFactory** - OSS/Enterprise compatibility with automatic fallback
+- **DgraphTenant** - Namespace-aware client with clean factory patterns
+- **tenantContext middleware** - Request-level tenant resolution and validation
+- **Basic test infrastructure** - Foundation for tenant-aware testing
 
-### Target State
-- Namespace-based multi-tenancy with complete user isolation
-- Test environment using dedicated namespace (0x1) as multi-user prototype
-- Production-ready user provisioning and management system
-- Real database integration testing with isolated test data
+### Target State (Remaining Work)
+- Enhanced dgraphClient with direct namespace parameter support
+- Real database integration testing using test tenant (0x1) 
+- Frontend tenant context and management UI
+- Complete tenant management REST APIs
+- Operational tools for backup/migration
+- **Universal seeding tool** - Works with both OSS and Enterprise instances
 
 ## Multi-Tenant Architecture Design
 
-### Namespace Strategy
+### Universal Compatibility Strategy
 ```
-Dgraph Cluster Layout:
+OSS Dgraph (Single-User):
+├── Default namespace only - All data in single instance
+└── Seeding tool works directly without tenant context
+
+Enterprise Dgraph (Multi-Tenant):
 ├── Namespace 0x0 (default) - System/Admin data
-├── Namespace 0x1 - "test-user" (Test environment prototype)
-├── Namespace 0x2 - "user-alice" (Production user)
-├── Namespace 0x3 - "user-bob" (Production user)
-└── ... (up to 2^64 namespaces)
+├── Namespace 0x1 - "test-tenant" (Test environment)
+├── Namespace 0x2+ - Production tenants (deterministic generation)
+└── Seeding tool adapts to target specific tenant namespaces
 ```
 
-### Benefits of Namespace Approach
-- **Complete Data Isolation**: Users cannot access each other's data
-- **Shared Infrastructure**: Single Dgraph cluster serves all users efficiently
-- **Independent Schemas**: Each user can have customized node types and hierarchies
-- **Operational Efficiency**: One cluster to maintain, backup, and monitor
-- **Cost Effective**: No need for separate infrastructure per user
+### Benefits of Universal Approach
+- **Single Codebase**: Same tools work for both OSS and Enterprise deployments
+- **Adaptive Behavior**: Auto-detection of capabilities with graceful degradation
+- **Complete Data Isolation**: In Enterprise mode, tenants cannot access each other's data
+- **Shared Infrastructure**: Single Dgraph cluster serves all tenants efficiently
+- **Operational Efficiency**: One set of tools to maintain across deployment types
 
 ## Implementation Phases
 
-### Phase 1: Namespace Infrastructure (Week 1)
+### Phase 1: Enhanced Core Infrastructure (Days 1-2)
 
 #### 1.1 Enhanced Dgraph Client
-**Goal:** Make dgraphClient namespace-aware
+**Goal:** Add optional namespace parameter to dgraphClient.js
 
 **File Changes:**
 - `api/dgraphClient.js` - Add namespace parameter support
-- `api/.env.example` - Add namespace configuration variables
+- `api/.env.example` - Add missing namespace configuration variables
 
-**Implementation:**
+**Universal Implementation:**
 ```javascript
 // Enhanced api/dgraphClient.js
 async function executeGraphQL(query, variables = {}, namespace = null) {
@@ -63,10 +69,18 @@ async function executeGraphQL(query, variables = {}, namespace = null) {
     }, {
       headers: { 'Content-Type': 'application/json' }
     });
-    // ... rest of implementation
+    
+    if (response.data.errors) {
+      console.error('GraphQL Errors:', JSON.stringify(response.data.errors, null, 2));
+      throw new Error(`GraphQL query failed: ${response.data.errors.map(e => e.message).join(', ')}`);
+    }
+
+    console.log('GraphQL query executed successfully.');
+    return response.data.data;
+
   } catch (error) {
-    console.error(`[DGRAPH] Namespace ${namespace || 'default'} error:`, error.message);
-    throw error;
+    console.error(`Dgraph client error in namespace ${namespace || 'default'}: ${error.message}`);
+    throw new Error('Failed to communicate with Dgraph.');
   }
 }
 
@@ -76,243 +90,220 @@ module.exports = { executeGraphQL };
 **Environment Configuration:**
 ```bash
 # Enhanced api/.env.example
-# Namespace Configuration
-DGRAPH_NAMESPACE_DEFAULT=0x0    # System/admin namespace
-DGRAPH_NAMESPACE_TEST=0x1       # Test user namespace
-DGRAPH_NAMESPACE_PREFIX=0x      # Prefix for dynamic user namespaces
-
-# Multi-tenant Settings
-ENABLE_MULTI_TENANT=true
-DEFAULT_USER_NAMESPACE=0x0
+# Namespace Configuration (add these)
+DGRAPH_NAMESPACE_DEFAULT=0x0
+DGRAPH_NAMESPACE_TEST=0x1
+DGRAPH_NAMESPACE_PREFIX=0x
 ```
 
-#### 1.2 Namespace Management Service
-**Goal:** Centralized namespace operations
+#### 1.2 Universal Seeding Tool Enhancement
+**Goal:** Update `tools/seed_data.py` to work with both OSS and Enterprise
+
+**File Changes:**
+- `tools/seed_data.py` - Add tenant awareness with OSS fallback
+- `tools/api_client.py` - Enhanced to support tenant headers
+
+**Universal Seeding Implementation:**
+```python
+# Enhanced tools/seed_data.py
+def main():
+    parser = argparse.ArgumentParser(description="Seed Dgraph with graph data (OSS/Enterprise compatible)")
+    parser.add_argument("--api-base", "-b", default=DEFAULT_API_BASE)
+    parser.add_argument("--api-key", "-k", default=os.environ.get("MIMS_ADMIN_API_KEY", ""))
+    parser.add_argument("--tenant-id", "-t", default="default", 
+                       help="Tenant ID for Enterprise mode (default: 'default' for OSS)")
+    parser.add_argument("--create-tenant", action="store_true",
+                       help="Create tenant if it doesn't exist (Enterprise only)")
+    
+    args = parser.parse_args()
+    
+    # Auto-detect Enterprise vs OSS capabilities
+    capabilities = detect_dgraph_capabilities(args.api_base, args.api_key)
+    
+    if capabilities.get('namespacesSupported') and args.tenant_id != 'default':
+        # Enterprise mode: Use tenant-aware seeding
+        print(f"🏢 Enterprise mode detected - seeding tenant: {args.tenant_id}")
+        seed_tenant_data(args.api_base, args.api_key, args.tenant_id, args.create_tenant)
+    else:
+        # OSS mode: Use traditional seeding (ignore tenant parameters)
+        print("🔓 OSS mode detected - seeding default instance")
+        seed_default_data(args.api_base, args.api_key)
+
+def detect_dgraph_capabilities(api_base: str, api_key: str) -> dict:
+    """Detect if Dgraph supports Enterprise features like namespaces."""
+    try:
+        resp = call_api(api_base, "/system/status", api_key)
+        if resp["success"]:
+            return resp.get("data", {})
+    except:
+        pass
+    return {"namespacesSupported": False}
+
+def seed_tenant_data(api_base: str, api_key: str, tenant_id: str, create_tenant: bool):
+    """Seed data for a specific tenant in Enterprise mode."""
+    # Set tenant context for all API calls
+    tenant_headers = {"X-Tenant-Id": tenant_id}
+    
+    if create_tenant:
+        # Create tenant via TenantManager
+        create_resp = call_api(api_base, "/tenants", api_key, method="POST", 
+                              payload={"tenantId": tenant_id}, extra_headers=tenant_headers)
+        if not create_resp["success"]:
+            print(f"⚠️ Tenant creation failed (may already exist): {create_resp.get('error')}")
+    
+    # Use existing seeding logic with tenant headers
+    seed_with_context(api_base, api_key, tenant_headers)
+
+def seed_default_data(api_base: str, api_key: str):
+    """Seed data for OSS mode (no tenant context)."""
+    # Use existing seeding logic without tenant headers
+    seed_with_context(api_base, api_key, {})
+
+def seed_with_context(api_base: str, api_key: str, extra_headers: dict):
+    """Universal seeding logic that works with or without tenant context."""
+    # 1. Drop all data (respects tenant context in Enterprise)
+    if not drop_all_data(api_base, api_key, extra_headers):
+        sys.exit(1)
+    
+    # 2. Push schema (respects tenant context in Enterprise)  
+    if not push_schema(api_base, api_key, extra_headers):
+        sys.exit(1)
+    
+    # ... rest of existing seeding logic with extra_headers passed through
+```
+
+### Phase 2: Real Database Testing (Days 3-4)
+
+#### 2.1 Separate Test Data Management
+**Goal:** Create dedicated test seeding separate from production seeding
 
 **New Files:**
-- `api/services/namespaceManager.js`
-- `api/utils/namespaceUtils.js`
+- `api/__tests__/helpers/testDataSeeder.js` - Dedicated test data seeding
+- `frontend/tests/helpers/testDatabaseSetup.ts` - Frontend test database helpers
 
-**Implementation:**
+**Test-Specific Seeding Implementation:**
 ```javascript
-// api/services/namespaceManager.js
-class NamespaceManager {
+// api/__tests__/helpers/testDataSeeder.js
+const { TenantManager } = require('../../services/tenantManager');
+const { DgraphTenantFactory } = require('../../services/dgraphTenant');
+
+class TestDataSeeder {
   constructor() {
-    this.defaultNamespace = process.env.DGRAPH_NAMESPACE_DEFAULT || '0x0';
-    this.testNamespace = process.env.DGRAPH_NAMESPACE_TEST || '0x1';
-    this.namespacePrefix = process.env.DGRAPH_NAMESPACE_PREFIX || '0x';
+    this.tenantManager = new TenantManager();
+    this.TEST_TENANT_ID = 'test-tenant';
   }
 
-  async createUserNamespace(userId) {
-    const namespace = this.generateNamespaceId(userId);
+  async setupTestDatabase() {
+    console.log('[TEST_SETUP] Initializing real test database');
     
     try {
-      // Initialize schema in new namespace
-      await this.initializeNamespaceSchema(namespace);
+      // Ensure test tenant exists
+      const exists = await this.tenantManager.tenantExists(this.TEST_TENANT_ID);
+      if (!exists) {
+        await this.tenantManager.createTenant(this.TEST_TENANT_ID);
+      }
       
-      // Seed with default hierarchies
-      await this.seedDefaultHierarchies(namespace);
+      // Seed with minimal test data
+      await this.seedTestData();
       
-      // Store user -> namespace mapping
-      await this.storeUserNamespaceMapping(userId, namespace);
-      
-      console.log(`[NAMESPACE] Created namespace ${namespace} for user ${userId}`);
-      return namespace;
+      console.log('[TEST_SETUP] Real test database ready');
+      return true;
     } catch (error) {
-      console.error(`[NAMESPACE] Failed to create namespace for user ${userId}:`, error);
-      throw error;
+      console.error('[TEST_SETUP] Failed to setup real test database:', error);
+      return false;
     }
   }
 
-  async initializeNamespaceSchema(namespace) {
-    const { pushSchemaViaHttp } = require('../utils/pushSchema');
-    const schemaContent = await this.getDefaultSchema();
+  async cleanupTestDatabase() {
+    console.log('[TEST_CLEANUP] Cleaning real test database');
     
-    return await pushSchemaViaHttp(schemaContent, namespace);
+    try {
+      await this.tenantManager.deleteTenant(this.TEST_TENANT_ID);
+      console.log('[TEST_CLEANUP] Real test database cleaned');
+      return true;
+    } catch (error) {
+      console.error('[TEST_CLEANUP] Failed to cleanup real test database:', error);
+      return false;
+    }
   }
 
-  async seedDefaultHierarchies(namespace) {
-    const { executeGraphQL } = require('../dgraphClient');
+  async seedTestData() {
+    console.log('[TEST_SEED] Seeding minimal test data');
     
-    const defaultHierarchies = [
-      {
-        id: 'default-hierarchy',
-        name: 'Default Hierarchy',
+    try {
+      const testClient = DgraphTenantFactory.createTestTenant();
+      
+      // Create minimal test hierarchy (different from production data)
+      const testHierarchy = {
+        id: 'test-hierarchy-1',
+        name: 'Test Hierarchy 1',
         levels: [
           { levelNumber: 1, label: 'Concepts', allowedTypes: ['concept'] },
-          { levelNumber: 2, label: 'Examples', allowedTypes: ['example'] },
-          { levelNumber: 3, label: 'Details', allowedTypes: ['question', 'note'] }
+          { levelNumber: 2, label: 'Examples', allowedTypes: ['example'] }
         ]
-      }
+      };
+
+      const mutation = `
+        mutation CreateTestHierarchy($hierarchy: AddHierarchyInput!) {
+          addHierarchy(input: [$hierarchy]) {
+            hierarchy { id name }
+          }
+        }
+      `;
+      
+      await testClient.executeGraphQL(mutation, { hierarchy: testHierarchy });
+      
+      // Add minimal test nodes
+      await this.createTestNodes(testClient);
+      
+      console.log('[TEST_SEED] Test data seeded successfully');
+      return true;
+    } catch (error) {
+      console.error('[TEST_SEED] Failed to seed test data:', error);
+      return false;
+    }
+  }
+
+  async createTestNodes(testClient) {
+    const testNodes = [
+      { id: 'test-concept-1', label: 'Test Concept', type: 'concept' },
+      { id: 'test-example-1', label: 'Test Example', type: 'example' }
     ];
 
-    for (const hierarchy of defaultHierarchies) {
-      await this.createHierarchyInNamespace(hierarchy, namespace);
-    }
-  }
-
-  generateNamespaceId(userId) {
-    // Generate deterministic namespace ID from user ID
-    const hash = require('crypto').createHash('sha256').update(userId).digest('hex');
-    const namespaceNum = parseInt(hash.substring(0, 8), 16) % 1000000 + 2; // Start from 0x2
-    return `${this.namespacePrefix}${namespaceNum.toString(16)}`;
-  }
-
-  async getUserNamespace(userId) {
-    // In production, this would query a user mapping table
-    // For now, generate deterministically
-    if (userId === 'test-user') return this.testNamespace;
-    return this.generateNamespaceId(userId);
-  }
-
-  async deleteUserNamespace(userId) {
-    const namespace = await this.getUserNamespace(userId);
-    // Implementation for namespace cleanup
-    console.log(`[NAMESPACE] Deleting namespace ${namespace} for user ${userId}`);
-  }
-}
-
-module.exports = { NamespaceManager };
-```
-
-#### 1.3 User Context Middleware
-**Goal:** Automatic namespace resolution per request
-
-**New Files:**
-- `api/middleware/userContext.js`
-
-**Implementation:**
-```javascript
-// api/middleware/userContext.js
-const { NamespaceManager } = require('../services/namespaceManager');
-
-const namespaceManager = new NamespaceManager();
-
-async function setUserNamespace(req, res, next) {
-  try {
-    // Extract user ID from headers, JWT, or default to test user
-    const userId = req.headers['x-user-id'] || 
-                   req.user?.id || 
-                   (process.env.NODE_ENV === 'test' ? 'test-user' : 'default');
-    
-    // Resolve user's namespace
-    const namespace = await namespaceManager.getUserNamespace(userId);
-    
-    // Attach to request context
-    req.userContext = {
-      userId,
-      namespace,
-      isTestUser: userId === 'test-user',
-      isDefaultUser: userId === 'default'
-    };
-
-    console.log(`[USER_CONTEXT] User ${userId} -> Namespace ${namespace}`);
-    next();
-  } catch (error) {
-    console.error('[USER_CONTEXT] Failed to resolve user namespace:', error);
-    // Fallback to default namespace
-    req.userContext = {
-      userId: 'default',
-      namespace: namespaceManager.defaultNamespace,
-      isTestUser: false,
-      isDefaultUser: true
-    };
-    next();
-  }
-}
-
-module.exports = { setUserNamespace };
-```
-
-### Phase 2: Test Namespace Implementation (Week 2)
-
-#### 2.1 Test Database Setup
-**Goal:** Create isolated test environment using namespace 0x1
-
-**Enhanced Files:**
-- `api/__tests__/helpers/testSetup.js`
-- `frontend/tests/helpers/testUtils.tsx`
-
-**Test Database Configuration:**
-```javascript
-// api/__tests__/helpers/testSetup.js
-const { NamespaceManager } = require('../../services/namespaceManager');
-const { executeGraphQL } = require('../../dgraphClient');
-
-const namespaceManager = new NamespaceManager();
-const TEST_NAMESPACE = '0x1';
-
-async function setupTestDatabase() {
-  console.log('[TEST_SETUP] Initializing test namespace:', TEST_NAMESPACE);
-  
-  try {
-    // Initialize schema in test namespace
-    await namespaceManager.initializeNamespaceSchema(TEST_NAMESPACE);
-    
-    // Seed with test data
-    await seedTestData(TEST_NAMESPACE);
-    
-    console.log('[TEST_SETUP] Test database ready');
-  } catch (error) {
-    console.error('[TEST_SETUP] Failed to setup test database:', error);
-    throw error;
-  }
-}
-
-async function seedTestData(namespace) {
-  const testHierarchies = [
-    {
-      id: 'test-hierarchy-1',
-      name: 'Test Hierarchy 1',
-      levels: [
-        { levelNumber: 1, label: 'Concepts', allowedTypes: ['concept'] },
-        { levelNumber: 2, label: 'Examples', allowedTypes: ['example'] }
-      ]
-    },
-    {
-      id: 'test-hierarchy-2', 
-      name: 'Test Hierarchy 2',
-      levels: [
-        { levelNumber: 1, label: 'Questions', allowedTypes: ['question'] },
-        { levelNumber: 2, label: 'Answers', allowedTypes: ['answer'] }
-      ]
-    }
-  ];
-
-  for (const hierarchy of testHierarchies) {
-    await createTestHierarchy(hierarchy, namespace);
-  }
-
-  // Create test nodes
-  await createTestNodes(namespace);
-}
-
-async function cleanupTestDatabase() {
-  console.log('[TEST_CLEANUP] Cleaning test namespace:', TEST_NAMESPACE);
-  
-  // Drop all data in test namespace
-  const dropMutation = `
-    mutation {
-      deleteNode(filter: {}) {
-        numUids
+    const mutation = `
+      mutation AddTestNodes($input: [AddNodeInput!]!) {
+        addNode(input: $input) {
+          node { id label type }
+        }
       }
-      deleteHierarchy(filter: {}) {
-        numUids
-      }
-    }
-  `;
-  
-  await executeGraphQL(dropMutation, {}, TEST_NAMESPACE);
+    `;
+
+    await testClient.executeGraphQL(mutation, { input: testNodes });
+  }
 }
 
-module.exports = {
-  setupTestDatabase,
-  cleanupTestDatabase,
-  TEST_NAMESPACE
+// Enhanced test utilities
+global.testUtils = {
+  ...global.testUtils,
+  testDataSeeder: new TestDataSeeder(),
+  
+  setupTestDatabase: async () => {
+    return await global.testUtils.testDataSeeder.setupTestDatabase();
+  },
+  
+  cleanupTestDatabase: async () => {
+    return await global.testUtils.testDataSeeder.cleanupTestDatabase();
+  },
+  
+  seedTestData: async () => {
+    return await global.testUtils.testDataSeeder.seedTestData();
+  }
 };
+
+module.exports = { TestDataSeeder };
 ```
 
-#### 2.2 Enhanced Integration Tests
+#### 2.2 Convert Integration Tests to Real Database
 **Goal:** Replace mocks with real database interactions
 
 **Enhanced Files:**
@@ -320,28 +311,25 @@ module.exports = {
 - `frontend/tests/integration/graph-expansion.test.tsx`
 - `frontend/tests/integration/context-menu-interactions.test.tsx`
 
-**Real Database Integration Tests:**
+**Pattern for Real Database Tests:**
 ```typescript
-// frontend/tests/integration/hierarchy-node-creation.test.tsx
-import { setupTestDatabase, cleanupTestDatabase } from '../helpers/testDatabaseSetup';
-
+// Example: frontend/tests/integration/hierarchy-node-creation.test.tsx
 describe('Hierarchy Node Creation Integration (Real Database)', () => {
   beforeAll(async () => {
-    await setupTestDatabase();
+    await global.testUtils.setupTestDatabase();
   });
 
   afterAll(async () => {
-    await cleanupTestDatabase();
+    await global.testUtils.cleanupTestDatabase();
   });
 
   beforeEach(async () => {
-    // Reset to known test state
-    await resetTestData();
+    await global.testUtils.seedTestData();
   });
 
   it('creates node in correct hierarchy level with real API', async () => {
-    // Set test user context
-    const testHeaders = { 'X-User-Id': 'test-user' };
+    // Set test tenant context
+    const testHeaders = { 'X-Tenant-Id': 'test-tenant' };
     
     render(
       <TestProviders headers={testHeaders}>
@@ -354,460 +342,340 @@ describe('Hierarchy Node Creation Integration (Real Database)', () => {
       expect(screen.getByText('Test Hierarchy 1')).toBeInTheDocument();
     });
 
-    // Create node through real API
-    const createButton = screen.getByTestId('create-node-button');
-    fireEvent.click(createButton);
-
-    // Fill form with test data
-    const nameInput = screen.getByLabelText('Node Name');
-    fireEvent.change(nameInput, { target: { value: 'Test Concept Node' } });
-
-    const typeSelect = screen.getByLabelText('Node Type');
-    fireEvent.change(typeSelect, { target: { value: 'concept' } });
-
-    const submitButton = screen.getByText('Create Node');
-    fireEvent.click(submitButton);
-
-    // Verify node was created in database
-    await waitFor(async () => {
-      const nodes = await fetchNodesFromTestDB();
-      expect(nodes).toContainEqual(
-        expect.objectContaining({
-          label: 'Test Concept Node',
-          type: 'concept',
-          assignments: expect.arrayContaining([
-            expect.objectContaining({
-              hierarchyId: 'test-hierarchy-1',
-              levelNumber: 1
-            })
-          ])
-        })
-      );
-    });
-  });
-
-  it('validates hierarchy constraints with real backend validation', async () => {
-    // Test real validation logic
-    const invalidNodeData = {
-      label: 'Invalid Node',
-      type: 'invalid-type', // Not allowed in any level
-      hierarchyId: 'test-hierarchy-1'
-    };
-
-    const response = await fetch('/api/mutate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-User-Id': 'test-user'
-      },
-      body: JSON.stringify({
-        mutation: createNodeMutation,
-        variables: { input: invalidNodeData }
-      })
-    });
-
-    expect(response.status).toBe(400);
-    const error = await response.json();
-    expect(error.message).toContain('Node type not allowed');
+    // Test real node creation through API
+    // ... rest of test using real database
   });
 });
 ```
 
-### Phase 3: Production Multi-User System (Week 3)
+### Phase 3: Frontend Tenant Context (Days 5-6)
 
-#### 3.1 User Management API
-**Goal:** Complete user provisioning and management system
+#### 3.1 Universal Tenant Context Provider
+**Goal:** Frontend tenant awareness that adapts to OSS/Enterprise
 
 **New Files:**
-- `api/routes/users.js`
-- `api/controllers/userController.js`
-- `api/services/userService.js`
-
-**Implementation:**
-```javascript
-// api/controllers/userController.js
-const { UserService } = require('../services/userService');
-const { NamespaceManager } = require('../services/namespaceManager');
-
-class UserController {
-  constructor() {
-    this.userService = new UserService();
-    this.namespaceManager = new NamespaceManager();
-  }
-
-  async createUser(req, res, next) {
-    try {
-      const { userId, profile } = req.body;
-      
-      // Create user namespace
-      const namespace = await this.namespaceManager.createUserNamespace(userId);
-      
-      // Initialize user profile
-      const user = await this.userService.createUser({
-        id: userId,
-        namespace,
-        profile,
-        createdAt: new Date(),
-        status: 'active'
-      });
-
-      res.status(201).json({
-        user,
-        namespace,
-        message: 'User created successfully'
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async getUserInfo(req, res, next) {
-    try {
-      const { userId } = req.params;
-      const user = await this.userService.getUser(userId);
-      
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      res.json(user);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async deleteUser(req, res, next) {
-    try {
-      const { userId } = req.params;
-      
-      // Delete user namespace and all data
-      await this.namespaceManager.deleteUserNamespace(userId);
-      
-      // Remove user record
-      await this.userService.deleteUser(userId);
-
-      res.json({ message: 'User deleted successfully' });
-    } catch (error) {
-      next(error);
-    }
-  }
-}
-
-module.exports = { UserController };
-```
-
-#### 3.2 Frontend Multi-User Support
-**Goal:** User-aware frontend with namespace context
-
-**Enhanced Files:**
-- `frontend/src/context/UserContext.tsx` (new)
-- `frontend/src/services/ApiService.ts`
-- `frontend/src/App.tsx`
+- `frontend/src/context/TenantContext.tsx`
 
 **Implementation:**
 ```typescript
-// frontend/src/context/UserContext.tsx
-interface UserContextType {
-  userId: string | null;
+// frontend/src/context/TenantContext.tsx
+interface TenantContextType {
+  tenantId: string | null;
   namespace: string | null;
-  isTestUser: boolean;
-  switchUser: (userId: string) => Promise<void>;
-  createUser: (userId: string, profile: any) => Promise<void>;
+  isTestTenant: boolean;
+  isMultiTenantMode: boolean;
+  switchTenant: (tenantId: string) => void;
 }
 
-const UserContext = createContext<UserContextType | undefined>(undefined);
+const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
-export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [userId, setUserId] = useState<string | null>(null);
+export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [tenantId, setTenantId] = useState<string | null>(
+    localStorage.getItem('tenantId') || 'default'
+  );
   const [namespace, setNamespace] = useState<string | null>(null);
-  const [isTestUser, setIsTestUser] = useState(false);
+  const [isMultiTenantMode, setIsMultiTenantMode] = useState(false);
 
-  const switchUser = async (newUserId: string) => {
-    try {
-      // Get user info including namespace
-      const response = await fetch(`/api/users/${newUserId}`);
-      const userData = await response.json();
-      
-      setUserId(newUserId);
-      setNamespace(userData.namespace);
-      setIsTestUser(newUserId === 'test-user');
-      
-      // Store in localStorage for persistence
-      localStorage.setItem('currentUserId', newUserId);
-      localStorage.setItem('currentNamespace', userData.namespace);
-      
-    } catch (error) {
-      console.error('Failed to switch user:', error);
+  // Auto-detect multi-tenant capabilities on mount
+  useEffect(() => {
+    const detectCapabilities = async () => {
+      try {
+        const response = await fetch('/api/system/status');
+        const systemStatus = await response.json();
+        setIsMultiTenantMode(systemStatus.namespacesSupported || false);
+      } catch (error) {
+        console.warn('Could not detect multi-tenant capabilities, assuming OSS mode');
+        setIsMultiTenantMode(false);
+      }
+    };
+    
+    detectCapabilities();
+  }, []);
+
+  const switchTenant = (newTenantId: string) => {
+    if (!isMultiTenantMode && newTenantId !== 'default') {
+      console.warn('Multi-tenant mode not supported, staying in default mode');
+      return;
+    }
+    
+    setTenantId(newTenantId);
+    localStorage.setItem('tenantId', newTenantId);
+    
+    // Update namespace based on tenant (Enterprise only)
+    if (isMultiTenantMode) {
+      const newNamespace = newTenantId === 'test-tenant' ? '0x1' : null;
+      setNamespace(newNamespace);
     }
   };
 
-  const createUser = async (newUserId: string, profile: any) => {
-    try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: newUserId, profile })
-      });
-      
-      const userData = await response.json();
-      await switchUser(newUserId);
-      
-    } catch (error) {
-      console.error('Failed to create user:', error);
-      throw error;
-    }
-  };
+  const isTestTenant = tenantId === 'test-tenant';
 
   return (
-    <UserContext.Provider value={{
-      userId,
+    <TenantContext.Provider value={{
+      tenantId,
       namespace,
-      isTestUser,
-      switchUser,
-      createUser
+      isTestTenant,
+      isMultiTenantMode,
+      switchTenant
     }}>
       {children}
-    </UserContext.Provider>
+    </TenantContext.Provider>
   );
 };
 
-export const useUser = () => {
-  const context = useContext(UserContext);
+export const useTenant = () => {
+  const context = useContext(TenantContext);
   if (!context) {
-    throw new Error('useUser must be used within UserProvider');
+    throw new Error('useTenant must be used within TenantProvider');
   }
   return context;
 };
 ```
 
-**Enhanced API Service:**
+#### 3.2 Enhanced ApiService Integration
+**Goal:** Build on existing axios interceptors with universal compatibility
+
+**Enhanced Files:**
+- `frontend/src/services/ApiService.ts` - Enhance existing tenant header logic
+
+**Universal Enhancement:**
 ```typescript
 // Enhanced frontend/src/services/ApiService.ts
-import { useUser } from '../context/UserContext';
-
-// Add user context to all API calls
-const getRequestHeaders = () => {
-  const userId = localStorage.getItem('currentUserId') || 'default';
-  const hierarchyId = localStorage.getItem('hierarchyId');
+// Update existing axios interceptor to be universally compatible
+axios.interceptors.request.use(config => {
+  config.headers = config.headers || {};
   
-  return {
-    'Content-Type': 'application/json',
-    'X-User-Id': userId,
-    ...(hierarchyId && { 'X-Hierarchy-Id': hierarchyId })
-  };
-};
-
-export const executeQuery = async (query: string, variables?: any) => {
-  const response = await axios.post('/api/query', 
-    { query, variables },
-    { headers: getRequestHeaders() }
-  );
-  return response.data;
-};
-
-export const executeMutation = async (mutation: string, variables?: any) => {
-  const response = await axios.post('/api/mutate',
-    { mutation, variables },
-    { headers: getRequestHeaders() }
-  );
-  return response.data;
-};
+  // Only add tenant header if not in default/OSS mode
+  const tenantId = localStorage.getItem('tenantId') || 'default';
+  if (tenantId !== 'default') {
+    config.headers['X-Tenant-Id'] = tenantId;
+  }
+  
+  // Add hierarchy header for mutations (existing logic)
+  if (config.data && config.data.mutation) {
+    const hierarchyId = localStorage.getItem('hierarchyId');
+    if (hierarchyId) {
+      config.headers['X-Hierarchy-Id'] = hierarchyId;
+    }
+  }
+  
+  return config;
+}, error => Promise.reject(error));
 ```
 
-### Phase 4: Advanced Features (Week 4)
+### Phase 4: Tenant Management APIs & Tools (Days 7-8)
 
-#### 4.1 Namespace Migration Tools
-**Goal:** Tools for managing user data and migrations
+#### 4.1 Universal Tenant Management REST API
+**Goal:** Complete tenant CRUD operations with OSS compatibility
 
 **New Files:**
-- `api/utils/namespaceMigration.js`
-- `tools/namespace_manager.py`
+- `api/routes/tenants.js` - Enhanced with full CRUD and OSS fallback
+- `api/controllers/tenantController.js`
 
 **Implementation:**
 ```javascript
-// api/utils/namespaceMigration.js
-class NamespaceMigration {
-  async migrateUserData(fromNamespace, toNamespace) {
-    console.log(`[MIGRATION] Moving data from ${fromNamespace} to ${toNamespace}`);
-    
-    // Export data from source namespace
-    const data = await this.exportNamespaceData(fromNamespace);
-    
-    // Import data to target namespace
-    await this.importNamespaceData(toNamespace, data);
-    
-    // Verify migration
-    await this.verifyMigration(fromNamespace, toNamespace);
+// api/controllers/tenantController.js
+const { TenantManager } = require('../services/tenantManager');
+const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
+
+class TenantController {
+  constructor() {
+    this.tenantManager = new TenantManager();
   }
 
-  async backupNamespace(namespace, backupPath) {
-    const data = await this.exportNamespaceData(namespace);
-    await fs.writeFile(backupPath, JSON.stringify(data, null, 2));
-    console.log(`[BACKUP] Namespace ${namespace} backed up to ${backupPath}`);
-  }
-
-  async restoreNamespace(namespace, backupPath) {
-    const data = JSON.parse(await fs.readFile(backupPath, 'utf8'));
-    await this.importNamespaceData(namespace, data);
-    console.log(`[RESTORE] Namespace ${namespace} restored from ${backupPath}`);
-  }
-}
-```
-
-#### 4.2 Monitoring and Analytics
-**Goal:** Multi-tenant monitoring and usage analytics
-
-**New Files:**
-- `api/services/analyticsService.js`
-- `api/routes/analytics.js`
-
-**Implementation:**
-```javascript
-// api/services/analyticsService.js
-class AnalyticsService {
-  async getUserUsageStats(userId) {
-    const namespace = await namespaceManager.getUserNamespace(userId);
-    
-    const stats = await executeGraphQL(`
-      query GetUserStats {
-        nodeCount: aggregateNode { count }
-        hierarchyCount: aggregateHierarchy { count }
-        edgeCount: aggregateEdge { count }
+  async createTenant(req, res, next) {
+    try {
+      const { tenantId } = req.body;
+      
+      // Check if multi-tenant mode is supported
+      const capabilities = adaptiveTenantFactory.getCapabilities();
+      if (!capabilities?.namespacesSupported) {
+        return res.status(400).json({
+          error: 'Multi-tenant mode not supported in OSS deployment'
+        });
       }
-    `, {}, namespace);
-    
-    return {
-      userId,
-      namespace,
-      ...stats,
-      lastActivity: await this.getLastActivity(namespace)
-    };
+      
+      const namespace = await this.tenantManager.createTenant(tenantId);
+      
+      res.status(201).json({
+        tenantId,
+        namespace,
+        message: 'Tenant created successfully'
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async getSystemStats() {
-    // Aggregate stats across all namespaces
-    const users = await this.getAllUsers();
-    const stats = await Promise.all(
-      users.map(user => this.getUserUsageStats(user.id))
+  async listTenants(req, res, next) {
+    try {
+      const capabilities = adaptiveTenantFactory.getCapabilities();
+      if (!capabilities?.namespacesSupported) {
+        // OSS mode: return default tenant only
+        return res.json([{
+          tenantId: 'default',
+          namespace: '0x0',
+          mode: 'oss-single-tenant'
+        }]);
+      }
+      
+      // Enterprise mode: return all tenants
+      const tenants = await this.tenantManager.listTenants();
+      res.json(tenants);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ... other methods with similar OSS/Enterprise adaptation
+}
+
+module.exports = { TenantController };
+```
+
+#### 4.2 Universal Migration & Analytics Tools
+**Goal:** Basic operational utilities that work in both modes
+
+**New Files:**
+- `api/utils/tenantMigration.js`
+- `api/services/tenantAnalytics.js`
+
+**Universal Implementation:**
+```javascript
+// api/utils/tenantMigration.js
+const { DgraphTenantFactory } = require('../services/dgraphTenant');
+const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
+const fs = require('fs').promises;
+
+class TenantMigration {
+  async backupTenant(tenantId, backupPath) {
+    console.log(`[MIGRATION] Backing up tenant ${tenantId}`);
+    
+    // Use adaptive factory to get appropriate client
+    const tenant = await adaptiveTenantFactory.createTenant(
+      tenantId === 'default' ? null : tenantId
     );
     
-    return {
-      totalUsers: users.length,
-      totalNodes: stats.reduce((sum, s) => sum + s.nodeCount, 0),
-      totalHierarchies: stats.reduce((sum, s) => sum + s.hierarchyCount, 0),
-      activeUsers: stats.filter(s => this.isRecentlyActive(s.lastActivity)).length
-    };
+    // Export all data (works in both OSS and Enterprise)
+    const exportQuery = `
+      query {
+        nodes: queryNode { id label type }
+        hierarchies: queryHierarchy { id name }
+        edges: queryEdge { from { id } to { id } type }
+      }
+    `;
+    
+    const data = await tenant.executeGraphQL(exportQuery);
+    await fs.writeFile(backupPath, JSON.stringify(data, null, 2));
+    
+    console.log(`[MIGRATION] Tenant ${tenantId} backed up to ${backupPath}`);
+  }
+
+  async restoreTenant(tenantId, backupPath) {
+    console.log(`[MIGRATION] Restoring tenant ${tenantId}`);
+    
+    const data = JSON.parse(await fs.readFile(backupPath, 'utf8'));
+    const tenant = await adaptiveTenantFactory.createTenant(
+      tenantId === 'default' ? null : tenantId
+    );
+    
+    // Restore hierarchies first, then nodes, then edges
+    // Implementation details...
+    
+    console.log(`[MIGRATION] Tenant ${tenantId} restored from ${backupPath}`);
   }
 }
+
+module.exports = { TenantMigration };
 ```
+
+## Data Seeding Strategy
+
+### Production User Seeding
+- **Purpose**: Initialize new user/tenant with starter data
+- **Tool**: Enhanced `tools/seed_data.py` with universal compatibility
+- **Usage**: 
+  - OSS: `python tools/seed_data.py` (seeds default instance)
+  - Enterprise: `python tools/seed_data.py --tenant-id user123 --create-tenant`
+
+### Test Data Seeding  
+- **Purpose**: Provide controlled test data for automated testing
+- **Tool**: Dedicated `api/__tests__/helpers/testDataSeeder.js`
+- **Usage**: Automatically called by test setup/teardown
+- **Isolation**: Completely separate from production seeding
+
+### Key Differences
+- **Production seeding**: Rich, realistic starter data for new users
+- **Test seeding**: Minimal, predictable data for test scenarios
+- **No overlap**: Test data never interferes with production workflows
 
 ## Testing Strategy
 
 ### Unit Tests
-- Namespace manager functionality
-- User context middleware
-- Migration utilities
-- Analytics services
+- Enhanced dgraphClient namespace parameter
+- Tenant context middleware validation
+- Migration utility functions
+- Universal compatibility functions
 
 ### Integration Tests
-- Real database operations in test namespace
-- User provisioning workflows
-- Cross-namespace isolation verification
-- Migration and backup processes
+- Real database operations in test tenant
+- Tenant provisioning workflows
+- Cross-tenant isolation verification (Enterprise only)
+- OSS/Enterprise mode detection and adaptation
 
 ### End-to-End Tests
-- Complete user onboarding flow
-- Multi-user scenarios
-- Data isolation verification
-- Performance testing with multiple namespaces
+- Complete tenant lifecycle (Enterprise)
+- Frontend tenant switching (Enterprise)
+- Data isolation verification (Enterprise)
+- Single-user workflows (OSS)
 
-## Security Considerations
+## Implementation Guidelines
 
-### Data Isolation
-- Namespace-level access controls
-- Request validation for namespace access
-- Audit logging for cross-namespace operations
+### Universal Adaptive Design
+- **Single implementation** that works with both OSS and Enterprise Dgraph
+- **Auto-detection** of capabilities using existing dgraphCapabilities service
+- **Graceful degradation** when Enterprise features aren't available
+- **No legacy code retention** - update functions directly, don't create fallbacks
 
-### User Authentication
-- JWT-based user identification
-- API key management for admin operations
-- Rate limiting per namespace
+### Code Style Alignment
+- **Simple, clean implementations** - Follow existing DgraphTenant patterns
+- **Factory pattern usage** - Build on existing DgraphTenantFactory
+- **Consistent logging** - Use existing `[SERVICE_NAME]` prefix pattern
+- **Environment defaults** - Follow `process.env.X || 'default'` pattern
+- **Error handling** - Match existing try/catch and error propagation
 
-### Backup and Recovery
-- Namespace-specific backup strategies
-- Point-in-time recovery capabilities
-- Data retention policies
-
-## Performance Optimization
-
-### Namespace Efficiency
-- Connection pooling across namespaces
-- Query optimization for multi-tenant scenarios
-- Caching strategies for user context
-
-### Monitoring
-- Namespace-level performance metrics
-- Resource usage tracking
-- Automated scaling triggers
-
-## Migration Path
-
-### Phase 1: Infrastructure (Immediate)
-1. Implement namespace-aware dgraphClient
-2. Create namespace management service
-3. Add user context middleware
-
-### Phase 2: Test Environment (Week 1)
-1. Set up test namespace (0x1)
-2. Migrate integration tests to real database
-3. Validate multi-tenant architecture
-
-### Phase 3: Production System (Week 2-3)
-1. Implement user management API
-2. Add frontend multi-user support
-3. Deploy user provisioning system
-
-### Phase 4: Advanced Features (Week 4)
-1. Migration and backup tools
-2. Analytics and monitoring
-3. Performance optimization
+### Adaptive Approach (Following AdaptiveTenantFactory Pattern)
+- **Build on existing services** - Enhance TenantManager, don't replace
+- **Leverage existing middleware** - Extend tenantContext, don't duplicate
+- **Use established patterns** - Follow ApiService axios interceptor approach
+- **Universal compatibility** - Code works seamlessly with OSS and Enterprise
 
 ## Success Metrics
 
 ### Technical Metrics
-- **Data Isolation**: 100% namespace separation verified
-- **Performance**: <10% overhead for multi-tenancy
-- **Reliability**: 99.9% uptime for user operations
-- **Scalability**: Support for 1000+ concurrent users
+- **Universal Compatibility**: 100% functionality in both OSS and Enterprise modes
+- **Data Isolation**: 100% tenant separation verified through testing (Enterprise)
+- **Performance**: <5% overhead for namespace parameter addition
+- **Reliability**: All existing functionality continues working
+- **Test Coverage**: 100% real database test conversion
 
 ### Operational Metrics
-- **User Onboarding**: <30 seconds for new user setup
-- **Data Migration**: <5 minutes for typical user data
-- **Backup/Restore**: <10 minutes for user namespace
-- **Monitoring**: Real-time visibility into all namespaces
+- **User Onboarding**: <30 seconds for new user setup (both modes)
+- **Data Migration**: <5 minutes for typical user backup/restore
+- **Development Workflow**: Seamless tenant switching for testing (Enterprise)
+- **OSS Compatibility**: Zero configuration changes needed for OSS deployments
 
 ## Risk Mitigation
 
 ### Technical Risks
-- **Namespace Conflicts**: Deterministic ID generation with collision detection
-- **Data Leakage**: Comprehensive access control testing
-- **Performance Degradation**: Load testing and optimization
+- **Universal Compatibility**: Use optional parameters and capability detection
+- **Performance Impact**: Minimal changes to core dgraphClient
+- **Test Reliability**: Proper test database cleanup and isolation
+- **Mode Detection**: Robust fallback when capabilities cannot be determined
 
 ### Operational Risks
-- **User Data Loss**: Automated backup and recovery procedures
-- **Migration Failures**: Rollback capabilities and validation
-- **Scaling Issues**: Monitoring and automated scaling
+- **Data Loss**: Comprehensive backup utilities before any destructive operations
+- **Migration Issues**: Rollback capabilities and validation steps
+- **OSS Regression**: Ensure no Enterprise-only dependencies in core functionality
 
-## Future Enhancements
-
-### Advanced Multi-Tenancy
-- Hierarchical namespaces for organizations
-- Cross-user collaboration features
-- Federated identity management
-
-### Enterprise Features
-- Custom schema per tenant
-- Advanced analytics and reporting
-- Compliance and audit trails
-
-This refactor establishes a robust foundation for multi-tenant architecture while using our test environment as a practical prototype for the production multi-user system.
+This refactor completes the multi-tenant architecture by building on the solid foundation already in place, while maintaining full compatibility with OSS deployments through universal adaptive design patterns.
