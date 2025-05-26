@@ -8,7 +8,10 @@ router.get('/system/status', async (req, res) => {
   try {
     // Get current capabilities
     const capabilities = await dgraphCapabilityDetector.detectCapabilities();
-    const tenantContext = req.tenantContext || {};
+    
+    // Manually parse tenant header since system routes run before tenant middleware
+    const tenantId = req.headers['x-tenant-id'] || 'default';
+    const tenantContext = req.tenantContext || { tenantId };
     
     // Determine if multi-tenant operations are verified
     const multiTenantVerified = capabilities.namespacesSupported && 
@@ -18,7 +21,7 @@ router.get('/system/status', async (req, res) => {
     const systemStatus = {
       dgraphEnterprise: capabilities.enterpriseDetected,
       multiTenantVerified,
-      currentTenant: tenantContext.tenantId || 'unknown',
+      currentTenant: tenantContext.tenantId || 'default',
       namespace: tenantContext.namespace || null,
       mode: capabilities.namespacesSupported ? 'multi-tenant' : 'single-tenant',
       detectedAt: capabilities.detectedAt,

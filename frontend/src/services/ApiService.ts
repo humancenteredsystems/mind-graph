@@ -12,11 +12,9 @@ axios.interceptors.request.use(config => {
     }
   }
   
-  // Only add tenant header if not in default/OSS mode
+  // Always add tenant header (including 'default' for OSS mode)
   const tenantId = localStorage.getItem('tenantId') || 'default';
-  if (tenantId !== 'default') {
-    config.headers['X-Tenant-Id'] = tenantId;
-  }
+  config.headers['X-Tenant-Id'] = tenantId;
   
   return config;
 }, error => Promise.reject(error));

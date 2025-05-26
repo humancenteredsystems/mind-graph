@@ -4,15 +4,18 @@ import './index.css'
 import App from './App.tsx'
 import { UIProvider } from './context/UIContext';
 import { ContextMenuProvider } from './context/ContextMenuContext';
+import { TenantProvider } from './context/TenantContext';
 import ContextMenu from './components/ContextMenu';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <UIProvider>
-      <ContextMenuProvider>
-        <App />
-        <ContextMenu />
-      </ContextMenuProvider>
-    </UIProvider>
+    <TenantProvider>
+      <UIProvider>
+        <ContextMenuProvider>
+          <App />
+          <ContextMenu />
+        </ContextMenuProvider>
+      </UIProvider>
+    </TenantProvider>
   </StrictMode>,
 )
