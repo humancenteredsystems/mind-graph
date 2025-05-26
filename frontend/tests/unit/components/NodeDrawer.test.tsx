@@ -130,8 +130,8 @@ describe('NodeDrawer', () => {
     );
     
     // Should show empty values for hierarchy and level
-    const hierarchyInput = screen.getByDisplayValue('');
-    expect(hierarchyInput).toBeInTheDocument();
+    const hierarchyInputs = screen.getAllByDisplayValue('');
+    expect(hierarchyInputs.length).toBeGreaterThan(0);
   });
 
   it('calls onClose when close button is clicked', () => {

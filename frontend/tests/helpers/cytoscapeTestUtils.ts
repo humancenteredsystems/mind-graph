@@ -15,6 +15,7 @@ export const createMinimalCytoscapeMock = () => ({
         off: vi.fn(),
         nodes: vi.fn().mockReturnValue([]),
         autounselectify: vi.fn(),
+        boxSelectionEnabled: vi.fn(),
       });
     }
     return React.createElement('div', {
@@ -43,6 +44,7 @@ export const createEventCapableCytoscapeMock = () => {
     off: vi.fn(),
     removeListener: vi.fn(),
     autounselectify: vi.fn(),
+    boxSelectionEnabled: vi.fn(),
     nodes: vi.fn((selector?: string) => {
       if (selector === ':selected') {
         // Return mock selected nodes based on test state
@@ -123,6 +125,7 @@ export const createFullCytoscapeMock = (customMethods: Record<string, any> = {})
     off: vi.fn(),
     removeListener: vi.fn(),
     autounselectify: vi.fn(),
+    boxSelectionEnabled: vi.fn(),
     nodes: vi.fn().mockReturnValue([]),
     edges: vi.fn().mockReturnValue([]),
     elements: vi.fn().mockReturnValue([]),

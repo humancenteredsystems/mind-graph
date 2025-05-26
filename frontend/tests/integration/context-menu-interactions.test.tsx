@@ -2,6 +2,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { mockNodes } from '../helpers/mockData';
 import App from '../../src/App';
+import { UIProvider } from '../../src/context/UIContext';
+import { ContextMenuProvider } from '../../src/context/ContextMenuContext';
 
 // Use vi.hoisted to properly handle mock hoisting
 const { 
@@ -49,7 +51,9 @@ vi.mock('react-cytoscapejs', () => ({
       on: vi.fn(),
       off: vi.fn(),
       nodes: vi.fn().mockReturnValue([]),
-      edges: vi.fn().mockReturnValue([])
+      edges: vi.fn().mockReturnValue([]),
+      autounselectify: vi.fn(),
+      boxSelectionEnabled: vi.fn()
     };
     
     if (typeof cy === 'function') {
@@ -62,9 +66,7 @@ vi.mock('react-cytoscapejs', () => ({
         data-elements={JSON.stringify(elements)}
         onContextMenu={(e) => {
           e.preventDefault();
-          // Simulate context menu trigger
-          const event = new CustomEvent('contextmenu', { bubbles: true });
-          e.currentTarget.dispatchEvent(event);
+          // Don't dispatch recursive events - just prevent default
         }}
       />
     );
@@ -94,14 +96,26 @@ describe('Context Menu Interactions Integration', () => {
   });
 
   it('renders app without crashing', async () => {
-    render(<App />);
+    render(
+      <UIProvider>
+        <ContextMenuProvider>
+          <App />
+        </ContextMenuProvider>
+      </UIProvider>
+    );
     
     // Should render the main app components
     expect(screen.getByText('MakeItMakeSense.io Graph')).toBeInTheDocument();
   });
 
   it('loads initial data on mount', async () => {
-    render(<App />);
+    render(
+      <UIProvider>
+        <ContextMenuProvider>
+          <App />
+        </ContextMenuProvider>
+      </UIProvider>
+    );
 
     // Should call the API to fetch hierarchies
     await waitFor(() => {
@@ -110,7 +124,13 @@ describe('Context Menu Interactions Integration', () => {
   });
 
   it('shows cytoscape component', async () => {
-    render(<App />);
+    render(
+      <UIProvider>
+        <ContextMenuProvider>
+          <App />
+        </ContextMenuProvider>
+      </UIProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
@@ -118,7 +138,13 @@ describe('Context Menu Interactions Integration', () => {
   });
 
   it('handles context menu interactions', async () => {
-    render(<App />);
+    render(
+      <UIProvider>
+        <ContextMenuProvider>
+          <App />
+        </ContextMenuProvider>
+      </UIProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
@@ -135,7 +161,13 @@ describe('Context Menu Interactions Integration', () => {
   it('handles API errors gracefully', async () => {
     mockFetchHierarchies.mockRejectedValue(new Error('API Error'));
 
-    render(<App />);
+    render(
+      <UIProvider>
+        <ContextMenuProvider>
+          <App />
+        </ContextMenuProvider>
+      </UIProvider>
+    );
 
     // Should handle the error without crashing
     await waitFor(() => {
@@ -147,13 +179,21 @@ describe('Context Menu Interactions Integration', () => {
   });
 
   it('renders graph elements when data is loaded', async () => {
-    render(<App />);
+    render(
+      <UIProvider>
+        <ContextMenuProvider>
+          <App />
+        </ContextMenuProvider>
+      </UIProvider>
+    );
 
     await waitFor(() => {
       expect(mockFetchHierarchies).toHaveBeenCalled();
     });
 
-    // Should render the cytoscape component
-    expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
+    // Wait for the graph to load and render
+    await waitFor(() => {
+      expect(screen.getByTestId('cytoscape-component')).toBeInTheDocument();
+    });
   });
 });
