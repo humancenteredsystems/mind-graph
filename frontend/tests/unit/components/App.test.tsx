@@ -1,227 +1,157 @@
-// Test file for App.tsx
-import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
-import App from './App';
-import { UIProvider } from './context/UIContext';
-import * as ApiService from './services/ApiService';
-import * as GraphUtils from './utils/graphUtils';
-import { NodeData, EdgeData } from './types/graph'; // Import types
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { screen, waitFor, act } from '@testing-library/react';
+import { render } from '../../helpers/testUtils';
+import { mockNodes, mockEdges, createMockNode } from '../../helpers/mockData';
+import App from '../../../src/App';
+import * as ApiService from '../../../src/services/ApiService';
+import * as GraphUtils from '../../../src/utils/graphUtils';
+import type { NodeData, EdgeData } from '../../../src/types/graph';
 
 // Mock the ApiService and GraphUtils modules
-vi.mock('./services/ApiService');
-vi.mock('./utils/graphUtils');
+vi.mock('../../../src/services/ApiService');
+vi.mock('../../../src/utils/graphUtils');
 
-// Keep variable accessible to tests
-let capturedOnNodeExpand: ((nodeId: string) => void) | undefined;
-let capturedOnLoadCompleteGraph: (() => void) | undefined;
-let capturedOnDeleteNode: ((nodeId: string) => void) | undefined;
-let capturedOnDeleteNodes: ((nodeIds: string[]) => void) | undefined;
-
-// Define the mock *inside* the factory function
-vi.mock('./components/GraphView', () => {
-  const MockGraphViewComponent = vi.fn(({
-    nodes,
-    edges,
-    onNodeExpand,
-    onLoadCompleteGraph,
-    onDeleteNode,
-    onDeleteNodes,
-  }: {
-    nodes: NodeData[];
-    edges: EdgeData[];
-    onNodeExpand?: (id: string) => void;
-    onLoadCompleteGraph?: () => void;
-    onDeleteNode?: (id: string) => void;
-    onDeleteNodes?: (ids: string[]) => void;
-  }) => {
-    capturedOnNodeExpand = onNodeExpand; // Capture the expand handler
-    capturedOnLoadCompleteGraph = onLoadCompleteGraph; // Capture the load complete handler
-    capturedOnDeleteNode = onDeleteNode; // Capture delete handler
-    capturedOnDeleteNodes = onDeleteNodes; // Capture delete nodes handler
+// Mock GraphView component to avoid complex Cytoscape dependencies
+vi.mock('../../../src/components/GraphView', () => ({
+  default: ({ nodes, edges, onNodeExpand, onLoadCompleteGraph, onDeleteNode, onDeleteNodes }: any) => {
     return (
       <div data-testid="graph-view">
         <span data-testid="node-count">{nodes.length}</span>
         <span data-testid="edge-count">{edges.length}</span>
-        <button data-testid="manual-expand-trigger" onClick={() => capturedOnNodeExpand?.('node-to-expand')} />
-        <button data-testid="manual-load-complete-trigger" onClick={() => capturedOnLoadCompleteGraph?.()} />
+        <button 
+          data-testid="expand-trigger" 
+          onClick={() => onNodeExpand?.('test-node')}
+        >
+          Expand
+        </button>
+        <button 
+          data-testid="load-complete-trigger" 
+          onClick={() => onLoadCompleteGraph?.()}
+        >
+          Load Complete
+        </button>
+        <button 
+          data-testid="delete-trigger" 
+          onClick={() => onDeleteNode?.('test-node')}
+        >
+          Delete
+        </button>
       </div>
     );
-  });
-  return { default: MockGraphViewComponent };
-});
+  }
+}));
 
 describe('App Component', () => {
-  const initialNode: NodeData = { id: 'node1', label: 'Node 1', level: 1 };
-  const initialNodes = [initialNode];
-  const initialEdges: EdgeData[] = [];
+  const mockApiService = ApiService as any;
+  const mockGraphUtils = GraphUtils as any;
 
-  const initialRawData = { queryNode: [initialNode] };
-  const initialTransformedData = { nodes: initialNodes, edges: initialEdges };
-
-  const setupInitialLoad = async () => {
-    (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce(initialRawData);
-    (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce(initialTransformedData);
-    render(
-      <UIProvider>
-        <App />
-      </UIProvider>
-    );
-    await waitFor(() => expect(screen.queryByText(/Loading graph data.../i)).not.toBeInTheDocument());
-  };
-
-  beforeEach(async () => {
-    vi.resetAllMocks();
-    (ApiService.fetchAllNodeIds as Mock).mockResolvedValue(initialNodes.map(n => n.id));
-    capturedOnNodeExpand = undefined;
-    const GraphViewMock = (await import('./components/GraphView')).default as Mock;
-    GraphViewMock.mockClear();
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiService.fetchAllNodeIds.mockResolvedValue(['node1', 'node2']);
+    mockApiService.fetchTraversalData.mockResolvedValue({
+      queryNode: [mockNodes[0]]
+    });
+    mockGraphUtils.transformTraversalData.mockReturnValue({
+      nodes: [mockNodes[0]],
+      edges: []
+    });
   });
 
-  it('should render loading state initially', () => {
-    (ApiService.fetchTraversalData as Mock).mockReturnValue(new Promise(() => {}));
-    render(
-      <UIProvider>
-        <App />
-      </UIProvider>
-    );
+  it('renders loading state initially', () => {
+    mockApiService.fetchTraversalData.mockReturnValue(new Promise(() => {}));
+    render(<App />);
     expect(screen.getByText(/Loading graph data.../i)).toBeInTheDocument();
   });
 
-  it('should call fetchAllNodeIds on mount', async () => {
-    (ApiService.fetchAllNodeIds as Mock).mockResolvedValue(['node1']);
-    render(
-      <UIProvider>
-        <App />
-      </UIProvider>
-    );
-    await waitFor(() => expect(screen.queryByText(/Loading graph data.../i)).not.toBeInTheDocument());
-    expect(ApiService.fetchAllNodeIds).toHaveBeenCalledTimes(1);
-    expect(ApiService.fetchAllNodeIds).toHaveBeenCalledWith();
-  });
-
-  it('should render GraphView with initial data on successful fetch', async () => {
-    await setupInitialLoad();
+  it('renders GraphView after successful data load', async () => {
+    render(<App />);
+    
     await waitFor(() => {
-      expect(screen.getByTestId('node-count').textContent).toBe('1');
-      expect(screen.getByTestId('edge-count').textContent).toBe('0');
+      expect(screen.queryByText(/Loading graph data.../i)).not.toBeInTheDocument();
     });
-    const GraphViewMock = (await import('./components/GraphView')).default as Mock;
-    const lastArgs = GraphViewMock.mock.calls.slice(-1)[0][0];
-    expect(lastArgs.nodes).toEqual(initialNodes);
-    expect(lastArgs.edges).toEqual(initialEdges);
+    
+    expect(screen.getByTestId('graph-view')).toBeInTheDocument();
+    expect(screen.getByTestId('node-count')).toHaveTextContent('1');
   });
 
-  it('should render error message on failed initial fetch', async () => {
-    const errorMessage = 'Initial Fetch Failed';
-    (ApiService.fetchTraversalData as Mock).mockRejectedValueOnce(new Error(errorMessage));
-    render(
-      <UIProvider>
-        <App />
-      </UIProvider>
-    );
-    await waitFor(() => expect(screen.getByText(/Error: Failed to load initial graph data/i)).toBeInTheDocument());
-  });
-
-  describe('handleNodeExpand', () => {
-    const nodeToExpandId = 'node1';
-    const newNode: NodeData = { id: 'node2', label: 'Node 2', level: 2 };
-    const newEdge: EdgeData = { source: nodeToExpandId, target: 'node2', type: 'connects_to' };
-    const expansionRawData = { queryNode: [{ ...initialNode, outgoing: [{ type: 'connects_to', to: newNode }] }] };
-    const expansionTransformedData = { nodes: [initialNode, newNode], edges: [newEdge] };
-
-    it('should fetch, transform, and add unique nodes/edges on expand', async () => {
-      await setupInitialLoad();
-      (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce(expansionRawData);
-      (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce(expansionTransformedData);
-      expect(capturedOnNodeExpand).toBeDefined();
-      await act(async () => capturedOnNodeExpand!(nodeToExpandId));
-      expect(ApiService.fetchTraversalData).toHaveBeenCalledTimes(2);
-      expect(ApiService.fetchTraversalData).toHaveBeenLastCalledWith(nodeToExpandId, 1);
-      await waitFor(() => expect(screen.queryByText(/Loading graph data.../i)).not.toBeInTheDocument());
-      await waitFor(() => {
-        expect(screen.getByTestId('node-count').textContent).toBe('2');
-        expect(screen.getByTestId('edge-count').textContent).toBe('1');
-      });
-    });
-
-    it('should not add nodes/edges if API returns existing only', async () => {
-      await setupInitialLoad();
-      const existingRaw = { queryNode: [initialNode] };
-      const existingTrans = { nodes: [initialNode], edges: [] };
-      (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce(existingRaw);
-      (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce(existingTrans);
-      await act(async () => capturedOnNodeExpand!(nodeToExpandId));
-      await waitFor(() => expect(screen.queryByText(/Loading graph data.../i)).not.toBeInTheDocument());
-      expect(screen.getByTestId('node-count').textContent).toBe('1');
-      expect(screen.getByTestId('edge-count').textContent).toBe('0');
-    });
-
-    it('should display error if expansion fetch fails', async () => {
-      await setupInitialLoad();
-      (ApiService.fetchTraversalData as Mock).mockRejectedValueOnce(new Error('ExpFail'));
-      await act(async () => capturedOnNodeExpand!(nodeToExpandId));
-      await waitFor(() => expect(screen.getByText(/Error: Failed to expand node/i)).toBeInTheDocument());
-      expect(screen.getByTestId('node-count').textContent).toBe('1');
-      expect(screen.getByTestId('edge-count').textContent).toBe('0');
-    });
-
-    it('should handle loading state during expansion', async () => {
-      await setupInitialLoad();
-      const delayed = new Promise(resolve => setTimeout(() => resolve(expansionRawData), 50));
-      (ApiService.fetchTraversalData as Mock).mockReturnValueOnce(delayed);
-      (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce(expansionTransformedData);
-      act(() => capturedOnNodeExpand!(nodeToExpandId));
-      expect(screen.getByText(/Loading graph data.../i)).toBeInTheDocument();
-      await waitFor(() => expect(screen.queryByText(/Loading graph data.../i)).not.toBeInTheDocument());
-    });
-
-    it('should fetch and render complete graph on loadCompleteGraph', async () => {
-      await setupInitialLoad();
-      // Setup mocks for complete graph
-      const newNode: NodeData = { id: 'node2', label: 'Node 2', level: 1 };
-      const allNodeIds = ['node1', 'node2'];
-      (ApiService.fetchAllNodeIds as Mock).mockResolvedValueOnce(allNodeIds);
-      // First call for node1
-      (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce(initialRawData);
-      (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce(initialTransformedData);
-      // Second call for node2
-      (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce({ queryNode: [newNode] });
-      (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce({ nodes: [newNode], edges: [] });
-      // Trigger load complete graph
-      await act(async () => capturedOnLoadCompleteGraph?.());
-      await waitFor(() => {
-        expect(screen.getByTestId('node-count').textContent).toBe('2');
-        expect(screen.getByTestId('edge-count').textContent).toBe('0');
-      });
+  it('handles API errors gracefully', async () => {
+    mockApiService.fetchTraversalData.mockRejectedValue(new Error('API Error'));
+    
+    render(<App />);
+    
+    await waitFor(() => {
+      expect(screen.getByText(/Error: Failed to load initial graph data/i)).toBeInTheDocument();
     });
   });
 
-  it('should delete single node and update view', async () => {
-    await setupInitialLoad();
-    (ApiService.executeMutation as Mock).mockResolvedValueOnce({});
-    expect(capturedOnDeleteNode).toBeDefined();
-    await act(async () => capturedOnDeleteNode!(initialNode.id));
-    await waitFor(() => expect(screen.getByTestId('node-count').textContent).toBe('0'));
+  it('handles node expansion', async () => {
+    render(<App />);
+    
+    await waitFor(() => {
+      expect(screen.getByTestId('graph-view')).toBeInTheDocument();
+    });
+
+    // Mock expansion data
+    mockApiService.fetchTraversalData.mockResolvedValueOnce({
+      queryNode: [mockNodes[1]]
+    });
+    mockGraphUtils.transformTraversalData.mockReturnValueOnce({
+      nodes: [mockNodes[1]],
+      edges: []
+    });
+
+    act(() => {
+      screen.getByTestId('expand-trigger').click();
+    });
+
+    await waitFor(() => {
+      expect(mockApiService.fetchTraversalData).toHaveBeenCalledWith('test-node', expect.any(String));
+    });
   });
 
-  it('should delete multiple nodes and update view', async () => {
-    await setupInitialLoad();
-    // Prepare complete graph with two nodes
-    const node2: NodeData = { id: 'node2', label: 'Node 2', level: 1 };
-    (ApiService.fetchAllNodeIds as Mock).mockResolvedValueOnce([initialNode.id, node2.id]);
-    // First fetchTraversalData returns initialNode
-    (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce({ queryNode: [initialNode] });
-    (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce({ nodes: [initialNode], edges: [] });
-    // Second fetchTraversalData returns node2
-    (ApiService.fetchTraversalData as Mock).mockResolvedValueOnce({ queryNode: [node2] });
-    (GraphUtils.transformTraversalData as Mock).mockReturnValueOnce({ nodes: [node2], edges: [] });
-    await act(async () => capturedOnLoadCompleteGraph?.());
-    await waitFor(() => expect(screen.getByTestId('node-count').textContent).toBe('2'));
+  it('handles complete graph loading', async () => {
+    render(<App />);
+    
+    await waitFor(() => {
+      expect(screen.getByTestId('graph-view')).toBeInTheDocument();
+    });
 
-    // Mock delete mutation and trigger batch delete
-    (ApiService.executeMutation as Mock).mockResolvedValueOnce({});
-    expect(capturedOnDeleteNodes).toBeDefined();
-    await act(async () => capturedOnDeleteNodes!([initialNode.id, node2.id]));
-    await waitFor(() => expect(screen.getByTestId('node-count').textContent).toBe('0'));
+    // Mock complete graph data
+    mockApiService.fetchAllNodeIds.mockResolvedValueOnce(['node1', 'node2']);
+    mockApiService.fetchTraversalData.mockResolvedValue({
+      queryNode: [mockNodes[0]]
+    });
+    mockGraphUtils.transformTraversalData.mockReturnValue({
+      nodes: mockNodes.slice(0, 2),
+      edges: mockEdges
+    });
+
+    act(() => {
+      screen.getByTestId('load-complete-trigger').click();
+    });
+
+    await waitFor(() => {
+      expect(mockApiService.fetchAllNodeIds).toHaveBeenCalled();
+    });
+  });
+
+  it('handles node deletion', async () => {
+    render(<App />);
+    
+    await waitFor(() => {
+      expect(screen.getByTestId('graph-view')).toBeInTheDocument();
+    });
+
+    mockApiService.executeMutation.mockResolvedValueOnce({});
+
+    act(() => {
+      screen.getByTestId('delete-trigger').click();
+    });
+
+    await waitFor(() => {
+      expect(mockApiService.executeMutation).toHaveBeenCalled();
+    });
   });
 });

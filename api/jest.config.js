@@ -1,17 +1,30 @@
-// api/jest.config.js
 module.exports = {
-  // Automatically clear mock calls and instances between every test
+  testEnvironment: 'node',
+  setupFilesAfterEnv: ['./jest.setup.js'],
+  testMatch: [
+    '**/__tests__/**/*.test.js',
+    '**/?(*.)+(spec|test).js'
+  ],
+  collectCoverageFrom: [
+    'services/**/*.js',
+    'middleware/**/*.js',
+    'utils/**/*.js',
+    'routes/**/*.js',
+    '!**/__tests__/**',
+    '!**/node_modules/**'
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageThresholds: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70
+    }
+  },
+  testTimeout: 10000,
+  verbose: true,
   clearMocks: true,
-
-  // The directory where Jest should output its coverage files
-  coverageDirectory: "coverage",
-
-  // Indicates which provider should be used to instrument code for coverage
-  coverageProvider: "v8",
-
-  // The test environment that will be used for testing
-  testEnvironment: "node",
-
-  // A map from regular expressions to paths to transformers
-  // transform: {}, // Default is usually fine for Node.js
+  restoreMocks: true
 };

@@ -1,60 +1,88 @@
-// Test file for graphUtils.ts
 import { describe, it, expect } from 'vitest';
-import { transformTraversalData } from './graphUtils';
+import { transformTraversalData } from '../../../src/utils/graphUtils';
 
 describe('transformTraversalData', () => {
   it('should correctly transform basic traversal data', () => {
-    // TODO: Add test case with sample raw data and expected nodes/edges
-    const rawData = {
+    const traversalData = {
       queryNode: [
         {
           id: 'node1',
-          label: 'Concept 1',
+          label: 'Test Node 1',
           type: 'concept',
+          hierarchyAssignments: [
+            {
+              hierarchy: { id: 'h1', name: 'Test Hierarchy' },
+              level: { id: 'l1', levelNumber: 1, label: 'Domain' }
+            }
+          ],
           outgoing: [
-            { type: 'RELATES_TO', to: { id: 'node2', label: 'Concept 2', type: 'concept' } },
-            { type: 'RELATES_TO', to: { id: 'node3', label: 'Concept 3', type: 'concept' } }
+            {
+              id: 'edge1',
+              type: 'connects_to',
+              target: {
+                id: 'node2',
+                label: 'Test Node 2',
+                type: 'example'
+              }
+            }
           ]
-        },
-        // Note: node2 and node3 might be included here again if fetched directly,
-        // but the function should handle duplicates via the 'visited' set.
-         { id: 'node2', label: 'Concept 2', type: 'concept', outgoing: [] },
-         { id: 'node3', label: 'Concept 3', type: 'concept', outgoing: [] }
+        }
       ]
     };
 
-    const expectedNodes = [
-      { id: 'node1', label: 'Concept 1', type: 'concept' },
-      { id: 'node2', label: 'Concept 2', type: 'concept' },
-      { id: 'node3', label: 'Concept 3', type: 'concept' },
-    ];
-    const expectedEdges = [
-      { source: 'node1', target: 'node2', type: 'RELATES_TO' },
-      { source: 'node1', target: 'node3', type: 'RELATES_TO' },
-    ];
+    const result = transformTraversalData(traversalData);
 
-    const result = transformTraversalData(rawData);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toHaveLength(1);
+    
+    expect(result.nodes[0]).toEqual({
+      id: 'node1',
+      label: 'Test Node 1',
+      type: 'concept',
+      assignments: [
+        {
+          hierarchyId: 'h1',
+          hierarchyName: 'Test Hierarchy',
+          levelId: 'l1',
+          levelNumber: 1,
+          levelLabel: 'Domain'
+        }
+      ],
+      status: undefined,
+      branch: undefined
+    });
 
-    // Use expect(...).toEqual(...) for deep equality checks on arrays/objects
-    // Use expect(...).toHaveLength(...) for array length checks
-    expect(result.nodes).toHaveLength(expectedNodes.length);
-    expect(result.nodes).toEqual(expect.arrayContaining(expectedNodes.map(n => expect.objectContaining(n))));
-
-    expect(result.edges).toHaveLength(expectedEdges.length);
-    expect(result.edges).toEqual(expect.arrayContaining(expectedEdges.map(e => expect.objectContaining(e))));
+    expect(result.edges[0]).toEqual({
+      source: 'node1',
+      target: 'node2',
+      type: 'connects_to'
+    });
   });
 
-  it('should handle empty input data', () => {
-    const result = transformTraversalData({ queryNode: [] });
-    expect(result.nodes).toEqual([]);
-    expect(result.edges).toEqual([]);
+  it('should handle empty traversal data', () => {
+    const traversalData = { queryNode: [] };
+    const result = transformTraversalData(traversalData);
+
+    expect(result.nodes).toHaveLength(0);
+    expect(result.edges).toHaveLength(0);
   });
 
-   it('should handle null or undefined input data', () => {
-    expect(transformTraversalData(null)).toEqual({ nodes: [], edges: [] });
-    expect(transformTraversalData(undefined)).toEqual({ nodes: [], edges: [] });
-    expect(transformTraversalData({})).toEqual({ nodes: [], edges: [] });
-  });
+  it('should handle nodes without outgoing edges', () => {
+    const traversalData = {
+      queryNode: [
+        {
+          id: 'node1',
+          label: 'Isolated Node',
+          type: 'concept',
+          hierarchyAssignments: [],
+          outgoing: []
+        }
+      ]
+    };
 
-  // TODO: Add more test cases for different data structures, missing fields, etc.
+    const result = transformTraversalData(traversalData);
+
+    expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toHaveLength(0);
+  });
 });

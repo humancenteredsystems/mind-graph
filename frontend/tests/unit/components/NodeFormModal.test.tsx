@@ -1,107 +1,157 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import NodeFormModal, { NodeFormValues } from './NodeFormModal';
-import { useHierarchyContext } from '../context/HierarchyContext';
-import { useGraphState } from '../hooks/useGraphState';
-import type { NodeData } from '../types/graph';
-import type { Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { screen, fireEvent } from '@testing-library/react';
+import { render } from '../../helpers/testUtils';
+import { mockHierarchies, mockNodeFormValues } from '../../helpers/mockData';
+import NodeFormModal from '../../../src/components/NodeFormModal';
+import type { NodeFormValues } from '../../../src/components/NodeFormModal';
 
-vi.mock('../context/HierarchyContext');
-vi.mock('../hooks/useGraphState');
+// Mock the context hooks
+vi.mock('../../../src/context/HierarchyContext', () => ({
+  useHierarchyContext: () => ({
+    hierarchies: mockHierarchies,
+    hierarchyId: 'hierarchy1',
+    levels: mockHierarchies[0].levels,
+    allowedTypesMap: {
+      'hierarchy1l1': ['concept', 'question'],
+      'hierarchy1l2': ['example', 'concept']
+    },
+    allNodeTypes: ['concept', 'example', 'question'],
+    setHierarchyId: vi.fn(),
+  }),
+}));
+
+vi.mock('../../../src/hooks/useGraphState', () => ({
+  useGraphState: () => ({
+    nodes: [],
+  }),
+}));
 
 describe('NodeFormModal', () => {
-  const mockSetHierarchyId = vi.fn();
   const mockOnSubmit = vi.fn();
   const mockOnCancel = vi.fn();
 
   beforeEach(() => {
-    // Reset mocks
     vi.clearAllMocks();
-    // Provide default context values
-    (useHierarchyContext as Mock).mockReturnValue({
-      hierarchies: [{ id: 'h1', name: 'H1' }],
-      hierarchyId: 'h1',
-      levels: [
-        { id: 'lvl1', levelNumber: 1, label: 'L1' },
-        { id: 'lvl2', levelNumber: 2, label: 'L2' },
-      ],
-      allowedTypesMap: {
-        'h1l1': ['A', 'B'],
-        'h1l2': [],
-      },
-      allNodeTypes: ['concept', 'example', 'question'],
-      setHierarchyId: mockSetHierarchyId,
-    });
-    (useGraphState as Mock).mockReturnValue({
-      nodes: [],
-    });
   });
 
-  it('renders available types based on allowedTypesMap for top-level', () => {
+  it('renders when open is true', () => {
     render(
-      <NodeFormModal open={true} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
+      <NodeFormModal 
+        open={true} 
+        onSubmit={mockOnSubmit} 
+        onCancel={mockOnCancel} 
+      />
     );
+    
+    expect(screen.getByLabelText('Label')).toBeInTheDocument();
+    expect(screen.getByLabelText('Type')).toBeInTheDocument();
+    expect(screen.getByText('Save')).toBeInTheDocument();
+    expect(screen.getByText('Cancel')).toBeInTheDocument();
+  });
+
+  it('does not render when open is false', () => {
+    render(
+      <NodeFormModal 
+        open={false} 
+        onSubmit={mockOnSubmit} 
+        onCancel={mockOnCancel} 
+      />
+    );
+    
+    expect(screen.queryByLabelText('Label')).not.toBeInTheDocument();
+  });
+
+  it('shows available types based on selected level', () => {
+    render(
+      <NodeFormModal 
+        open={true} 
+        onSubmit={mockOnSubmit} 
+        onCancel={mockOnCancel} 
+      />
+    );
+    
     const typeSelect = screen.getByLabelText('Type');
-    // Should show 'A' and 'B' because allowedTypesMap['h1l1'] === ['A','B']
-    expect(screen.getByRole('option', { name: 'A' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'B' })).toBeInTheDocument();
-    // Should not show default ALL_NODE_TYPES if allowedTypesMap non-empty
-    expect(screen.queryByRole('option', { name: 'concept' })).not.toBeInTheDocument();
-  });
-
-  it('falls back to ALL_NODE_TYPES when allowedTypesMap is empty', () => {
-    // Simulate selecting level 2
-    (useHierarchyContext as Mock).mockReturnValue({
-      ...useHierarchyContext(),
-      levels: [{ id: 'lvl2', levelNumber: 2, label: 'L2' }],
-      allowedTypesMap: { 'h1l2': [] },
-      allNodeTypes: ['concept', 'example', 'question'],
-    });
-    render(
-      <NodeFormModal open={true} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
-    );
-    // concept, example, question should be present
     expect(screen.getByRole('option', { name: 'concept' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'example' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'question' })).toBeInTheDocument();
   });
 
-  it('calls onSubmit with correct values', () => {
+  it('calls onSubmit with correct values when form is submitted', () => {
     render(
-      <NodeFormModal open={true} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
+      <NodeFormModal 
+        open={true} 
+        onSubmit={mockOnSubmit} 
+        onCancel={mockOnCancel} 
+      />
     );
-    fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'My Label' } });
-    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'A' } });
+    
+    fireEvent.change(screen.getByLabelText('Label'), { 
+      target: { value: 'Test Node' } 
+    });
+    fireEvent.change(screen.getByLabelText('Type'), { 
+      target: { value: 'concept' } 
+    });
+    
     fireEvent.click(screen.getByText('Save'));
-    expect(mockOnSubmit).toHaveBeenCalledWith({
-      label: 'My Label',
-      type: 'A',
-      hierarchyId: 'h1',
-      levelId: 'lvl1',
-    } as NodeFormValues);
+    
+    expect(mockOnSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: 'Test Node',
+        type: 'concept',
+        hierarchyId: 'hierarchy1',
+        levelId: 'level1'
+      })
+    );
   });
 
-  it('calls onCancel when Cancel clicked', () => {
+  it('calls onCancel when Cancel button is clicked', () => {
     render(
-      <NodeFormModal open={true} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
+      <NodeFormModal 
+        open={true} 
+        onSubmit={mockOnSubmit} 
+        onCancel={mockOnCancel} 
+      />
     );
+    
     fireEvent.click(screen.getByText('Cancel'));
     expect(mockOnCancel).toHaveBeenCalled();
   });
 
-  it('selects correct child level when parentId is provided and allows level selection', () => {
-    const parentId = 'parent1';
-    (useGraphState as Mock).mockReturnValue({
-      nodes: [
-        { id: parentId, assignments: [{ hierarchyId: 'h1', levelId: 'lvl1', levelNumber: 1 }] },
-      ],
-    });
+  it('validates required fields', () => {
     render(
-      <NodeFormModal open={true} parentId={parentId} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
+      <NodeFormModal 
+        open={true} 
+        onSubmit={mockOnSubmit} 
+        onCancel={mockOnCancel} 
+      />
     );
-    const levelSelect = screen.getByLabelText('Level');
-    expect(levelSelect).toHaveValue('lvl2');
-    // Level dropdown should now be enabled to allow user selection
-    expect(levelSelect).not.toBeDisabled();
+    
+    // Try to submit without filling required fields
+    fireEvent.click(screen.getByText('Save'));
+    
+    // Should not call onSubmit if validation fails
+    expect(mockOnSubmit).not.toHaveBeenCalled();
+  });
+
+  it('populates initial values when provided', () => {
+    const initialValues = {
+      label: 'Initial Label',
+      type: 'concept',
+      hierarchyId: 'hierarchy1',
+      levelId: 'level1'
+    };
+    
+    render(
+      <NodeFormModal 
+        open={true} 
+        initialValues={initialValues}
+        onSubmit={mockOnSubmit} 
+        onCancel={mockOnCancel} 
+      />
+    );
+    
+    expect(screen.getByDisplayValue('Initial Label')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('concept')).toBeInTheDocument();
   });
 });

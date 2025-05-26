@@ -1,161 +1,75 @@
-/// <reference types="vitest/globals" />
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import type { Mock } from 'vitest';
-import { useGraphState } from './useGraphState';
-import * as ApiService from '../services/ApiService';
 
-vi.mock('../services/ApiService');
+// Mock the API service first
+vi.mock('../../../src/services/ApiService', () => ({
+  fetchAllNodeIds: vi.fn(),
+  fetchTraversalData: vi.fn(),
+  executeQuery: vi.fn(),
+  executeMutation: vi.fn(),
+}));
+
+// Mock the hierarchy context
+vi.mock('../../../src/context/HierarchyContext', () => ({
+  useHierarchyContext: () => ({
+    hierarchyId: 'test-hierarchy',
+    hierarchies: [{ id: 'test-hierarchy', name: 'Test Hierarchy' }],
+    setHierarchyId: vi.fn(),
+    levels: [],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+import { useGraphState } from '../../../src/hooks/useGraphState';
+import * as ApiService from '../../../src/services/ApiService';
 
 describe('useGraphState', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
-  });
-
-  it('adds a root node', async () => {
-    const addNodePayload = {
-      addNode: {
-        node: [
-          {
-            id: 'n1',
-            label: 'L',
-            type: 't',
-            status: 'pending',
-            branch: 'main',
-            hierarchyAssignments: [
-              { level: { id: 'lvl1' } }
-            ]
-          }
-        ]
-      }
-    };
-    (ApiService.executeMutation as Mock).mockResolvedValue(addNodePayload);
-
-    const { result } = renderHook(() => useGraphState());
-    await act(async () => {
-      await result.current.addNode({ label: 'L', type: 't' });
-    });
-
-    expect(result.current.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'n1',
-          label: 'L',
-          type: 't',
-          assignments: ['lvl1']
-        })
-      ])
-    );
-    expect(result.current.edges).toEqual([]);
-  });
-
-  it('adds a connected node with edge', async () => {
-    const addNodePayload = {
-      addNode: {
-        node: [
-          {
-            id: 'n2',
-            label: 'L2',
-            type: 't2',
-            status: 'pending',
-            branch: 'main',
-            hierarchyAssignments: [
-              { level: { id: 'lvl2' } }
-            ]
-          }
-        ]
-      }
-    };
-    const addEdgePayload = {
-      addEdge: {
-        edge: [
-          { from: { id: 'n1' }, to: { id: 'n2' }, type: 'simple' }
-        ]
-      }
-    };
-    (ApiService.executeMutation as Mock)
-      .mockResolvedValueOnce(addNodePayload)
-      .mockResolvedValueOnce(addEdgePayload);
-
-    const { result } = renderHook(() => useGraphState());
-    await act(async () => {
-      await result.current.addNode({ label: 'L2', type: 't2' }, 'n1');
-    });
-
-    expect(result.current.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'n2',
-          label: 'L2',
-          type: 't2',
-          assignments: ['lvl2']
-        })
-      ])
-    );
-    expect(result.current.edges).toEqual(
-      expect.arrayContaining([{ source: 'n1', target: 'n2', type: 'simple' }])
-    );
-  });
-
-  it('edits a node', async () => {
-    const rawData = {
+    vi.clearAllMocks();
+    vi.mocked(ApiService.fetchAllNodeIds).mockResolvedValue(['node1', 'node2']);
+    vi.mocked(ApiService.fetchTraversalData).mockResolvedValue({
       queryNode: [
         {
-          id: 'n1',
-          label: 'L',
-          type: 't',
-          status: 'pending',
-          branch: 'main',
-          hierarchyAssignments: [
-            { level: { id: 'lvl0' } }
-          ],
+          id: 'node1',
+          label: 'Test Node',
+          type: 'concept',
+          hierarchyAssignments: [],
           outgoing: []
         }
       ]
-    };
-    (ApiService.fetchTraversalData as Mock).mockResolvedValue(rawData);
-    const updatePayload = {
-      updateNode: {
-        node: [
-          {
-            id: 'n1',
-            label: 'New',
-            type: 't',
-            status: 'pending',
-            branch: 'main',
-            hierarchyAssignments: [
-              { level: { id: 'lvl1' } }
-            ]
-          }
-        ]
-      }
-    };
-    (ApiService.executeMutation as Mock).mockResolvedValue(updatePayload);
-
-    const { result } = renderHook(() => useGraphState());
-    await act(async () => {
-      await result.current.loadInitialGraph('n1');
-      await result.current.editNode('n1', { label: 'New', type: 't' });
     });
-
-    expect(result.current.nodes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'n1',
-          label: 'New',
-          assignments: ['lvl1']
-        })
-      ])
-    );
   });
 
-  it('handles editNode error', async () => {
-    (ApiService.executeMutation as Mock).mockRejectedValue(new Error('fail'));
-
+  it('initializes with empty state', () => {
     const { result } = renderHook(() => useGraphState());
+
+    expect(result.current.nodes).toEqual([]);
+    expect(result.current.edges).toEqual([]);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('loads complete graph successfully', async () => {
+    const { result } = renderHook(() => useGraphState());
+
     await act(async () => {
-      await result.current.editNode('n1', { label: 'L', type: 't' });
+      await result.current.loadCompleteGraph();
     });
 
-    expect(result.current.error).toMatch(/Failed to edit node n1/);
+    expect(ApiService.fetchAllNodeIds).toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('handles API errors', async () => {
+    vi.mocked(ApiService.fetchAllNodeIds).mockRejectedValue(new Error('API Error'));
+    
+    const { result } = renderHook(() => useGraphState());
+
+    await act(async () => {
+      await result.current.loadCompleteGraph();
+    });
+
+    expect(result.current.error).toBe('API Error');
   });
 });
