@@ -1,7 +1,12 @@
 const express = require('express');
-const { executeGraphQL } = require('../dgraphClient');
+const { DgraphTenantFactory } = require('../services/dgraphTenant');
 const { authenticateAdmin } = require('../middleware/auth');
 const router = express.Router();
+
+// Helper function to get tenant-aware Dgraph client from request context
+function getTenantClient(req) {
+  return DgraphTenantFactory.createTenantFromContext(req.tenantContext);
+}
 
 // --- Hierarchy CRUD ---
 
@@ -16,7 +21,8 @@ router.get('/hierarchy', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(query);
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(query);
     return res.json(data.queryHierarchy);
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -43,7 +49,8 @@ router.post('/hierarchy', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(mutation, { input: [{ id, name }] });
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(mutation, { input: [{ id, name }] });
     const hier = data.addHierarchy.hierarchy[0];
     return res.status(201).json(hier);
   } catch (err) {
@@ -70,7 +77,8 @@ router.get('/hierarchy/:id', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(query, { id });
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(query, { id });
     const hier = data.queryHierarchy[0];
     if (!hier) {
       return res.status(404).json({ error: 'Hierarchy not found' });
@@ -104,7 +112,8 @@ router.put('/hierarchy/:id', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(mutation, { id, name });
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(mutation, { id, name });
     const hier = data.updateHierarchy.hierarchy[0];
     return res.json(hier);
   } catch (err) {
@@ -129,7 +138,8 @@ router.delete('/hierarchy/:id', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(mutation, { id });
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(mutation, { id });
     return res.json(data.deleteHierarchy);
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -156,7 +166,8 @@ router.post('/hierarchy/level', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(mutation, { input: [{ hierarchy: { id: hierarchyId }, levelNumber, label }] });
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(mutation, { input: [{ hierarchy: { id: hierarchyId }, levelNumber, label }] });
     const level = data.addHierarchyLevel.hierarchyLevel[0];
     return res.status(201).json(level);
   } catch (err) {
@@ -187,7 +198,8 @@ router.put('/hierarchy/level/:id', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(mutation, { id, label });
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(mutation, { id, label });
     const level = data.updateHierarchyLevel.hierarchyLevel[0];
     return res.json(level);
   } catch (err) {
@@ -212,7 +224,8 @@ router.delete('/hierarchy/level/:id', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(mutation, { id });
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(mutation, { id });
     return res.json(data.deleteHierarchyLevel);
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -240,7 +253,8 @@ router.post('/hierarchy/assignment', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(mutation, { input: [{ node: { id: nodeId }, hierarchy: { id: hierarchyId }, level: { id: levelId } }] });
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(mutation, { input: [{ node: { id: nodeId }, hierarchy: { id: hierarchyId }, level: { id: levelId } }] });
     const assignment = data.addHierarchyAssignment.hierarchyAssignment[0];
     return res.status(201).json(assignment);
   } catch (err) {
@@ -265,7 +279,8 @@ router.delete('/hierarchy/assignment/:id', async (req, res) => {
     }
   `;
   try {
-    const data = await executeGraphQL(mutation, { id });
+    const tenantClient = getTenantClient(req);
+    const data = await tenantClient.executeGraphQL(mutation, { id });
     return res.json(data.deleteHierarchyAssignment);
   } catch (err) {
     return res.status(500).json({ error: err.message });

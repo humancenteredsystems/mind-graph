@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { executeGraphQL } = require('../dgraphClient');
+const { DgraphTenantFactory } = require('../services/dgraphTenant');
 const { enrichNodeInputs } = require('../services/nodeEnrichment');
 const { 
   InvalidLevelError, 
@@ -11,6 +11,11 @@ const axios = require('axios');
 // Derive Dgraph endpoint URLs from the base URL
 const DGRAPH_BASE_URL = process.env.DGRAPH_BASE_URL.replace(/\/+$/, ''); // Remove trailing slash
 const DGRAPH_ADMIN_SCHEMA_URL = `${DGRAPH_BASE_URL}/admin/schema`;
+
+// Helper function to get tenant-aware Dgraph client from request context
+function getTenantClient(req) {
+  return DgraphTenantFactory.createTenantFromContext(req.tenantContext);
+}
 
 // Helper function to filter outgoing edges with missing target nodes
 function filterValidOutgoingEdges(node) {
@@ -37,7 +42,8 @@ router.post('/query', async (req, res) => {
     return res.status(400).json({ error: 'Missing required field: query' });
   }
   try {
-    const result = await executeGraphQL(query, variables || {});
+    const tenantClient = getTenantClient(req);
+    const result = await tenantClient.executeGraphQL(query, variables || {});
     res.json(result);
   } catch (error) {
     // Log the detailed error
@@ -68,7 +74,10 @@ router.post('/mutate', async (req, res) => {
     if (mutation.includes('AddNodeWithHierarchy')) {
         console.log('[MUTATE] Sending to Dgraph (AddNodeWithHierarchy):', JSON.stringify(variables, null, 2));
     }
-    const result = await executeGraphQL(mutation, variables || {});
+    
+    const tenantClient = getTenantClient(req);
+    const result = await tenantClient.executeGraphQL(mutation, variables || {});
+    
     // Log the raw result received from Dgraph for addNode mutations
     if (mutation.includes('AddNodeWithHierarchy')) {
         console.log('[MUTATE] Received from Dgraph (AddNodeWithHierarchy):', JSON.stringify(result, null, 2));
@@ -95,7 +104,8 @@ router.post('/traverse', async (req, res) => {
     return res.status(400).json({ error: 'Missing required field: rootId' });
   }
   try {
-    const raw = await executeGraphQL(
+    const tenantClient = getTenantClient(req);
+    const raw = await tenantClient.executeGraphQL(
       `query($rootId: String!) {
         queryNode(filter: { id: { eq: $rootId } }) {
           id
@@ -153,7 +163,8 @@ router.get('/search', async (req, res) => {
   const variables = { term };
 
   try {
-    const result = await executeGraphQL(query, variables);
+    const tenantClient = getTenantClient(req);
+    const result = await tenantClient.executeGraphQL(query, variables);
     res.json(result);
   } catch (error) {
     console.error(`Error in /api/search endpoint: ${error.message}`);
@@ -167,10 +178,17 @@ router.get('/search', async (req, res) => {
 
 // Endpoint to get the current GraphQL schema from Dgraph
 router.get('/schema', async (req, res) => {
-    const DGRAPH_ADMIN_ENDPOINT = DGRAPH_ADMIN_SCHEMA_URL; // Use the derived URL
     try {
-        // Use axios directly as dgraphClient is for the /graphql endpoint
-        const response = await axios.get(DGRAPH_ADMIN_ENDPOINT);
+        // Build namespace-aware admin URL
+        const namespace = req.tenantContext?.namespace;
+        const adminUrl = namespace 
+          ? `${DGRAPH_ADMIN_SCHEMA_URL}?namespace=${namespace}`
+          : DGRAPH_ADMIN_SCHEMA_URL;
+        
+        console.log(`[SCHEMA] Fetching schema from: ${adminUrl}`);
+        
+        // Use axios directly as this is an admin endpoint
+        const response = await axios.get(adminUrl);
         // Dgraph returns schema text within response.data.data.schema
         if (response.data && response.data.data && response.data.data.schema) {
              res.type('text/plain').send(response.data.data.schema);
@@ -215,7 +233,8 @@ router.post('/deleteNodeCascade', async (req, res) => {
       }
     `;
 
-    const result = await executeGraphQL(deleteMutation, { nodeId });
+    const tenantClient = getTenantClient(req);
+    const result = await tenantClient.executeGraphQL(deleteMutation, { nodeId });
 
     console.log(`[DELETE NODE CASCADE] Dgraph delete result:`, result);
 

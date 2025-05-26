@@ -43,13 +43,21 @@ app.use((req, res, next) => {
   res.set('Access-Control-Allow-Origin', allowedOrigin);
   // Allow common methods and headers needed for GraphQL/API requests
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Hierarchy-Id');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Hierarchy-Id, X-Tenant-Id');
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
   next();
 });
+
+// Tenant Context Middleware - Add tenant context to all API requests
+const { setTenantContext, ensureTenant, validateTenantAccess } = require('./middleware/tenantContext');
+
+// Apply tenant middleware to all API routes
+app.use('/api', setTenantContext);
+app.use('/api', validateTenantAccess);
+// Note: ensureTenant is applied selectively in routes that need it
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -62,12 +70,14 @@ const schemaRoutes = require('./routes/schema');
 const adminRoutes = require('./routes/admin');
 const diagnosticRoutes = require('./routes/diagnostic');
 const hierarchyRoutes = require('./routes/hierarchy');
+const tenantRoutes = require('./routes/tenants');
 
 app.use('/api', graphqlRoutes);
 app.use('/api', schemaRoutes);
 app.use('/api', adminRoutes);
 app.use('/api', diagnosticRoutes);
 app.use('/api', hierarchyRoutes);
+app.use('/api', tenantRoutes);
 
 module.exports = app;
 
@@ -75,5 +85,6 @@ module.exports = app;
 if (!module.parent) {
   app.listen(PORT, () => {
     console.log(`API server listening on port ${PORT}`);
+    console.log(`Multi-tenant mode: ${process.env.ENABLE_MULTI_TENANT === 'true' ? 'ENABLED' : 'DISABLED'}`);
   });
 }
