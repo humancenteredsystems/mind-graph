@@ -20,7 +20,7 @@ describe('pushSchema Utility', () => {
       };
       axios.post.mockResolvedValueOnce(mockResponse);
 
-      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
+      const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(true);
       expect(result.response).toEqual({ code: 'Success', message: 'Done' });
@@ -35,7 +35,7 @@ describe('pushSchema Utility', () => {
       const networkError = new Error('Network Error');
       axios.post.mockRejectedValueOnce(networkError);
 
-      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
+      const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Network Error');
@@ -49,7 +49,7 @@ describe('pushSchema Utility', () => {
       };
       axios.post.mockRejectedValueOnce(dgraphError);
 
-      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
+      const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(false);
       expect(result.error).toEqual({ error: 'Invalid schema syntax' });
@@ -60,7 +60,7 @@ describe('pushSchema Utility', () => {
       timeoutError.code = 'ECONNABORTED';
       axios.post.mockRejectedValueOnce(timeoutError);
 
-      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
+      const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('timeout of 5000ms exceeded');
@@ -73,7 +73,7 @@ describe('pushSchema Utility', () => {
       };
       axios.post.mockResolvedValueOnce(mockResponse);
 
-      await pushSchemaViaHttp(adminUrl, mockSchema);
+      await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(axios.post).toHaveBeenCalledWith(
         adminUrl,
@@ -89,7 +89,7 @@ describe('pushSchema Utility', () => {
       };
       axios.post.mockResolvedValueOnce(mockResponse);
 
-      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
+      const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(true);
       expect(result.response).toEqual({ message: 'Schema updated successfully' });
@@ -100,7 +100,7 @@ describe('pushSchema Utility', () => {
       // No response property
       axios.post.mockRejectedValueOnce(error);
 
-      const result = await pushSchemaViaHttp(adminUrl, mockSchema);
+      const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Connection refused');

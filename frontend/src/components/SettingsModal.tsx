@@ -109,6 +109,24 @@ const FeaturesTab: React.FC<FeaturesTabProps> = ({ systemStatus }) => {
         <span style={{ fontWeight: 500 }}>Multi-Tenant Operations Verified</span>
         <StatusIcon isActive={systemStatus.multiTenantVerified} />
       </div>
+
+      {/* Active Tenant Section */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '12px 0',
+        borderBottom: '1px solid #eee',
+      }}>
+        <span style={{ fontWeight: 500 }}>Active Tenant</span>
+        <span style={{ 
+          fontSize: 14, 
+          fontWeight: 500,
+          color: '#374151'
+        }}>
+          {systemStatus.currentTenant}
+        </span>
+      </div>
       
       <div style={{ marginTop: 20, padding: '16px 0' }}>
         <h4 style={{ margin: '0 0 12px 0', color: '#666' }}>System Information</h4>

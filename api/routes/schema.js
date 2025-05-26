@@ -11,7 +11,7 @@ const DGRAPH_ADMIN_SCHEMA_URL = `${DGRAPH_BASE_URL}/admin/schema`;
 // Helper function to push schema to the configured Dgraph instance
 async function pushSchemaToConfiguredDgraph(schema) {
   const url = DGRAPH_ADMIN_SCHEMA_URL; // Use the derived URL
-  const result = await pushSchemaViaHttp(url, schema);
+  const result = await pushSchemaViaHttp(schema, null, url);
 
   // Add verification step if needed
 

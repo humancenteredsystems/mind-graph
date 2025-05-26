@@ -13,13 +13,19 @@ console.log('[DGRAPHCLIENT DEBUG] Final DGRAPH_ENDPOINT:', DGRAPH_ENDPOINT);
  * Executes a GraphQL query or mutation against the Dgraph endpoint.
  * @param {string} query - The GraphQL query string.
  * @param {object} [variables={}] - An object containing variables for the query.
+ * @param {string|null} [namespace=null] - Optional namespace for multi-tenant support.
  * @returns {Promise<object>} - A promise that resolves with the 'data' part of the GraphQL response.
  * @throws {Error} - Throws an error if the request fails or if GraphQL errors are returned.
  */
-async function executeGraphQL(query, variables = {}) {
+async function executeGraphQL(query, variables = {}, namespace = null) {
+  const namespaceParam = namespace ? `?namespace=${namespace}` : '';
+  const endpoint = `${DGRAPH_ENDPOINT}${namespaceParam}`;
+  
+  console.log(`[DGRAPH] Executing query in namespace: ${namespace || 'default'}`);
   console.log(`Executing GraphQL query: ${query.substring(0, 100)}...`, variables); // Log query start
+  
   try {
-    const response = await axios.post(DGRAPH_ENDPOINT, {
+    const response = await axios.post(endpoint, {
       query,
       variables,
     }, {
@@ -38,7 +44,7 @@ async function executeGraphQL(query, variables = {}) {
     return response.data.data; // Return only the data part of the response
 
   } catch (error) {
-    console.error(`Dgraph client error: ${error.message}`);
+    console.error(`Dgraph client error in namespace ${namespace || 'default'}: ${error.message}`);
     if (error.response) {
       // Error from the HTTP request itself (e.g., 4xx, 5xx)
       console.error('Dgraph response status:', error.response.status);

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
 Seed the Dgraph database with a complete, clean graph.
+Universal OSS/Enterprise compatible seeding tool.
 
 This tool performs the following actions:
-1. Drops all existing data and schema from Dgraph.
-2. Pushes the GraphQL schema (schemas/default.graphql).
-3. Creates a single, predefined hierarchy with levels and level types.
-4. Adds sample nodes and edges.
-5. Assigns these nodes to the created hierarchy and its levels.
+1. Auto-detects OSS vs Enterprise capabilities
+2. Drops all existing data and schema from Dgraph.
+3. Pushes the GraphQL schema (schemas/default.graphql).
+4. Creates a single, predefined hierarchy with levels and level types.
+5. Adds sample nodes and edges.
+6. Assigns these nodes to the created hierarchy and its levels.
 """
 import argparse
 import os
@@ -66,11 +68,115 @@ mutation AddHierarchyAssignment($input: [AddHierarchyAssignmentInput!]!) {
 }
 """
 
+def detect_dgraph_capabilities(api_base: str, api_key: str) -> dict:
+    """Detect if Dgraph supports Enterprise features like namespaces."""
+    try:
+        resp = call_api(api_base, "/system/status", api_key)
+        if resp["success"]:
+            return resp.get("data", {})
+    except:
+        pass
+    return {"namespacesSupported": False}
+
+def seed_tenant_data(api_base: str, api_key: str, tenant_id: str, create_tenant: bool):
+    """Seed data for a specific tenant in Enterprise mode."""
+    # Set tenant context for all API calls
+    tenant_headers = {"X-Tenant-Id": tenant_id}
+    
+    if create_tenant:
+        # Create tenant via TenantManager
+        create_resp = call_api(api_base, "/tenant", api_key, method="POST", 
+                              payload={"tenantId": tenant_id}, extra_headers=tenant_headers)
+        if not create_resp["success"]:
+            print(f"⚠️ Tenant creation failed (may already exist): {create_resp.get('error')}")
+    
+    # Use existing seeding logic with tenant headers
+    seed_with_context(api_base, api_key, tenant_headers)
+
+def seed_default_data(api_base: str, api_key: str):
+    """Seed data for OSS mode (no tenant context)."""
+    # Use existing seeding logic without tenant headers
+    seed_with_context(api_base, api_key, {})
+
+def seed_with_context(api_base: str, api_key: str, extra_headers: dict):
+    """Universal seeding logic that works with or without tenant context."""
+    # 1. Drop all data (respects tenant context in Enterprise)
+    if not drop_all_data(api_base, api_key, extra_headers):
+        sys.exit(1)
+    
+    # 2. Push schema (respects tenant context in Enterprise)  
+    if not push_schema(api_base, api_key, extra_headers):
+        sys.exit(1)
+    
+    print("Waiting 15 seconds for Dgraph to process the schema...")
+    time.sleep(15)
+
+    # 3. Create a single hierarchy
+    hierarchy_id = create_single_hierarchy(api_base, api_key, DEFAULT_HIERARCHY_ID, DEFAULT_HIERARCHY_NAME, extra_headers)
+    if not hierarchy_id:
+        print("❌ Failed to create the primary hierarchy. Aborting.")
+        sys.exit(1)
+
+    # 4. Create levels for this hierarchy
+    levels_data = [
+        (1, "Domains"),
+        (2, "Key Concepts"),
+        (3, "Detailed Examples")
+    ]
+    level_ids_map = create_levels_for_hierarchy(api_base, api_key, hierarchy_id, levels_data, extra_headers)
+    if len(level_ids_map) != len(levels_data):
+        print("❌ Error: Failed to create all hierarchy levels. Aborting.")
+        sys.exit(1)
+    
+    # 5. Create level types for these levels (two types per level)
+    level_types_all_ok = True
+    if level_ids_map.get(1):
+        if not create_level_types_for_level(api_base, api_key, level_ids_map[1], ["domain", "category"], extra_headers):
+            level_types_all_ok = False
+    if level_ids_map.get(2):
+        if not create_level_types_for_level(api_base, api_key, level_ids_map[2], ["concept", "principle"], extra_headers):
+            level_types_all_ok = False
+    if level_ids_map.get(3):
+        if not create_level_types_for_level(api_base, api_key, level_ids_map[3], ["example", "application"], extra_headers):
+            level_types_all_ok = False
+    
+    if not level_types_all_ok:
+        print("❌ Error: Failed to create all necessary hierarchy level types. Assignments might fail. Aborting.")
+        sys.exit(1)
+        
+    print("Waiting 5 seconds for Dgraph to process level type creations...")
+    time.sleep(5)
+
+    # 6. Get data payload (nodes, edges, assignments)
+    seed_payload = get_seed_data_payload(hierarchy_id, level_ids_map)
+
+    # Prepare headers for calls to /api/mutate that require hierarchy context
+    mutate_context_headers = {"X-Hierarchy-Id": hierarchy_id}
+    mutate_context_headers.update(extra_headers)  # Include tenant headers if any
+
+    # 7. Add nodes
+    print(f"Attempting to add nodes with X-Hierarchy-Id: {hierarchy_id}")
+    if not add_nodes(api_base, api_key, seed_payload["nodes"], extra_headers=mutate_context_headers):
+        print("❌ Node creation failed. This might be due to missing X-Hierarchy-Id header or type enforcement. Aborting.")
+        sys.exit(1)
+    
+    # 8. Add edges
+    if not add_edges(api_base, api_key, seed_payload["edges"], extra_headers=extra_headers): 
+        print("⚠️ Warning: Edge creation failed or partially failed.")
+
+    # 9. Add hierarchy assignments
+    print(f"Attempting to add assignments...")
+    if not add_hierarchy_assignments(api_base, api_key, seed_payload["hierarchyAssignments"], extra_headers=extra_headers):
+        print("❌ Hierarchy assignment creation failed. Aborting.")
+        sys.exit(1)
+
+    print("✅ Full seeding process completed.")
+
 # --- Functions adapted from seed_hierarchy.py ---
-def drop_all_data(api_base: str, api_key: str) -> bool:
+def drop_all_data(api_base: str, api_key: str, extra_headers: Optional[Dict[str, str]] = None) -> bool:
     """Drop all existing data via admin endpoint."""
     print("Dropping all data...")
-    resp = call_api(api_base, "/admin/dropAll", api_key, method="POST", payload={"target": "remote"})
+    resp = call_api(api_base, "/admin/dropAll", api_key, method="POST", payload={"target": "remote"}, extra_headers=extra_headers)
     if not resp["success"]:
         print(f"❌ dropAll failed: {resp['error']}")
         if resp.get("details"): print(f"Details: {resp['details']}")
@@ -78,7 +184,7 @@ def drop_all_data(api_base: str, api_key: str) -> bool:
     print("✅ All data dropped.")
     return True
 
-def push_schema(api_base: str, api_key: str) -> bool:
+def push_schema(api_base: str, api_key: str, extra_headers: Optional[Dict[str, str]] = None) -> bool:
     """Push GraphQL schema to Dgraph."""
     print("Pushing GraphQL schema to Dgraph...")
     schema_file_path = Path(__file__).resolve().parent.parent / "schemas" / "default.graphql"
@@ -88,7 +194,7 @@ def push_schema(api_base: str, api_key: str) -> bool:
         print(f"❌ Failed to read schema file {schema_file_path}: {str(e)}")
         return False
 
-    resp = call_api(api_base, "/admin/schema", api_key, method="POST", payload={"schema": schema_text, "target": "remote"})
+    resp = call_api(api_base, "/admin/schema", api_key, method="POST", payload={"schema": schema_text, "target": "remote"}, extra_headers=extra_headers)
     if not resp["success"]:
         print(f"❌ Failed to push GraphQL schema: {resp['error']}")
         if resp.get("details"): print(f"Details: {resp['details']}")
@@ -96,23 +202,17 @@ def push_schema(api_base: str, api_key: str) -> bool:
     print("✅ Schema pushed.")
     return True
 
-def create_single_hierarchy(api_base: str, api_key: str, hierarchy_id: str, hierarchy_name: str) -> Optional[str]:
+def create_single_hierarchy(api_base: str, api_key: str, hierarchy_id: str, hierarchy_name: str, extra_headers: Optional[Dict[str, str]] = None) -> Optional[str]:
     """Create a single hierarchy and return its ID."""
     print(f"Creating hierarchy '{hierarchy_name}'...")
-    mutation = '''
-    mutation AddHierarchy($name: String!) {
-      addHierarchy(input: [{ name: $name }]) {
-        hierarchy { id name }
-      }
-    }
-    '''
     # Use REST endpoint for hierarchy creation
     resp = call_api(
         api_base,
         "/hierarchy",
         api_key,
         method="POST",
-        payload={"id": hierarchy_id, "name": hierarchy_name}
+        payload={"id": hierarchy_id, "name": hierarchy_name},
+        extra_headers=extra_headers
     )
     if not resp["success"]:
         print(f"❌ Failed to create hierarchy '{hierarchy_name}': {resp['error']}")
@@ -130,13 +230,8 @@ def create_single_hierarchy(api_base: str, api_key: str, hierarchy_id: str, hier
         print(f"❌ Error parsing hierarchy creation response: {e}")
         print(f"Full response: {json.dumps(resp, indent=2)}")
         return None
-    except (KeyError, IndexError) as e:
-        print(f"❌ Error parsing hierarchy creation response: {e}")
-        print(f"Full response: {json.dumps(resp, indent=2)}")
-        return None
 
-
-def create_levels_for_hierarchy(api_base: str, api_key: str, hierarchy_id_str: str, levels_data: List[Tuple[int, str]]) -> Dict[int, str]:
+def create_levels_for_hierarchy(api_base: str, api_key: str, hierarchy_id_str: str, levels_data: List[Tuple[int, str]], extra_headers: Optional[Dict[str, str]] = None) -> Dict[int, str]:
     """Create levels for a given hierarchy and return a dict levelNumber->id."""
     level_ids_map = {}  # Stores levelNumber -> id
     print(f"Creating levels for hierarchy ID '{hierarchy_id_str}'...")
@@ -151,7 +246,8 @@ def create_levels_for_hierarchy(api_base: str, api_key: str, hierarchy_id_str: s
                 "hierarchyId": hierarchy_id_str,
                 "levelNumber": level_num,
                 "label": label
-            }
+            },
+            extra_headers=extra_headers
         )
         if not resp["success"]:
             print(f"❌ Failed to create level {label} (num: {level_num}): {resp['error']}")
@@ -168,7 +264,7 @@ def create_levels_for_hierarchy(api_base: str, api_key: str, hierarchy_id_str: s
             print(f"Full response: {json.dumps(resp, indent=2)}")
     return level_ids_map
 
-def create_level_types_for_level(api_base: str, api_key: str, level_id_str: str, type_names: List[str]) -> bool:
+def create_level_types_for_level(api_base: str, api_key: str, level_id_str: str, type_names: List[str], extra_headers: Optional[Dict[str, str]] = None) -> bool:
     """Create HierarchyLevelType entries for a given level."""
     print(f"Creating level types for level ID '{level_id_str}' with allowed types: {', '.join(type_names)}...")
     all_successful = True
@@ -184,7 +280,7 @@ def create_level_types_for_level(api_base: str, api_key: str, level_id_str: str,
         variables = {"levelId": level_id_str, "typeName": type_name}
         payload_hlt = {"mutation": mutation, "variables": variables}
         
-        resp = call_api(api_base, "/mutate", api_key, method='POST', payload=payload_hlt)
+        resp = call_api(api_base, "/mutate", api_key, method='POST', payload=payload_hlt, extra_headers=extra_headers)
 
         if not resp["success"] or not resp.get("data", {}).get("addHierarchyLevelType"):
             print(f"❌ Failed to allow type '{type_name}' for level '{level_id_str}': {resp.get('error', 'Unknown error')}")
@@ -196,7 +292,6 @@ def create_level_types_for_level(api_base: str, api_key: str, level_id_str: str,
             
     return all_successful
 # --- End of functions adapted from seed_hierarchy.py ---
-
 
 # --- Functions for seeding graph data (nodes, edges, assignments) ---
 def add_nodes(api_base: str, api_key: str, nodes: List[Dict[str, Any]], extra_headers: Optional[Dict[str, str]] = None) -> bool:
@@ -220,7 +315,6 @@ def add_edges(api_base: str, api_key: str, edges: List[Dict[str, Any]], extra_he
     if not edges: return True
     print(f"Adding {len(edges)} edges...")
     payload = {"mutation": ADD_EDGE_MUTATION, "variables": {"input": edges}}
-    # Edges typically don't need X-Hierarchy-Id, but pass if provided for consistency or future use
     response = call_api(api_base, "/mutate", api_key, method='POST', payload=payload, extra_headers=extra_headers)
     if response["success"] and response.get("data", {}).get("addEdge"):
         added_edges = response.get("data", {}).get("addEdge", {}).get("edge", [])
@@ -314,7 +408,6 @@ def get_seed_data_payload(hierarchy_id_str: str, level_ids_map: Dict[int, str]) 
         if not level_ids_map.get(2): print("  - Missing ID for level 2 (Key Concepts)")
         if not level_ids_map.get(3): print("  - Missing ID for level 3 (Detailed Examples)")
 
-
     return {
         "nodes": nodes,
         "edges": edges,
@@ -323,99 +416,31 @@ def get_seed_data_payload(hierarchy_id_str: str, level_ids_map: Dict[int, str]) 
 
 def main():
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(description="Seed Dgraph with a clean, single-hierarchy graph via API")
-    parser.add_argument(
-        "--api-base", "-b",
-        default=os.environ.get("MIMS_API_URL", DEFAULT_API_BASE),
-        help=f"API base URL (default: {DEFAULT_API_BASE})"
-    )
-    parser.add_argument(
-        "--api-key", "-k",
-        default=os.environ.get("MIMS_ADMIN_API_KEY", ""),
-        help="Admin API Key (default: from MIMS_ADMIN_API_KEY environment variable)"
-    )
-    # --target argument is removed as we always target 'local' for this consolidated script.
+    parser = argparse.ArgumentParser(description="Seed Dgraph with graph data (OSS/Enterprise compatible)")
+    parser.add_argument("--api-base", "-b", default=DEFAULT_API_BASE)
+    parser.add_argument("--api-key", "-k", default=os.environ.get("MIMS_ADMIN_API_KEY", ""))
+    parser.add_argument("--tenant-id", "-t", default="default", 
+                       help="Tenant ID for Enterprise mode (default: 'default' for OSS)")
+    parser.add_argument("--create-tenant", action="store_true",
+                       help="Create tenant if it doesn't exist (Enterprise only)")
     
     args = parser.parse_args()
-
+    
     if not args.api_key:
         print("❌ Error: Admin API key is required. Set MIMS_ADMIN_API_KEY environment variable or use --api-key.")
         sys.exit(1)
-
-    api_base_url = args.api_base
-    api_key_val = args.api_key
-
-    # 1. Drop all existing data and schema
-    if not drop_all_data(api_base_url, api_key_val):
-        sys.exit(1)
-
-    # 2. Push GraphQL schema
-    if not push_schema(api_base_url, api_key_val):
-        sys.exit(1)
     
-    print("Waiting 15 seconds for Dgraph to process the schema...")
-    time.sleep(15)
-
-    # 3. Create a single hierarchy
-    hierarchy_id = create_single_hierarchy(api_base_url, api_key_val, DEFAULT_HIERARCHY_ID, DEFAULT_HIERARCHY_NAME)
-    if not hierarchy_id:
-        print("❌ Failed to create the primary hierarchy. Aborting.")
-        sys.exit(1)
-
-    # 4. Create levels for this hierarchy
-    levels_data = [
-        (1, "Domains"),
-        (2, "Key Concepts"),
-        (3, "Detailed Examples")
-    ]
-    level_ids_map = create_levels_for_hierarchy(api_base_url, api_key_val, hierarchy_id, levels_data)
-    if len(level_ids_map) != len(levels_data):
-        print("❌ Error: Failed to create all hierarchy levels. Aborting.")
-        sys.exit(1)
+    # Auto-detect Enterprise vs OSS capabilities
+    capabilities = detect_dgraph_capabilities(args.api_base, args.api_key)
     
-    # 5. Create level types for these levels (two types per level)
-    level_types_all_ok = True
-    if level_ids_map.get(1):
-        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[1], ["domain", "category"]):
-            level_types_all_ok = False
-    if level_ids_map.get(2):
-        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[2], ["concept", "principle"]):
-            level_types_all_ok = False
-    if level_ids_map.get(3):
-        if not create_level_types_for_level(api_base_url, api_key_val, level_ids_map[3], ["example", "application"]):
-            level_types_all_ok = False
-    
-    if not level_types_all_ok:
-        print("❌ Error: Failed to create all necessary hierarchy level types. Assignments might fail. Aborting.")
-        sys.exit(1)
-        
-    print("Waiting 5 seconds for Dgraph to process level type creations...")
-    time.sleep(5)
-
-    # 6. Get data payload (nodes, edges, assignments)
-    seed_payload = get_seed_data_payload(hierarchy_id, level_ids_map)
-
-    # Prepare headers for calls to /api/mutate that require hierarchy context
-    mutate_context_headers = {"X-Hierarchy-Id": hierarchy_id}
-
-    # 7. Add nodes
-    print(f"Attempting to add nodes with X-Hierarchy-Id: {hierarchy_id}")
-    if not add_nodes(api_base_url, api_key_val, seed_payload["nodes"], extra_headers=mutate_context_headers):
-        print("❌ Node creation failed. This might be due to missing X-Hierarchy-Id header or type enforcement. Aborting.")
-        sys.exit(1)
-    
-    # 8. Add edges
-    if not add_edges(api_base_url, api_key_val, seed_payload["edges"]): 
-        print("⚠️ Warning: Edge creation failed or partially failed.")
-
-    # 9. Add hierarchy assignments
-    print(f"Attempting to add assignments...")
-    if not add_hierarchy_assignments(api_base_url, api_key_val, seed_payload["hierarchyAssignments"]):
-        print("❌ Hierarchy assignment creation failed. Aborting.")
-        sys.exit(1)
-
-    print("✅ Full seeding process completed.")
-    sys.exit(0)
+    if capabilities.get('namespacesSupported') and args.tenant_id != 'default':
+        # Enterprise mode: Use tenant-aware seeding
+        print(f"🏢 Enterprise mode detected - seeding tenant: {args.tenant_id}")
+        seed_tenant_data(args.api_base, args.api_key, args.tenant_id, args.create_tenant)
+    else:
+        # OSS mode: Use traditional seeding (ignore tenant parameters)
+        print("🔓 OSS mode detected - seeding default instance")
+        seed_default_data(args.api_base, args.api_key)
 
 if __name__ == "__main__":
     main()

@@ -12,8 +12,13 @@
 - **tenantContext middleware** - Request-level tenant resolution and validation
 - **Basic test infrastructure** - Foundation for tenant-aware testing
 
+### Current State ⚠️ (Critical Issues Found)
+- **pushSchemaViaHttp function** - Enhanced with namespace support but calling code not updated
+- **Schema operations** - Parameter order mismatches causing seeding failures
+- **Unit tests** - Test mocks using incorrect function signatures
+
 ### Target State (Remaining Work)
-- Enhanced dgraphClient with direct namespace parameter support
+- **Fix critical parameter order issues** - Complete Phase 1 properly
 - Real database integration testing using test tenant (0x1) 
 - Frontend tenant context and management UI
 - Complete tenant management REST APIs
@@ -46,12 +51,49 @@ Enterprise Dgraph (Multi-Tenant):
 
 ### Phase 1: Enhanced Core Infrastructure (Days 1-2)
 
-#### 1.1 Enhanced Dgraph Client
+#### 1.1 Enhanced Dgraph Client ✅ (COMPLETED)
 **Goal:** Add optional namespace parameter to dgraphClient.js
 
 **File Changes:**
-- `api/dgraphClient.js` - Add namespace parameter support
+- `api/dgraphClient.js` - Add namespace parameter support ✅
 - `api/.env.example` - Add missing namespace configuration variables
+
+#### 1.2 Fix Critical Parameter Order Issues ⚠️ (URGENT - BLOCKING SEEDING)
+**Goal:** Fix parameter order mismatches in schema operations
+
+**Root Cause:** Function signature changed from `(url, schema)` to `(schema, namespace, customAdminUrl)` but calling code wasn't updated.
+
+**Critical Files to Fix:**
+1. **`api/routes/admin.js` - Line 25:**
+   ```javascript
+   // WRONG:
+   const result = await pushSchemaViaHttp(url, schema);
+   // SHOULD BE:
+   const result = await pushSchemaViaHttp(schema, null, url);
+   ```
+
+2. **`api/routes/schema.js` - Line 12:**
+   ```javascript
+   // WRONG:
+   const result = await pushSchemaViaHttp(url, schema);
+   // SHOULD BE:
+   const result = await pushSchemaViaHttp(schema, null, url);
+   ```
+
+3. **`api/__tests__/unit/utils/pushSchema.test.js` - All test calls:**
+   ```javascript
+   // WRONG:
+   await pushSchemaViaHttp(adminUrl, mockSchema);
+   // SHOULD BE:
+   await pushSchemaViaHttp(mockSchema, null, adminUrl);
+   ```
+
+**Impact:** This is causing the seeding failure with "Unknown type AddHierarchyInput" because malformed URLs are being generated when the first parameter (expected to be schema content) is actually a URL.
+
+**Verification:** After fixing, test with: `python tools/seed_data.py --api-key ShambotTrueBeliever`
+
+#### 1.3 Enhanced Dgraph Client Implementation Details
+**Goal:** Add optional namespace parameter to dgraphClient.js
 
 **Universal Implementation:**
 ```javascript
@@ -96,7 +138,7 @@ DGRAPH_NAMESPACE_TEST=0x1
 DGRAPH_NAMESPACE_PREFIX=0x
 ```
 
-#### 1.2 Universal Seeding Tool Enhancement
+#### 1.4 Universal Seeding Tool Enhancement
 **Goal:** Update `tools/seed_data.py` to work with both OSS and Enterprise
 
 **File Changes:**
@@ -658,6 +700,8 @@ module.exports = { TenantMigration };
 - **Performance**: <5% overhead for namespace parameter addition
 - **Reliability**: All existing functionality continues working
 - **Test Coverage**: 100% real database test conversion
+- **Schema Operations Working**: Seeding process completes without parameter order errors
+- **Test Suite Passing**: All unit tests using correct function signatures
 
 ### Operational Metrics
 - **User Onboarding**: <30 seconds for new user setup (both modes)

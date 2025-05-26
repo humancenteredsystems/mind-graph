@@ -12,9 +12,11 @@ axios.interceptors.request.use(config => {
     }
   }
   
-  // Add tenant header for all API requests
-  const tenantId = localStorage.getItem('tenantId') || 'test-tenant';
-  config.headers['X-Tenant-Id'] = tenantId;
+  // Only add tenant header if not in default/OSS mode
+  const tenantId = localStorage.getItem('tenantId') || 'default';
+  if (tenantId !== 'default') {
+    config.headers['X-Tenant-Id'] = tenantId;
+  }
   
   return config;
 }, error => Promise.reject(error));
@@ -54,6 +56,7 @@ interface SystemStatus {
   detectedAt: string;
   version?: string;
   detectionError?: string;
+  namespacesSupported?: boolean;
 }
 
 /**
