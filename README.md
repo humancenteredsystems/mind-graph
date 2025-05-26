@@ -94,24 +94,50 @@ Once the development environment is running and the schema is pushed:
 
 ## Running Tests
 
-*   **API Tests (Jest):**
+The project uses a modernized test suite with organized structure and shared utilities:
+
+*   **API Tests (Jest):** Organized in `api/__tests__/` with unit, integration, and helper directories
     ```bash
     cd api
-    npm test
+    npm test                    # Run all tests
+    npm test -- --coverage     # Run with coverage
+    npm test -- --watch        # Watch mode
     ```
-*   **Frontend Unit & Integration Tests (Vitest):**
+
+*   **Frontend Unit & Integration Tests (Vitest):** Organized in `frontend/tests/` with comprehensive test utilities
     ```bash
     cd frontend
-    npm test
-    # For UI mode: npm run test:ui
+    npm test                    # Run all tests (watch mode)
+    npm run test:ui             # Interactive UI mode
+    npm test -- --coverage     # Run with coverage
+    npm test -- --run          # Single run (no watch)
     ```
-*   **Frontend E2E Tests (Playwright):** Requires the full dev environment to be running.
+
+*   **Frontend E2E Tests (Playwright):** Requires the full dev environment to be running
     ```bash
     cd frontend
-    npm run test:e2e       # Headless
-    npm run test:e2e:ui    # Interactive UI
-    npm run test:e2e:report # View last HTML report
+    npm run test:e2e            # Headless
+    npm run test:e2e:ui         # Interactive UI
+    npm run test:e2e:report     # View last HTML report
     ```
+
+### Test Structure
+
+**Backend (`api/__tests__/`):**
+- `unit/services/` - Business logic tests (nodeEnrichment, validation, schemaRegistry)
+- `unit/middleware/` - Middleware tests (auth)
+- `unit/utils/` - Utility function tests (dgraphAdmin, pushSchema)
+- `integration/` - API endpoint integration tests
+- `helpers/` - Shared test utilities and mock data
+
+**Frontend (`frontend/tests/`):**
+- `unit/components/` - Component unit tests
+- `unit/hooks/` - Custom hook tests
+- `unit/services/` - Service layer tests
+- `unit/utils/` - Utility function tests
+- `integration/` - Component integration tests
+- `e2e/` - End-to-end tests (Playwright)
+- `helpers/` - Test utilities, mock data, and custom render functions
 
 ## API Endpoints
 
