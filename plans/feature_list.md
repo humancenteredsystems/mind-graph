@@ -15,4 +15,5 @@
 - Checklist nodes
 - Rate limite API requests
 - Get working on mobile
-- Test in different browsers
+- Cross-Browser Compatibility
+- Responsive behavior when windows are resized, etc.

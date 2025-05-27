@@ -132,14 +132,13 @@ const FeaturesTab: React.FC<FeaturesTabProps> = ({ systemStatus }) => {
         <h4 style={{ margin: '0 0 12px 0', color: '#666' }}>System Information</h4>
         <div style={{ fontSize: 14, lineHeight: 1.6 }}>
           <p><strong>Current Mode:</strong> {systemStatus.mode}</p>
-          <p><strong>Current Tenant:</strong> {systemStatus.currentTenant}</p>
-          {systemStatus.namespace && (
+          {systemStatus.namespace && systemStatus.namespace !== '0x0' && (
             <p><strong>Namespace:</strong> {systemStatus.namespace}</p>
           )}
           {systemStatus.version && (
             <p><strong>Dgraph Version:</strong> {systemStatus.version}</p>
           )}
-          <p><strong>Detected At:</strong> {new Date(systemStatus.detectedAt).toLocaleString()}</p>
+          <p><strong>Last Updated:</strong> {new Date(systemStatus.detectedAt).toLocaleString()}</p>
         </div>
         
         {systemStatus.detectionError && (
@@ -214,7 +213,7 @@ const SettingsModal: React.FC = () => {
         background: '#fff',
         borderRadius: 8,
         width: 600,
-        maxHeight: '80vh',
+        height: '70vh',
         overflow: 'hidden',
         boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
         display: 'flex',
@@ -282,7 +281,14 @@ const SettingsModal: React.FC = () => {
         </div>
         
         {/* Tab Content */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div 
+          style={{ 
+            flex: 1, 
+            overflow: 'auto',
+            position: 'relative'
+          }}
+          className="settings-modal-content"
+        >
           {activeTab === 'hierarchy' && (
             <div style={{ padding: 20, textAlign: 'center', color: '#6b7280' }}>
               <p>Hierarchy settings coming soon...</p>
@@ -293,6 +299,40 @@ const SettingsModal: React.FC = () => {
             <FeaturesTab systemStatus={systemStatus} />
           )}
         </div>
+        
+        {/* Styled scrollbar CSS */}
+        <style>{`
+          .settings-modal-content {
+            /* Webkit browsers (Chrome, Safari, Edge) */
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+          }
+          
+          .settings-modal-content::-webkit-scrollbar {
+            width: 8px;
+          }
+          
+          .settings-modal-content::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 4px;
+          }
+          
+          .settings-modal-content::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 4px;
+            transition: background 0.2s ease;
+          }
+          
+          .settings-modal-content::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+          }
+          
+          /* Firefox */
+          .settings-modal-content {
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+          }
+        `}</style>
       </div>
     </div>
   );

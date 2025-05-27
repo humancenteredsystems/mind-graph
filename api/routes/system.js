@@ -14,9 +14,8 @@ router.get('/system/status', async (req, res) => {
     const tenantContext = req.tenantContext || { tenantId };
     
     // Determine if multi-tenant operations are verified
-    const multiTenantVerified = capabilities.namespacesSupported && 
-                               tenantContext.namespace && 
-                               tenantContext.namespace !== '0x0';
+    // Multi-tenant is verified if namespace support is available (regardless of current tenant)
+    const multiTenantVerified = capabilities.namespacesSupported;
     
     const systemStatus = {
       dgraphEnterprise: capabilities.enterpriseDetected,
