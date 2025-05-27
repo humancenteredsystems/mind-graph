@@ -71,10 +71,19 @@ mutation AddHierarchyAssignment($input: [AddHierarchyAssignmentInput!]!) {
 def detect_dgraph_capabilities(api_base: str, api_key: str) -> dict:
     """Detect if Dgraph supports Enterprise features like namespaces."""
     try:
-        resp = call_api(api_base, "/system/status", api_key)
+        # System endpoints don't require admin authentication, so don't send API key
+        resp = call_api(api_base, "/system/status", "", method="GET")
         if resp["success"]:
-            return resp.get("data", {})
-    except:
+            data = resp.get("data", {})
+            # Check if enterprise features are available and multi-tenant mode is enabled
+            is_enterprise = data.get("dgraphEnterprise", False)
+            is_multi_tenant = data.get("mode") == "multi-tenant"
+            print(f"[CAPABILITY_DETECTION] Enterprise: {is_enterprise}, Multi-tenant: {is_multi_tenant}")
+            return {
+                "namespacesSupported": is_enterprise and is_multi_tenant
+            }
+    except Exception as e:
+        print(f"[CAPABILITY_DETECTION] Error: {e}")
         pass
     return {"namespacesSupported": False}
 
@@ -433,7 +442,7 @@ def main():
     # Auto-detect Enterprise vs OSS capabilities
     capabilities = detect_dgraph_capabilities(args.api_base, args.api_key)
     
-    if capabilities.get('namespacesSupported') and args.tenant_id != 'default':
+    if capabilities.get('namespacesSupported'):
         # Enterprise mode: Use tenant-aware seeding
         print(f"🏢 Enterprise mode detected - seeding tenant: {args.tenant_id}")
         seed_tenant_data(args.api_base, args.api_key, args.tenant_id, args.create_tenant)

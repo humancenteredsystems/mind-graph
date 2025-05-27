@@ -92,7 +92,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // System status functions
   const refreshSystemStatus = async () => {
     try {
-      const tenantId = localStorage.getItem('tenantId') || 'test-tenant';
+      const tenantId = localStorage.getItem('tenantId') || 'default';
       const response = await fetch('/api/system/status', {
         headers: {
           'Content-Type': 'application/json',
