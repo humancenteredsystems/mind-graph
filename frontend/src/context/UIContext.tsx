@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useRef } from 'react';
 import { NodeData } from '../types/graph';
+import { fetchSystemStatus } from '../services/ApiService';
 
 interface SystemStatus {
   dgraphEnterprise: boolean;
@@ -92,20 +93,8 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // System status functions
   const refreshSystemStatus = async () => {
     try {
-      const tenantId = localStorage.getItem('tenantId') || 'default';
-      const response = await fetch('/api/system/status', {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': tenantId
-        }
-      });
-      
-      if (response.ok) {
-        const status = await response.json();
-        setSystemStatus(status);
-      } else {
-        console.error('Failed to fetch system status:', response.statusText);
-      }
+      const status = await fetchSystemStatus();
+      setSystemStatus(status);
     } catch (error) {
       console.error('Error fetching system status:', error);
     }
