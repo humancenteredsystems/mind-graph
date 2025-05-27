@@ -9,9 +9,9 @@ const DGRAPH_BASE_URL = process.env.DGRAPH_BASE_URL.replace(/\/+$/, ''); // Remo
 const DGRAPH_ADMIN_SCHEMA_URL = `${DGRAPH_BASE_URL}/admin/schema`;
 
 // Helper function to push schema to the configured Dgraph instance
-async function pushSchemaToConfiguredDgraph(schema) {
+async function pushSchemaToConfiguredDgraph(schema, namespace = null) {
   const url = DGRAPH_ADMIN_SCHEMA_URL; // Use the derived URL
-  const result = await pushSchemaViaHttp(schema, null, url);
+  const result = await pushSchemaViaHttp(schema, namespace, url);
 
   // Add verification step if needed
 
@@ -106,11 +106,14 @@ router.post('/schemas/:id/push', authenticateAdmin, async (req, res) => {
   try {
     const schemaId = req.params.id;
 
+    // Extract namespace from tenant context
+    const namespace = req.tenantContext?.namespace;
+
     // Get schema content
     const schemaContent = await schemaRegistry.getSchemaContent(schemaId);
 
-    console.log(`[SCHEMA PUSH] Pushing schema ${schemaId} to configured Dgraph instance`);
-    const result = await pushSchemaToConfiguredDgraph(schemaContent);
+    console.log(`[SCHEMA PUSH] Pushing schema ${schemaId} to configured Dgraph instance${namespace ? ` for namespace ${namespace}` : ''}`);
+    const result = await pushSchemaToConfiguredDgraph(schemaContent, namespace);
 
     if (result.success) {
       const schema = await schemaRegistry.getSchemaById(schemaId);
@@ -120,7 +123,7 @@ router.post('/schemas/:id/push', authenticateAdmin, async (req, res) => {
 
       res.json({
         success: true,
-        message: `Schema ${schemaId} successfully pushed to configured Dgraph instance`,
+        message: `Schema ${schemaId} successfully pushed to configured Dgraph instance${namespace ? ` in namespace ${namespace}` : ''}`,
         results: result
       });
     } else {

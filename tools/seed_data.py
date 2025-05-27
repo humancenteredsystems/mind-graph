@@ -5,11 +5,14 @@ Universal OSS/Enterprise compatible seeding tool.
 
 This tool performs the following actions:
 1. Auto-detects OSS vs Enterprise capabilities
-2. Drops all existing data and schema from Dgraph.
+2. Clears existing data from target namespace (default: namespace-scoped deletion, or dropAll with --enable-drop-all flag)
 3. Pushes the GraphQL schema (schemas/default.graphql).
 4. Creates a single, predefined hierarchy with levels and level types.
 5. Adds sample nodes and edges.
 6. Assigns these nodes to the created hierarchy and its levels.
+
+IMPORTANT: By default, this script uses namespace-scoped deletion which safely clears data
+only within the target namespace. Use --enable-drop-all for cluster-wide dropAll operation.
 """
 import argparse
 import os
@@ -87,7 +90,7 @@ def detect_dgraph_capabilities(api_base: str, api_key: str) -> dict:
         pass
     return {"namespacesSupported": False}
 
-def seed_tenant_data(api_base: str, api_key: str, tenant_id: str, create_tenant: bool):
+def seed_tenant_data(api_base: str, api_key: str, tenant_id: str, create_tenant: bool, enable_drop_all: bool = False):
     """Seed data for a specific tenant in Enterprise mode."""
     # Set tenant context for all API calls
     tenant_headers = {"X-Tenant-Id": tenant_id}
@@ -100,18 +103,24 @@ def seed_tenant_data(api_base: str, api_key: str, tenant_id: str, create_tenant:
             print(f"⚠️ Tenant creation failed (may already exist): {create_resp.get('error')}")
     
     # Use existing seeding logic with tenant headers
-    seed_with_context(api_base, api_key, tenant_headers)
+    seed_with_context(api_base, api_key, tenant_headers, enable_drop_all)
 
-def seed_default_data(api_base: str, api_key: str):
+def seed_default_data(api_base: str, api_key: str, enable_drop_all: bool = False):
     """Seed data for OSS mode (no tenant context)."""
     # Use existing seeding logic without tenant headers
-    seed_with_context(api_base, api_key, {})
+    seed_with_context(api_base, api_key, {}, enable_drop_all)
 
-def seed_with_context(api_base: str, api_key: str, extra_headers: dict):
+def seed_with_context(api_base: str, api_key: str, extra_headers: dict, enable_drop_all: bool = False):
     """Universal seeding logic that works with or without tenant context."""
-    # 1. Drop all data (respects tenant context in Enterprise)
-    if not drop_all_data(api_base, api_key, extra_headers):
-        sys.exit(1)
+    # 1. Clear existing data (either dropAll or namespace-scoped deletion)
+    if enable_drop_all:
+        print("⚠️  Using dropAll (affects ALL namespaces in cluster)")
+        if not drop_all_data(api_base, api_key, extra_headers):
+            sys.exit(1)
+    else:
+        print("🔒 Using namespace-scoped deletion (safe for multi-tenant)")
+        if not clear_namespace_data(api_base, api_key, extra_headers):
+            sys.exit(1)
     
     # 2. Push schema (respects tenant context in Enterprise)  
     if not push_schema(api_base, api_key, extra_headers):
@@ -183,15 +192,157 @@ def seed_with_context(api_base: str, api_key: str, extra_headers: dict):
 
 # --- Functions adapted from seed_hierarchy.py ---
 def drop_all_data(api_base: str, api_key: str, extra_headers: Optional[Dict[str, str]] = None) -> bool:
-    """Drop all existing data via admin endpoint."""
+    """Drop all existing data via admin endpoint. WARNING: This affects ALL namespaces in the cluster."""
     print("Dropping all data...")
-    resp = call_api(api_base, "/admin/dropAll", api_key, method="POST", payload={"target": "remote"}, extra_headers=extra_headers)
+    
+    # Extract namespace from tenant headers if present
+    namespace = None
+    tenant_id = None
+    if extra_headers and "X-Tenant-Id" in extra_headers:
+        tenant_id = extra_headers["X-Tenant-Id"]
+        # Map tenant ID to namespace (this should match your backend logic)
+        if tenant_id == "default":
+            namespace = "0x0"
+        elif tenant_id == "test-tenant":
+            namespace = "0x1"
+        else:
+            # For other tenants, you might need to query the tenant manager
+            namespace = None
+    
+    # Build payload with namespace confirmation for safety
+    payload = {"target": "remote"}
+    if namespace:
+        payload["confirmNamespace"] = namespace
+        print(f"  🔒 Safety: Confirming namespace {namespace} for tenant {tenant_id}")
+    
+    resp = call_api(api_base, "/admin/dropAll", api_key, method="POST", payload=payload, extra_headers=extra_headers)
     if not resp["success"]:
         print(f"❌ dropAll failed: {resp['error']}")
-        if resp.get("details"): print(f"Details: {resp['details']}")
+        if resp.get("details"): 
+            print(f"Details: {resp['details']}")
+        if resp.get("data", {}).get("currentNamespace"):
+            print(f"Current namespace: {resp['data']['currentNamespace']}")
+            print(f"Current tenant: {resp['data']['currentTenant']}")
         return False
-    print("✅ All data dropped.")
+    
+    # Log success with namespace info
+    if namespace:
+        print(f"✅ All data dropped in namespace {namespace} (tenant: {tenant_id}).")
+    else:
+        print("✅ All data dropped.")
     return True
+
+def clear_namespace_data(api_base: str, api_key: str, extra_headers: Optional[Dict[str, str]] = None) -> bool:
+    """Safely clear all data within a namespace without affecting other namespaces."""
+    print("Clearing all nodes and edges in namespace...")
+    
+    # Extract tenant info for logging
+    tenant_id = extra_headers.get("X-Tenant-Id", "default") if extra_headers else "default"
+    
+    try:
+        # 1. Query all nodes to get their UIDs and IDs
+        print("  1️⃣ Querying all nodes...")
+        query_payload = {"query": "{ queryNode { uid id } }"}
+        
+        resp = call_api(api_base, "/query", "", method="POST", 
+                       payload=query_payload, extra_headers=extra_headers)
+        
+        if not resp["success"]:
+            print(f"❌ Failed to query nodes: {resp.get('error')}")
+            return False
+        
+        nodes = resp.get("data", {}).get("queryNode", [])
+        node_count = len(nodes)
+        
+        if node_count == 0:
+            print("  ✅ No nodes found - namespace is already empty")
+            return True
+        
+        print(f"  📊 Found {node_count} nodes to delete")
+        
+        # 2. Query all edges to get their UIDs
+        print("  2️⃣ Querying all edges...")
+        edge_query_payload = {"query": "{ queryEdge { uid from { uid } to { uid } } }"}
+        
+        resp = call_api(api_base, "/query", "", method="POST",
+                       payload=edge_query_payload, extra_headers=extra_headers)
+        
+        edges = []
+        if resp["success"]:
+            edges = resp.get("data", {}).get("queryEdge", [])
+        
+        edge_count = len(edges)
+        print(f"  📊 Found {edge_count} edges to delete")
+        
+        # 3. Delete all edges first (to avoid referential integrity issues)
+        if edges:
+            print(f"  3️⃣ Deleting {edge_count} edges...")
+            edge_uids = [edge["uid"] for edge in edges if "uid" in edge]
+            
+            if edge_uids:
+                delete_edges_mutation = """
+                mutation DeleteEdges($filter: EdgeFilter!) {
+                  deleteEdge(filter: $filter) {
+                    msg
+                    numUids
+                  }
+                }
+                """
+                
+                # Delete edges in batches to avoid large payloads
+                batch_size = 100
+                for i in range(0, len(edge_uids), batch_size):
+                    batch_uids = edge_uids[i:i + batch_size]
+                    variables = {"filter": {"uid": batch_uids}}
+                    payload = {"mutation": delete_edges_mutation, "variables": variables}
+                    
+                    resp = call_api(api_base, "/mutate", api_key, method="POST",
+                                   payload=payload, extra_headers=extra_headers)
+                    
+                    if not resp["success"]:
+                        print(f"⚠️ Warning: Failed to delete edge batch {i//batch_size + 1}: {resp.get('error')}")
+                    else:
+                        deleted_count = resp.get("data", {}).get("deleteEdge", {}).get("numUids", 0)
+                        print(f"    ✅ Deleted {deleted_count} edges in batch {i//batch_size + 1}")
+        
+        # 4. Delete all nodes
+        print(f"  4️⃣ Deleting {node_count} nodes...")
+        node_uids = [node["uid"] for node in nodes if "uid" in node]
+        
+        if node_uids:
+            delete_nodes_mutation = """
+            mutation DeleteNodes($filter: NodeFilter!) {
+              deleteNode(filter: $filter) {
+                msg
+                numUids
+              }
+            }
+            """
+            
+            # Delete nodes in batches
+            batch_size = 100
+            total_deleted = 0
+            for i in range(0, len(node_uids), batch_size):
+                batch_uids = node_uids[i:i + batch_size]
+                variables = {"filter": {"uid": batch_uids}}
+                payload = {"mutation": delete_nodes_mutation, "variables": variables}
+                
+                resp = call_api(api_base, "/mutate", api_key, method="POST",
+                               payload=payload, extra_headers=extra_headers)
+                
+                if not resp["success"]:
+                    print(f"⚠️ Warning: Failed to delete node batch {i//batch_size + 1}: {resp.get('error')}")
+                else:
+                    deleted_count = resp.get("data", {}).get("deleteNode", {}).get("numUids", 0)
+                    total_deleted += deleted_count
+                    print(f"    ✅ Deleted {deleted_count} nodes in batch {i//batch_size + 1}")
+        
+        print(f"✅ Namespace cleared: deleted {total_deleted} nodes and {edge_count} edges (tenant: {tenant_id})")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error during namespace data clearing: {e}")
+        return False
 
 def push_schema(api_base: str, api_key: str, extra_headers: Optional[Dict[str, str]] = None) -> bool:
     """Push GraphQL schema to Dgraph."""
@@ -432,6 +583,8 @@ def main():
                        help="Tenant ID for Enterprise mode (default: 'default' for OSS)")
     parser.add_argument("--create-tenant", action="store_true",
                        help="Create tenant if it doesn't exist (Enterprise only)")
+    parser.add_argument("--enable-drop-all", action="store_true",
+                       help="Enable cluster-wide dropAll operation (WARNING: affects ALL namespaces)")
     
     args = parser.parse_args()
     
@@ -445,11 +598,11 @@ def main():
     if capabilities.get('namespacesSupported'):
         # Enterprise mode: Use tenant-aware seeding
         print(f"🏢 Enterprise mode detected - seeding tenant: {args.tenant_id}")
-        seed_tenant_data(args.api_base, args.api_key, args.tenant_id, args.create_tenant)
+        seed_tenant_data(args.api_base, args.api_key, args.tenant_id, args.create_tenant, args.enable_drop_all)
     else:
         # OSS mode: Use traditional seeding (ignore tenant parameters)
         print("🔓 OSS mode detected - seeding default instance")
-        seed_default_data(args.api_base, args.api_key)
+        seed_default_data(args.api_base, args.api_key, args.enable_drop_all)
 
 if __name__ == "__main__":
     main()

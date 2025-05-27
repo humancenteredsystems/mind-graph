@@ -8,17 +8,22 @@ const axios = require('axios');
  *
  * @param {string} url - The full URL of the Dgraph admin endpoint (e.g., /alter or /admin/schema).
  * @param {object} payload - The JSON payload to POST.
+ * @param {string|null} namespace - Optional namespace for multi-tenant operations (e.g., '0x0', '0x1').
  * @returns {Promise<object>}
  */
-async function sendDgraphAdminRequest(url, payload) {
+async function sendDgraphAdminRequest(url, payload, namespace = null) {
   try {
-    const response = await axios.post(url, payload, {
+    // Build URL with optional namespace parameter
+    const finalUrl = namespace ? `${url}?namespace=${namespace}` : url;
+    console.log(`[DGRAPH ADMIN REQUEST] Sending request to ${finalUrl}${namespace ? ` (namespace: ${namespace})` : ''}`);
+    
+    const response = await axios.post(finalUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
     });
     if (response.status >= 200 && response.status < 300) {
       return { success: true, data: response.data };
     } else {
-      console.error(`[DGRAPH ADMIN REQUEST] Received non-2xx status for ${url}: ${response.status}`);
+      console.error(`[DGRAPH ADMIN REQUEST] Received non-2xx status for ${finalUrl}: ${response.status}`);
       return {
         success: false,
         error: `Dgraph admin request failed with status: ${response.status}`,
@@ -26,7 +31,7 @@ async function sendDgraphAdminRequest(url, payload) {
       };
     }
   } catch (error) {
-    console.error(`[DGRAPH ADMIN REQUEST] Error sending request to ${url}:`, error.message);
+    console.error(`[DGRAPH ADMIN REQUEST] Error sending request to ${finalUrl}:`, error.message);
     if (error.response) {
       console.error('[DGRAPH ADMIN REQUEST] Response status:', error.response.status);
       console.error('[DGRAPH ADMIN REQUEST] Response data:', error.response.data);
@@ -38,7 +43,7 @@ async function sendDgraphAdminRequest(url, payload) {
     } else if (error.request) {
       return {
         success: false,
-        error: `No response received from Dgraph admin at ${url}`
+        error: `No response received from Dgraph admin at ${finalUrl}`
       };
     } else {
       return {

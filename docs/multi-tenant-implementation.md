@@ -147,6 +147,37 @@ DEFAULT_TENANT_ID=default
 - Easy reset and cleanup capabilities
 - Isolated from production data
 
+## ⚠️ Important Limitations
+
+### **Dgraph dropAll Operation**
+**CRITICAL LIMITATION**: Dgraph Enterprise's `drop_all` operation affects ALL namespaces in the cluster, despite correct namespace parameters being sent. This behavior has been confirmed through comprehensive testing.
+
+**Impact**:
+- Using `/admin/alter?namespace=0x1` with `drop_all` payload still clears ALL namespaces (0x0, 0x1, etc.)
+- This violates tenant isolation principles for admin operations
+- Even with proper safety measures and namespace confirmation, the operation is cluster-wide
+
+**Workarounds Implemented**:
+- **Default Safe Behavior**: Seeding scripts now use namespace-scoped deletion by default
+- **Explicit Flag Required**: `--enable-drop-all` flag must be used to enable cluster-wide dropAll
+- **Alternative Deletion Method**: `clear_namespace_data()` function safely deletes all nodes/edges within a specific namespace
+- **Enhanced Logging**: All admin operations include detailed audit trails
+
+**Recommended Practices**:
+- Always use namespace-scoped deletion for multi-tenant environments
+- Only use `dropAll` when intentionally clearing the entire cluster
+- Test isolation thoroughly when implementing new admin operations
+- Monitor for similar issues with other admin endpoints
+
+### **Safe Usage Examples**:
+```bash
+# Safe: Clears only target namespace (default behavior)
+python tools/seed_data.py -k $ADMIN_KEY -t test-tenant
+
+# DANGEROUS: Clears ALL namespaces (explicit flag required)
+python tools/seed_data.py -k $ADMIN_KEY --enable-drop-all
+```
+
 ## 🚀 Next Steps
 
 ### **Phase 2: Production Features**
@@ -154,6 +185,7 @@ DEFAULT_TENANT_ID=default
 - [ ] Frontend tenant context
 - [ ] Tenant-specific API keys
 - [ ] Usage analytics per tenant
+- [ ] Contact Dgraph support about dropAll behavior
 
 ### **Phase 3: Advanced Features**
 - [ ] Tenant migration tools
@@ -190,11 +222,21 @@ curl http://localhost:3000/api/tenant/info \
   -H "X-Tenant-Id: test-tenant"
 ```
 
+### **Safe Data Management**
+```bash
+# Safe namespace-scoped seeding (default)
+python tools/seed_data.py -k $ADMIN_KEY -t test-tenant
+
+# Dangerous cluster-wide operation (explicit flag)
+python tools/seed_data.py -k $ADMIN_KEY --enable-drop-all
+```
+
 ## 📊 Current Status
 
 - ✅ **Phase 1 Complete**: Core multi-tenant infrastructure
 - ✅ **Backward Compatible**: Existing functionality preserved
 - ✅ **Test Ready**: Comprehensive test utilities
 - ✅ **Production Ready**: Scalable architecture foundation
+- ⚠️ **Known Limitation**: dropAll affects all namespaces (workarounds implemented)
 
-The multi-tenant architecture is now ready for development and testing. The system maintains full backward compatibility while providing complete tenant isolation through Dgraph namespaces.
+The multi-tenant architecture is now ready for development and testing. The system maintains full backward compatibility while providing complete tenant isolation through Dgraph namespaces. **Important**: Always use namespace-scoped operations for data management in multi-tenant environments.
