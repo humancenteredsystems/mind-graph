@@ -147,6 +147,43 @@ DEFAULT_TENANT_ID=default
 - Easy reset and cleanup capabilities
 - Isolated from production data
 
+### **Real Database Integration Testing**
+**New Feature**: Comprehensive real database integration tests that use actual tenant infrastructure without mocking.
+
+#### **Test Suite Structure** (`api/__tests__/integration-real/`)
+- **`basic-crud.test.js`** - Complete CRUD operations testing in real test tenant
+- **`namespace-isolation.test.js`** - Comprehensive tenant isolation verification
+- **`hierarchy-operations.test.js`** - Hierarchy management and level operations
+- **`graphql-operations.test.js`** - Advanced GraphQL queries, mutations, and performance tests
+- **`diagnostic.test.js`** - System diagnostics and connectivity verification
+
+#### **Test Helper Utilities** (`api/__tests__/helpers/realTestHelpers.js`)
+- `testRequest()` - Automatic `X-Tenant-Id: test-tenant` header injection
+- `verifyInTestTenant()` - Direct database verification using real adaptiveTenantFactory
+- `createTestNodeData()` - Consistent test data generation utilities
+- No mocking - uses actual tenant system and database operations
+
+#### **Key Features**
+- **Real Namespace Isolation**: Tests verify complete data separation between test-tenant (0x1) and default (0x0)
+- **Production-like Testing**: Uses same code paths as production without mocking
+- **Comprehensive Coverage**: Tests all major API operations, GraphQL functionality, and error handling
+- **Performance Testing**: Concurrent request handling and batch operation efficiency
+
+#### **Requirements for Running Real Integration Tests**
+```bash
+# Prerequisites:
+# 1. Dgraph Enterprise running at localhost:8080 with namespace support
+# 2. Test tenant namespace (0x1) configured and accessible  
+# 3. Schema loaded with Node, Hierarchy, and related types
+# 4. Environment variables set
+
+# Run all real integration tests
+cd api && npm test -- --testPathPattern="integration-real"
+
+# Run specific test suite
+cd api && npm test -- --testPathPattern="basic-crud.test.js"
+```
+
 ## ⚠️ Important Limitations
 
 ### **Dgraph dropAll Operation**
@@ -234,9 +271,10 @@ python tools/seed_data.py -k $ADMIN_KEY --enable-drop-all
 ## 📊 Current Status
 
 - ✅ **Phase 1 Complete**: Core multi-tenant infrastructure
+- ✅ **Real Database Integration Testing**: Comprehensive test suite implemented
 - ✅ **Backward Compatible**: Existing functionality preserved
-- ✅ **Test Ready**: Comprehensive test utilities
+- ✅ **Test Ready**: Both mocked and real database test utilities
 - ✅ **Production Ready**: Scalable architecture foundation
 - ⚠️ **Known Limitation**: dropAll affects all namespaces (workarounds implemented)
 
-The multi-tenant architecture is now ready for development and testing. The system maintains full backward compatibility while providing complete tenant isolation through Dgraph namespaces. **Important**: Always use namespace-scoped operations for data management in multi-tenant environments.
+The multi-tenant architecture is now ready for development and testing. The system maintains full backward compatibility while providing complete tenant isolation through Dgraph namespaces. The new real database integration tests provide confidence that the multi-tenant system works correctly in practice. **Important**: Always use namespace-scoped operations for data management in multi-tenant environments.

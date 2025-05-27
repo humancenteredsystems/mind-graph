@@ -68,6 +68,9 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 - Expose the Dgraph schema (`/api/schema`) and health checks (`/api/health`).
 - Handle CORS.
 - Provide administrative endpoints for schema management, data clearing, and hierarchy CRUD operations.
+- **Multi-Tenant Operations:** Tenant context middleware, namespace routing, and complete data isolation.
+- **Tenant Management:** Full CRUD operations for tenant lifecycle (create, list, delete, reset).
+- **Adaptive Compatibility:** Automatic OSS/Enterprise mode detection with graceful feature degradation.
 
 ### Responsibilities (Future Goals)
 - Validate and sanitize graph operations more thoroughly.
@@ -97,6 +100,13 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 ### Deployment
 - **Current Development:** Runs locally via Docker Compose (`docker-compose.yml`).
 - **Target Hosting:** Docker container on a private service (e.g., Render) with a persistent disk.
+- **Multi-Tenant Support:** Dgraph Enterprise provides namespace isolation for complete tenant data separation.
+
+### Multi-Tenant Architecture
+- **Namespace Isolation:** Each tenant operates in a dedicated namespace (0x0=default, 0x1=test-tenant, 0x2+=production tenants)
+- **Shared Infrastructure:** Single Dgraph cluster efficiently serves all tenants
+- **Adaptive Design:** Automatically detects OSS vs Enterprise capabilities and adapts behavior
+- **Complete Data Isolation:** Tenants cannot access each other's data or operations
 
 ### Schema Example (Reflects current `schemas/default.graphql`)
 

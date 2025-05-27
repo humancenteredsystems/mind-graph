@@ -379,4 +379,193 @@ All other hierarchy management endpoints listed below (for creating, updating, d
 
 ---
 
-*For troubleshooting Dgraph connectivity issues, see the [Dgraph Troubleshooting Guide](dgraph_troubleshooting.md).*
+## Tenant Management Endpoints
+
+**Authentication:** All endpoints in this section require a valid admin API key via the `X-Admin-API-Key` header, unless otherwise noted.
+
+### GET /api/tenant/info
+
+**Path:** `/api/tenant/info`  
+**Description:** Get information about the current tenant based on the `X-Tenant-Id` header.  
+**Authentication:** None  
+**Headers:**  
+- `X-Tenant-Id` (optional): Tenant ID. Defaults to 'default' if not provided.
+**Response (200 OK):**  
+```json
+{
+  "tenantId": "test-tenant",
+  "namespace": "0x1", 
+  "isTestTenant": true,
+  "isDefaultTenant": false
+}
+```
+
+### POST /api/tenant
+
+**Path:** `/api/tenant`  
+**Description:** Create a new tenant with its own namespace and initial setup.  
+**Request Body:**  
+```json
+{
+  "tenantId": "user-alice"
+}
+```
+**Response (201 Created):**  
+```json
+{
+  "tenantId": "user-alice",
+  "namespace": "0x2",
+  "message": "Tenant created successfully"
+}
+```
+**Error Responses:**  
+- 400 Bad Request if tenant already exists or invalid tenantId.
+- 500 Internal Server Error if tenant creation fails.
+
+### GET /api/tenant
+
+**Path:** `/api/tenant`  
+**Description:** List all tenants in the system.  
+**Response (200 OK):**  
+```json
+[
+  {
+    "tenantId": "default",
+    "namespace": "0x0",
+    "isDefault": true
+  },
+  {
+    "tenantId": "test-tenant", 
+    "namespace": "0x1",
+    "isTest": true
+  },
+  {
+    "tenantId": "user-alice",
+    "namespace": "0x2"
+  }
+]
+```
+
+### GET /api/tenant/:tenantId
+
+**Path:** `/api/tenant/:tenantId`  
+**Description:** Get detailed information about a specific tenant.  
+**Response (200 OK):**  
+```json
+{
+  "tenantId": "user-alice",
+  "namespace": "0x2",
+  "createdAt": "2025-05-26T23:30:00Z",
+  "nodeCount": 42,
+  "hierarchyCount": 1
+}
+```
+
+### DELETE /api/tenant/:tenantId
+
+**Path:** `/api/tenant/:tenantId`  
+**Description:** Delete a tenant and all its data (irreversible).  
+**Response (200 OK):**  
+```json
+{
+  "message": "Tenant user-alice deleted successfully",
+  "deletedTenantId": "user-alice",
+  "deletedNamespace": "0x2"
+}
+```
+
+### POST /api/tenant/test/init
+
+**Path:** `/api/tenant/test/init`  
+**Description:** Initialize the test tenant with default hierarchies and sample data.  
+**Authentication:** None  
+**Response (200 OK):**  
+```json
+{
+  "message": "Test tenant initialized successfully",
+  "tenantId": "test-tenant",
+  "namespace": "0x1"
+}
+```
+
+### POST /api/tenant/test/reset
+
+**Path:** `/api/tenant/test/reset`  
+**Description:** Reset the test tenant by clearing all data and re-initializing.  
+**Authentication:** None  
+**Response (200 OK):**  
+```json
+{
+  "message": "Test tenant reset successfully", 
+  "tenantId": "test-tenant",
+  "namespace": "0x1"
+}
+```
+
+---
+
+## Multi-Tenant Headers
+
+All API endpoints support multi-tenant operation through the following headers:
+
+### X-Tenant-Id Header
+
+**Header:** `X-Tenant-Id`  
+**Description:** Specifies which tenant's namespace to operate on.  
+**Values:**  
+- `test-tenant` - Routes operations to test namespace (0x1)
+- `default` - Routes to default namespace (0x0) 
+- `[custom-tenant-id]` - Routes to the tenant's dedicated namespace
+- *Not provided* - Defaults to 'default' tenant (0x0)
+
+**Example Usage:**
+```bash
+# Query data from test tenant
+curl -X POST http://localhost:3000/api/query \
+  -H "X-Tenant-Id: test-tenant" \
+  -d '{"query": "{ queryNode { id label } }"}'
+
+# Create node in specific tenant
+curl -X POST http://localhost:3000/api/mutate \
+  -H "X-Tenant-Id: user-alice" \
+  -H "X-Hierarchy-Id: hierarchy-1" \
+  -d '{"mutation": "...", "variables": {...}}'
+```
+
+### X-Hierarchy-Id Header
+
+**Header:** `X-Hierarchy-Id`  
+**Description:** Specifies the active hierarchy context for operations (required for `addNode` mutations).  
+**Usage:** Required when creating nodes to determine hierarchy placement and validation.
+
+**Example:**
+```bash
+curl -X POST http://localhost:3000/api/mutate \
+  -H "X-Tenant-Id: test-tenant" \
+  -H "X-Hierarchy-Id: test-hierarchy-1" \
+  -d '{"mutation": "mutation { addNode(...) }", "variables": {...}}'
+```
+
+---
+
+## Multi-Tenant Considerations
+
+### Data Isolation
+- Each tenant operates in a completely isolated namespace
+- Tenants cannot access each other's data
+- All queries and mutations are automatically scoped to the tenant's namespace
+
+### Admin Operations
+- Admin operations (schema, dropAll) require special handling in multi-tenant mode
+- `dropAll` operations affect ALL namespaces - use with extreme caution
+- Use `confirmNamespace` parameter for destructive operations
+
+### OSS vs Enterprise Mode
+- Multi-tenant features require Dgraph Enterprise
+- OSS mode automatically falls back to single-tenant operation
+- API gracefully handles both modes without configuration changes
+
+---
+
+*For troubleshooting Dgraph connectivity issues, see the [Dgraph Troubleshooting Guide](dgraph_troubleshooting.md).*  
+*For detailed multi-tenant implementation information, see the [Multi-Tenant Implementation Guide](multi-tenant-implementation.md).*
