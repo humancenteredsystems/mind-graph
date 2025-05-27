@@ -6,7 +6,7 @@ const axios = require('axios');
 class DgraphCapabilityDetector {
   constructor() {
     this.baseUrl = process.env.DGRAPH_BASE_URL || 'http://localhost:8080';
-    this.zeroUrl = 'http://localhost:6080';
+    this.zeroUrl = process.env.DGRAPH_ZERO_URL || 'http://localhost:6080';
     this.cachedCapabilities = null;
     this.lastDetection = null;
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
