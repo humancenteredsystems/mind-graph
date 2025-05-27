@@ -1,47 +1,19 @@
 #!/usr/bin/env python3
 """
-Run GraphQL queries against the Dgraph database.
+Run GraphQL queries against the MIMS-Graph API with tenant support.
 
-This tool allows running predefined or custom GraphQL queries to test connections
-and retrieve data from the graph database.
+This tool allows running predefined or custom GraphQL queries with proper
+tenant isolation and API routing.
 """
 import argparse
 import sys
 import json
-import requests
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-# --- Constants moved from utils.py ---
-DEFAULT_ENDPOINT = "http://localhost:8080/graphql"
-# --- End Constants ---
-
-# --- execute_graphql logic moved here ---
-def _execute_graphql_http(
-    query: str,
-    variables: Optional[Dict[str, Any]] = None,
-    endpoint: str = DEFAULT_ENDPOINT
-) -> Dict[str, Any]:
-    """Internal function to execute GraphQL via HTTP POST."""
-    headers = {"Content-Type": "application/json"}
-    payload = {"query": query}
-    if variables:
-        payload["variables"] = variables
-
-    try:
-        response = requests.post(endpoint, json=payload, headers=headers)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        print(f"❌ GraphQL request failed: {str(e)}") # Replaced logger
-        if hasattr(response, 'text'):
-            print(f"Response: {response.text}") # Replaced logger
-        # Re-raise the exception to be caught by the calling function
-        raise
-    except Exception as e:
-        print(f"❌ An unexpected error occurred during GraphQL request: {str(e)}") # Replaced logger
-        raise
-# --- End execute_graphql logic ---
+# Import shared library
+sys.path.append(str(Path(__file__).resolve().parent))
+from lib import QueryTool, APIError, TenantNotFoundError, GraphQLError
 
 # Predefined query templates
 QUERIES = {
@@ -71,7 +43,7 @@ QUERIES = {
     """,
 
     "node_connections": """
-    query NodeConnections($id: String!) { # Changed ID! to String!
+    query NodeConnections($id: String!) {
       getNode(id: $id) {
         id
         label
@@ -89,7 +61,7 @@ QUERIES = {
     """,
 
     "node_with_depth": """
-    query NodeWithDepth($id: String!, $depth: Int!) { # Changed ID! to String!
+    query NodeWithDepth($id: String!, $depth: Int!) {
       getNode(id: $id) {
         id
         label
@@ -110,118 +82,218 @@ QUERIES = {
     """
 }
 
-def format_result(result: Dict[str, Any], pretty: bool = True) -> str:
-    """Format a GraphQL result for display."""
-    if pretty:
-        return json.dumps(result, indent=2)
-    else:
-        return json.dumps(result)
 
-def run_query(
-    query: str,
-    variables: Optional[Dict[str, Any]] = None,
-    endpoint: str = DEFAULT_ENDPOINT
-) -> Dict[str, Any]:
-    """Run a GraphQL query against the Dgraph endpoint."""
-    try:
-        result = _execute_graphql_http(query, variables, endpoint) # Use internal function
-        return result
-    except Exception as e:
-        # Error already printed by _execute_graphql_http
-        print(f"Query execution failed.")
-        return {"error": str(e)}
-
-def main():
-    """Main entry point for the script."""
-    parser = argparse.ArgumentParser(description="Run GraphQL queries against the Dgraph database")
-    parser.add_argument(
-        "--query", "-q",
-        choices=list(QUERIES.keys()),
-        help="Predefined query to run"
-    )
-    parser.add_argument(
-        "--file", "-f",
-        help="Path to a file containing a custom GraphQL query"
-    )
-    parser.add_argument(
-        "--variables", "-v",
-        help="JSON string or path to JSON file with query variables"
-    )
-    parser.add_argument(
-        "--endpoint", "-e",
-        default=DEFAULT_ENDPOINT, # Use local constant
-        help=f"Dgraph GraphQL endpoint (default: {DEFAULT_ENDPOINT})"
-    )
-    parser.add_argument(
-        "--output", "-o",
-        help="Path to save the query result (default: print to stdout)"
-    )
-    args = parser.parse_args()
-
-    # Validate arguments
-    if not args.query and not args.file:
-        print("❌ Either --query or --file must be specified") # Replaced logger
-        return 1
-
-    # Get the query
-    if args.query:
-        query = QUERIES[args.query]
-        print(f"Using predefined query: {args.query}") # Replaced logger
-    else:
+class GraphQueryTool(QueryTool):
+    """GraphQL query tool with tenant support."""
+    
+    def __init__(self):
+        super().__init__("Run GraphQL queries against the MIMS-Graph API with tenant support")
+    
+    def add_tool_arguments(self, parser: argparse.ArgumentParser):
+        """Add query-specific arguments."""
+        super().add_tool_arguments(parser)
+        
+        # Query source (mutually exclusive)
+        query_group = parser.add_mutually_exclusive_group(required=True)
+        query_group.add_argument(
+            "--query", "-q",
+            choices=list(QUERIES.keys()),
+            help="Predefined query to run"
+        )
+        query_group.add_argument(
+            "--file", "-F",
+            help="Path to a file containing a custom GraphQL query"
+        )
+        
+        # Query variables
+        parser.add_argument(
+            "--variables",
+            help="JSON string or path to JSON file with query variables"
+        )
+        
+        # Output options
+        parser.add_argument(
+            "--output", "-o",
+            help="Path to save the query result (default: print to stdout)"
+        )
+    
+    def execute(self) -> int:
+        """Execute the GraphQL query."""
         try:
-            query_path = Path(args.file).resolve()
-            with open(query_path, "r", encoding="utf-8") as f:
-                query = f.read()
-            print(f"Using custom query from file: {query_path}") # Replaced logger
+            # Get the query
+            if self.args.query:
+                query = QUERIES[self.args.query]
+                self.info(f"Using predefined query: {self.args.query}")
+            else:
+                query = self._load_query_from_file(self.args.file)
+                self.info(f"Using custom query from file: {self.args.file}")
+            
+            # Parse variables
+            variables = self._parse_variables()
+            
+            # Show context if verbose
+            if self.args.verbose:
+                self.debug(f"Query: {query}")
+                if variables:
+                    self.debug(f"Variables: {json.dumps(variables, indent=2)}")
+            
+            # Execute query via API (with tenant context)
+            self.info(f"Executing query for tenant: {self.args.tenant_id}")
+            
+            try:
+                result = self.api_client.query(query, variables, tenant_id=self.args.tenant_id)
+            except GraphQLError as e:
+                self.error(f"GraphQL query failed: {e}")
+                if self.args.verbose and e.graphql_errors:
+                    for error in e.graphql_errors:
+                        self.debug(f"GraphQL Error: {error}")
+                return 1
+            except APIError as e:
+                self.error(f"API request failed: {e}")
+                return 1
+            
+            # Format and output result
+            self._output_result(result)
+            
+            self.success("Query executed successfully")
+            return 0
+            
         except Exception as e:
-            print(f"❌ Failed to read query file '{args.file}': {str(e)}") # Replaced logger
+            self.error(f"Query execution failed: {e}")
+            if self.args.verbose:
+                import traceback
+                self.debug(traceback.format_exc())
             return 1
-
-    # Parse variables
-    variables = None
-    if args.variables:
+    
+    def _load_query_from_file(self, file_path: str) -> str:
+        """Load GraphQL query from file."""
         try:
-            var_path = Path(args.variables)
+            query_path = Path(file_path).resolve()
+            with open(query_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            raise Exception(f"Failed to read query file '{file_path}': {str(e)}")
+    
+    def _parse_variables(self) -> Optional[Dict[str, Any]]:
+        """Parse GraphQL variables from argument."""
+        if not self.args.variables:
+            return None
+        
+        try:
+            # Check if it's a file path
+            var_path = Path(self.args.variables)
             if var_path.exists():
                 with open(var_path.resolve(), "r", encoding="utf-8") as f:
                     variables = json.load(f)
-                print(f"Loaded variables from file: {var_path.resolve()}")
+                self.debug(f"Loaded variables from file: {var_path.resolve()}")
+                return variables
             else:
-                variables = json.loads(args.variables)
-                print("Parsed variables from JSON string.")
+                # Parse as JSON string
+                variables = json.loads(self.args.variables)
+                self.debug("Parsed variables from JSON string")
+                return variables
         except Exception as e:
-            print(f"❌ Failed to parse variables: {str(e)}") # Replaced logger
-            return 1
+            raise Exception(f"Failed to parse variables: {str(e)}")
+    
+    def _output_result(self, result: Dict[str, Any]):
+        """Output query result."""
+        # Format result based on format argument
+        if self.args.format == "simple":
+            formatted_result = self._format_simple(result)
+        elif self.args.format == "table":
+            formatted_result = self._format_table(result)
+        else:  # json (default)
+            formatted_result = json.dumps(result, indent=2)
+        
+        # Apply limit if specified
+        if hasattr(self.args, 'limit') and self.args.limit:
+            # For now, just truncate the JSON output
+            # TODO: Implement proper limiting at query level
+            pass
+        
+        # Output to file or stdout
+        if self.args.output:
+            try:
+                output_path = Path(self.args.output).resolve()
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(formatted_result)
+                self.info(f"Query result saved to {output_path}")
+            except Exception as e:
+                raise Exception(f"Failed to write output file '{self.args.output}': {str(e)}")
+        else:
+            # Print to stdout with separator
+            print("-" * 20 + " Query Result " + "-" * 20)
+            print(formatted_result)
+            print("-" * 54)
+    
+    def _format_simple(self, result: Dict[str, Any]) -> str:
+        """Format result in simple text format."""
+        lines = []
+        
+        # Handle different query result structures
+        for key, value in result.items():
+            if isinstance(value, list):
+                lines.append(f"{key}: {len(value)} items")
+                for i, item in enumerate(value):
+                    if isinstance(item, dict):
+                        if 'id' in item and 'label' in item:
+                            lines.append(f"  {i+1}. {item['id']}: {item['label']}")
+                        else:
+                            lines.append(f"  {i+1}. {item}")
+                    else:
+                        lines.append(f"  {i+1}. {item}")
+            else:
+                lines.append(f"{key}: {value}")
+        
+        return "\n".join(lines)
+    
+    def _format_table(self, result: Dict[str, Any]) -> str:
+        """Format result in table format (basic implementation)."""
+        lines = []
+        
+        for key, value in result.items():
+            if isinstance(value, list) and value:
+                # Create table for list of objects
+                if isinstance(value[0], dict):
+                    # Get headers from first object
+                    headers = list(value[0].keys())
+                    
+                    # Calculate column widths
+                    widths = {}
+                    for header in headers:
+                        widths[header] = len(header)
+                        for item in value:
+                            if header in item:
+                                widths[header] = max(widths[header], len(str(item[header])))
+                    
+                    # Create header row
+                    header_row = " | ".join(h.ljust(widths[h]) for h in headers)
+                    separator = "-" * len(header_row)
+                    
+                    lines.append(f"\n{key}:")
+                    lines.append(header_row)
+                    lines.append(separator)
+                    
+                    # Create data rows
+                    for item in value:
+                        row = " | ".join(str(item.get(h, "")).ljust(widths[h]) for h in headers)
+                        lines.append(row)
+                else:
+                    # Simple list
+                    lines.append(f"\n{key}:")
+                    for item in value:
+                        lines.append(f"  - {item}")
+            else:
+                lines.append(f"{key}: {value}")
+        
+        return "\n".join(lines)
 
-    # Run the query
-    print(f"Running query against {args.endpoint}") # Replaced logger
-    result = run_query(query, variables, args.endpoint)
 
-    # Output the result
-    formatted_result = format_result(result)
-    if args.output:
-        try:
-            output_path = Path(args.output).resolve()
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write(formatted_result)
-            print(f"Query result saved to {output_path}") # Replaced logger
-        except Exception as e:
-            print(f"❌ Failed to write output file '{args.output}': {str(e)}") # Replaced logger
-            return 1
-    else:
-        # Print separator for clarity
-        print("-" * 20 + " Query Result " + "-" * 20)
-        print(formatted_result)
-        print("-" * 54)
+def main():
+    """Main entry point."""
+    tool = GraphQueryTool()
+    return tool.run()
 
-
-    # Check for errors in the result
-    if "errors" in result:
-        print("⚠️ Query returned errors.") # Replaced logger
-        return 1
-
-    print("✅ Query executed successfully.") # Replaced logger
-    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

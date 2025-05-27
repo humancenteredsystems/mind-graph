@@ -268,4 +268,27 @@ router.post('/deleteNodeCascade', async (req, res) => {
   }
 });
 
+// Simple health check endpoint for compatibility
+router.get('/health', async (req, res) => {
+  try {
+    // Execute a simple introspection query to test GraphQL connectivity
+    const tenantClient = await getTenantClient(req);
+    const result = await tenantClient.executeGraphQL('{ __schema { queryType { name } } }');
+    
+    res.json({
+      apiStatus: 'OK',
+      dgraphStatus: 'connected',
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('[HEALTH] Error during health check:', error);
+    res.status(500).json({
+      apiStatus: 'ERROR',
+      dgraphStatus: 'disconnected',
+      error: error.message,
+      timestamp: new Date()
+    });
+  }
+});
+
 module.exports = router;

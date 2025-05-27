@@ -12,9 +12,10 @@ const axios = require('axios');
  * @returns {Promise<object>}
  */
 async function sendDgraphAdminRequest(url, payload, namespace = null) {
+  // Build URL with optional namespace parameter
+  const finalUrl = namespace ? `${url}?namespace=${namespace}` : url;
+  
   try {
-    // Build URL with optional namespace parameter
-    const finalUrl = namespace ? `${url}?namespace=${namespace}` : url;
     console.log(`[DGRAPH ADMIN REQUEST] Sending request to ${finalUrl}${namespace ? ` (namespace: ${namespace})` : ''}`);
     
     const response = await axios.post(finalUrl, payload, {

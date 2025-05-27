@@ -3,12 +3,16 @@
 Comprehensive test to verify that dropAll operations are truly namespace-isolated.
 This test seeds both namespaces with different data, then verifies that dropping
 one namespace doesn't affect the other.
+
+⚠️  DEPRECATED: This script should be updated to use the shared library.
+    For now, it uses proper environment variable handling for API keys.
 """
 
 import requests
 import json
 import sys
 import time
+import os
 from pathlib import Path
 
 # Add the parent directory to the Python path
@@ -16,7 +20,18 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from tools.api_client import call_api
 
 API_BASE = "http://localhost:3000/api"
-ADMIN_API_KEY = ""
+
+def get_admin_api_key():
+    """Get admin API key from environment variables."""
+    api_key = os.environ.get("MIMS_ADMIN_API_KEY") or os.environ.get("ADMIN_API_KEY")
+    if not api_key:
+        print("❌ Error: Admin API key is required.")
+        print("💡 Set MIMS_ADMIN_API_KEY environment variable")
+        print("💡 Recommended: Use the enhanced test tools with shared library:")
+        print("   python tools/test_tenant_isolation_fixed.py")
+        print("   python tools/test_namespace_safety_fixed.py")
+        sys.exit(1)
+    return api_key
 
 # Different test data for each namespace
 DEFAULT_NODES = [
@@ -43,7 +58,7 @@ mutation AddNode($input: [AddNodeInput!]!) {
 }
 """
 
-def setup_tenant_with_data(tenant_id, namespace, nodes):
+def setup_tenant_with_data(tenant_id, namespace, nodes, admin_api_key):
     """Set up a tenant with schema and test data."""
     print(f"\n📦 Setting up {tenant_id} with test data...")
     
@@ -55,7 +70,7 @@ def setup_tenant_with_data(tenant_id, namespace, nodes):
         "target": "remote",
         "confirmNamespace": namespace
     }
-    resp = call_api(API_BASE, "/admin/dropAll", ADMIN_API_KEY, 
+    resp = call_api(API_BASE, "/admin/dropAll", admin_api_key, 
                    method="POST", payload=drop_payload, extra_headers=headers)
     if not resp["success"]:
         print(f"     ❌ Failed to drop data: {resp.get('error')}")
@@ -71,7 +86,7 @@ def setup_tenant_with_data(tenant_id, namespace, nodes):
         "schema": schema_text,
         "target": "remote"
     }
-    resp = call_api(API_BASE, "/admin/schema", ADMIN_API_KEY, 
+    resp = call_api(API_BASE, "/admin/schema", admin_api_key, 
                    method="POST", payload=schema_payload, extra_headers=headers)
     if not resp["success"]:
         print(f"     ❌ Failed to push schema: {resp.get('error')}")
@@ -88,7 +103,7 @@ def setup_tenant_with_data(tenant_id, namespace, nodes):
         "id": f"h_{tenant_id}",
         "name": f"{tenant_id} Test Hierarchy"
     }
-    resp = call_api(API_BASE, "/hierarchy", ADMIN_API_KEY, 
+    resp = call_api(API_BASE, "/hierarchy", admin_api_key, 
                    method="POST", payload=hierarchy_payload, extra_headers=headers)
     if not resp["success"]:
         print(f"     ❌ Failed to create hierarchy: {resp.get('error')}")
@@ -105,7 +120,7 @@ def setup_tenant_with_data(tenant_id, namespace, nodes):
         "mutation": ADD_NODE_MUTATION,
         "variables": {"input": nodes}
     }
-    resp = call_api(API_BASE, "/mutate", ADMIN_API_KEY, 
+    resp = call_api(API_BASE, "/mutate", admin_api_key, 
                    method="POST", payload=mutation_payload, extra_headers=mutate_headers)
     if not resp["success"]:
         print(f"     ❌ Failed to add nodes: {resp.get('error')}")
@@ -150,7 +165,7 @@ def count_nodes_in_tenant(tenant_id):
         print(f"        Exception: {e}")
         return -1, str(e)
 
-def test_namespace_isolation(drop_tenant, drop_namespace, preserve_tenant):
+def test_namespace_isolation(drop_tenant, drop_namespace, preserve_tenant, admin_api_key):
     """Test that dropping one namespace doesn't affect the other."""
     print(f"\n🧪 Testing: Drop {drop_tenant} and verify {preserve_tenant} is unaffected")
     
@@ -172,7 +187,11 @@ def test_namespace_isolation(drop_tenant, drop_namespace, preserve_tenant):
     
     # 2. Drop the target namespace
     print(f"\n  🗑️  Dropping all data in {drop_tenant} (namespace {drop_namespace})...")
-    headers = {"X-Tenant-Id": drop_tenant, "X-Admin-API-Key": ADMIN_API_KEY}
+    headers = {
+        "X-Tenant-Id": drop_tenant, 
+        "X-Admin-API-Key": admin_api_key,
+        "Content-Type": "application/json"
+    }
     drop_payload = {
         "target": "remote",
         "confirmNamespace": drop_namespace
@@ -225,18 +244,22 @@ def test_namespace_isolation(drop_tenant, drop_namespace, preserve_tenant):
     return True
 
 def main():
+    print("⚠️  DEPRECATED: Consider using the enhanced test tools with shared library")
     print("=" * 70)
     print("COMPREHENSIVE NAMESPACE ISOLATION TEST")
     print("=" * 70)
     
+    # Get admin API key from environment
+    admin_api_key = get_admin_api_key()
+    
     # Step 1: Set up both namespaces with different data
     print("\n🚀 STEP 1: Setting up both namespaces with different data")
     
-    if not setup_tenant_with_data("default", "0x0", DEFAULT_NODES):
+    if not setup_tenant_with_data("default", "0x0", DEFAULT_NODES, admin_api_key):
         print("❌ Failed to set up default tenant")
         return 1
     
-    if not setup_tenant_with_data("test-tenant", "0x1", TEST_NODES):
+    if not setup_tenant_with_data("test-tenant", "0x1", TEST_NODES, admin_api_key):
         print("❌ Failed to set up test-tenant")
         return 1
     
@@ -244,7 +267,7 @@ def main():
     print("\n" + "=" * 70)
     print("🚀 STEP 2: Test dropping test-tenant doesn't affect default")
     
-    if not test_namespace_isolation("test-tenant", "0x1", "default"):
+    if not test_namespace_isolation("test-tenant", "0x1", "default", admin_api_key):
         print("\n❌ CRITICAL FAILURE: Namespace isolation is broken!")
         return 1
     
@@ -252,7 +275,7 @@ def main():
     print("\n" + "=" * 70)
     print("🚀 STEP 3: Re-seeding test-tenant for reverse test")
     
-    if not setup_tenant_with_data("test-tenant", "0x1", TEST_NODES):
+    if not setup_tenant_with_data("test-tenant", "0x1", TEST_NODES, admin_api_key):
         print("❌ Failed to re-seed test-tenant")
         return 1
     
@@ -260,7 +283,7 @@ def main():
     print("\n" + "=" * 70)
     print("🚀 STEP 4: Test dropping default doesn't affect test-tenant")
     
-    if not test_namespace_isolation("default", "0x0", "test-tenant"):
+    if not test_namespace_isolation("default", "0x0", "test-tenant", admin_api_key):
         print("\n❌ CRITICAL FAILURE: Namespace isolation is broken!")
         return 1
     
@@ -273,6 +296,9 @@ def main():
     print("   2. dropAll on default (0x0) does NOT affect test-tenant (0x1)")
     print("   3. Each namespace is completely isolated")
     print("   4. The namespace safety measures are working correctly!")
+    print("\n💡 Recommended: Migrate to enhanced test tools with shared library:")
+    print("   python tools/test_tenant_isolation_fixed.py")
+    print("   python tools/test_namespace_safety_fixed.py")
     
     return 0
 

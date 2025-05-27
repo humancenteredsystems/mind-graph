@@ -90,7 +90,7 @@ Enterprise Dgraph (Multi-Tenant):
 
 **Impact:** This is causing the seeding failure with "Unknown type AddHierarchyInput" because malformed URLs are being generated when the first parameter (expected to be schema content) is actually a URL.
 
-**Verification:** After fixing, test with: `python tools/seed_data.py --api-key ShambotTrueBeliever`
+**Verification:** After fixing, test with: `python tools/seed_data.py --api-key [api-key]`
 
 #### 1.3 Enhanced Dgraph Client Implementation Details
 **Goal:** Add optional namespace parameter to dgraphClient.js

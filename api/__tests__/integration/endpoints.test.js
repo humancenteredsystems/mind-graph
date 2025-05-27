@@ -1,14 +1,26 @@
 const request = require('supertest');
 const app = require('../../server');
 
-jest.mock('../../dgraphClient', () => ({
-  executeGraphQL: jest.fn(),
-}));
-const { executeGraphQL } = require('../../dgraphClient');
+// Mock the adaptive tenant factory
+jest.mock('../../services/adaptiveTenantFactory', () => {
+  const mockExecuteGraphQL = jest.fn();
+  return {
+    adaptiveTenantFactory: {
+      createTenantFromContext: jest.fn().mockResolvedValue({
+        executeGraphQL: mockExecuteGraphQL,
+        getNamespace: jest.fn().mockReturnValue('0x0'),
+        isDefaultNamespace: jest.fn().mockReturnValue(true)
+      })
+    },
+    mockExecuteGraphQL
+  };
+});
+
+const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
 
 describe('API Endpoints', () => {
   beforeEach(() => {
-    executeGraphQL.mockClear();
+    mockExecuteGraphQL.mockReset();
   });
 
   describe('POST /api/query', () => {
@@ -18,7 +30,7 @@ describe('API Endpoints', () => {
           { id: 'node1', label: 'Test Node', type: 'concept' }
         ]
       };
-      executeGraphQL.mockResolvedValueOnce(mockResponse);
+      mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
 
       const query = `
         query {
@@ -38,14 +50,14 @@ describe('API Endpoints', () => {
 
       expect(res.body).toEqual(mockResponse);
       // Fix: Accept either undefined or {} for variables parameter
-      expect(executeGraphQL).toHaveBeenCalledWith(query, expect.anything());
+      expect(mockExecuteGraphQL).toHaveBeenCalledWith(query, expect.anything());
     });
 
     it('should handle GraphQL query with variables', async () => {
       const mockResponse = {
         getNode: { id: 'node1', label: 'Test Node' }
       };
-      executeGraphQL.mockResolvedValueOnce(mockResponse);
+      mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
 
       const query = `
         query GetNode($id: String!) {
@@ -64,7 +76,7 @@ describe('API Endpoints', () => {
         .expect(200);
 
       expect(res.body).toEqual(mockResponse);
-      expect(executeGraphQL).toHaveBeenCalledWith(query, variables);
+      expect(mockExecuteGraphQL).toHaveBeenCalledWith(query, variables);
     });
 
     it('should return 400 when query is missing', async () => {
@@ -88,7 +100,7 @@ describe('API Endpoints', () => {
           ]
         }
       };
-      executeGraphQL.mockResolvedValueOnce(mockResponse);
+      mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
 
       const mutation = `
         mutation AddNode($input: [AddNodeInput!]!) {
@@ -146,7 +158,7 @@ describe('API Endpoints', () => {
           }
         ]
       };
-      executeGraphQL.mockResolvedValueOnce(mockResponse);
+      mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
 
       const res = await request(app)
         .post('/api/traverse')
@@ -177,7 +189,7 @@ describe('API Endpoints', () => {
           { id: 'node1', label: 'Test Node', type: 'concept' }
         ]
       };
-      executeGraphQL.mockResolvedValueOnce(mockResponse);
+      mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
 
       const res = await request(app)
         .get('/api/search')
@@ -202,7 +214,7 @@ describe('API Endpoints', () => {
   describe('GET /api/health', () => {
     it('should return health status', async () => {
       // Mock a successful health check
-      executeGraphQL.mockResolvedValueOnce({ __schema: { queryType: { name: 'Query' } } });
+      mockExecuteGraphQL.mockResolvedValueOnce({ __schema: { queryType: { name: 'Query' } } });
 
       const res = await request(app)
         .get('/api/health')

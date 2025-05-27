@@ -1,11 +1,14 @@
-// Jest setup file for global test configuration
+// Consolidated Jest setup file for global test configuration
 // This file is executed before each test file
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';
 process.env.DGRAPH_BASE_URL = 'http://localhost:8080';
 process.env.PORT = '3001'; // Use different port for tests
-process.env.ADMIN_API_KEY = 'test-admin-key';
+process.env.ADMIN_API_KEY = process.env.MIMS_ADMIN_API_KEY || 'test-admin-key-from-env';
+process.env.ENABLE_MULTI_TENANT = 'true';
+process.env.DGRAPH_NAMESPACE_TEST = '0x1';
+process.env.DGRAPH_NAMESPACE_DEFAULT = '0x0';
 
 // Global test timeout (30 seconds for integration tests)
 jest.setTimeout(30000);
@@ -29,24 +32,35 @@ afterAll(() => {
   console.log = originalConsoleLog;
 });
 
-// Global test utilities
+// Import test utilities from consolidated setup
+const { TestDataSeeder } = require('./__tests__/helpers/testDataSeeder');
+const { DgraphTenantFactory } = require('./services/dgraphTenant');
+const { TenantManager } = require('./services/tenantManager');
+
+const TEST_NAMESPACE = '0x1';
+const tenantManager = new TenantManager();
+
+// Consolidated global test utilities
 global.testUtils = {
-  // Helper to wait for async operations
+  // Basic utilities
   wait: (ms = 100) => new Promise(resolve => setTimeout(resolve, ms)),
-  
-  // Helper to generate unique test IDs
   generateTestId: (prefix = 'test') => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
   
-  // Helper to create mock request objects
+  // Mock creation utilities
   createMockRequest: (overrides = {}) => ({
     body: {},
     headers: {},
     params: {},
     query: {},
+    tenantContext: {
+      tenantId: 'test-tenant',
+      namespace: TEST_NAMESPACE,
+      isTestTenant: true,
+      isDefaultTenant: false
+    },
     ...overrides
   }),
   
-  // Helper to create mock response objects
   createMockResponse: () => {
     const res = {
       status: jest.fn().mockReturnThis(),
@@ -59,7 +73,7 @@ global.testUtils = {
     return res;
   },
 
-  // Aliases for backward compatibility with existing tests
+  // Aliases for backward compatibility
   createMockReq: function(overrides = {}) {
     return this.createMockRequest(overrides);
   },
@@ -68,7 +82,75 @@ global.testUtils = {
     return this.createMockResponse();
   },
   
-  createMockNext: () => jest.fn()
+  createMockNext: () => jest.fn(),
+
+  // Test tenant utilities
+  getTestTenantClient: () => {
+    return DgraphTenantFactory.createTestTenant();
+  },
+
+  // Database management utilities
+  setupTestDatabase: async () => {
+    console.log('[TEST_SETUP] Initializing test tenant database');
+    
+    try {
+      const exists = await tenantManager.tenantExists('test-tenant');
+      if (!exists) {
+        await tenantManager.createTenant('test-tenant');
+      }
+      
+      console.log('[TEST_SETUP] Test tenant database ready');
+      return true;
+    } catch (error) {
+      console.error('[TEST_SETUP] Failed to setup test database:', error);
+      return false;
+    }
+  },
+
+  cleanupTestDatabase: async () => {
+    console.log('[TEST_CLEANUP] Cleaning test tenant database');
+    
+    try {
+      await tenantManager.deleteTenant('test-tenant');
+      console.log('[TEST_CLEANUP] Test tenant database cleaned');
+      return true;
+    } catch (error) {
+      console.error('[TEST_CLEANUP] Failed to cleanup test database:', error);
+      return false;
+    }
+  },
+
+  resetTestDatabase: async () => {
+    console.log('[TEST_RESET] Resetting test tenant database');
+    
+    try {
+      await tenantManager.deleteTenant('test-tenant');
+      await tenantManager.createTenant('test-tenant');
+      console.log('[TEST_RESET] Test tenant database reset');
+      return true;
+    } catch (error) {
+      console.error('[TEST_RESET] Failed to reset test database:', error);
+      return false;
+    }
+  },
+
+  seedTestData: async () => {
+    console.log('[TEST_SEED] Seeding test data');
+    
+    try {
+      const testDataSeeder = new TestDataSeeder();
+      await testDataSeeder.seedTestData();
+      console.log('[TEST_SEED] Test data seeded successfully');
+      return true;
+    } catch (error) {
+      console.error('[TEST_SEED] Failed to seed test data:', error);
+      return false;
+    }
+  },
+
+  // Constants
+  TEST_NAMESPACE,
+  TEST_TENANT_ID: 'test-tenant'
 };
 
 // Global error handler for unhandled promise rejections

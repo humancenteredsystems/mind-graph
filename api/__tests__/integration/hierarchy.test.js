@@ -2,22 +2,32 @@ const request = require('supertest');
 const app = require('../../server');
 const { mockHierarchies } = require('../helpers/mockData');
 
-// Mock the dgraphClient
-jest.mock('../../dgraphClient', () => ({
-  executeGraphQL: jest.fn()
-}));
+// Mock the adaptive tenant factory
+jest.mock('../../services/adaptiveTenantFactory', () => {
+  const mockExecuteGraphQL = jest.fn();
+  return {
+    adaptiveTenantFactory: {
+      createTenantFromContext: jest.fn().mockResolvedValue({
+        executeGraphQL: mockExecuteGraphQL,
+        getNamespace: jest.fn().mockReturnValue('0x0'),
+        isDefaultNamespace: jest.fn().mockReturnValue(true)
+      })
+    },
+    mockExecuteGraphQL
+  };
+});
 
-const { executeGraphQL } = require('../../dgraphClient');
+const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
 
 describe('Hierarchy API Integration', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    mockExecuteGraphQL.mockReset();
     process.env.ADMIN_API_KEY = 'test-admin-key';
   });
 
   describe('GET /api/hierarchy', () => {
     it('should return all hierarchies', async () => {
-      executeGraphQL.mockResolvedValueOnce({
+      mockExecuteGraphQL.mockResolvedValueOnce({
         queryHierarchy: mockHierarchies
       });
 
@@ -29,7 +39,7 @@ describe('Hierarchy API Integration', () => {
     });
 
     it('should handle empty hierarchy list', async () => {
-      executeGraphQL.mockResolvedValueOnce({
+      mockExecuteGraphQL.mockResolvedValueOnce({
         queryHierarchy: []
       });
 
@@ -48,7 +58,7 @@ describe('Hierarchy API Integration', () => {
         name: 'New Hierarchy'
       };
 
-      executeGraphQL.mockResolvedValueOnce({
+      mockExecuteGraphQL.mockResolvedValueOnce({
         addHierarchy: {
           hierarchy: [newHierarchy]
         }
@@ -92,7 +102,7 @@ describe('Hierarchy API Integration', () => {
         label: 'New Level'
       };
 
-      executeGraphQL.mockResolvedValueOnce({
+      mockExecuteGraphQL.mockResolvedValueOnce({
         addHierarchyLevel: {
           hierarchyLevel: [{ id: 'new-level', ...newLevel }]
         }
@@ -115,7 +125,7 @@ describe('Hierarchy API Integration', () => {
         label: 'Duplicate Level'
       };
 
-      executeGraphQL.mockRejectedValueOnce(
+      mockExecuteGraphQL.mockRejectedValueOnce(
         new Error('Level number already exists')
       );
 
@@ -136,7 +146,7 @@ describe('Hierarchy API Integration', () => {
         levelId: 'level1'
       };
 
-      executeGraphQL.mockResolvedValueOnce({
+      mockExecuteGraphQL.mockResolvedValueOnce({
         addHierarchyAssignment: {
           hierarchyAssignment: [{ id: 'new-assignment', ...assignment }]
         }
@@ -159,7 +169,7 @@ describe('Hierarchy API Integration', () => {
         levelId: 'level1'
       };
 
-      executeGraphQL.mockRejectedValueOnce(
+      mockExecuteGraphQL.mockRejectedValueOnce(
         new Error('Node not found')
       );
 

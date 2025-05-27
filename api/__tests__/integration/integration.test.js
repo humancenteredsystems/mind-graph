@@ -1,19 +1,31 @@
 const request = require('supertest');
 const app = require('../../server');
 
-jest.mock('../../dgraphClient', () => ({
-  executeGraphQL: jest.fn(),
-}));
-const { executeGraphQL } = require('../../dgraphClient');
+// Mock the adaptive tenant factory
+jest.mock('../../services/adaptiveTenantFactory', () => {
+  const mockExecuteGraphQL = jest.fn();
+  return {
+    adaptiveTenantFactory: {
+      createTenantFromContext: jest.fn().mockResolvedValue({
+        executeGraphQL: mockExecuteGraphQL,
+        getNamespace: jest.fn().mockReturnValue('0x0'),
+        isDefaultNamespace: jest.fn().mockReturnValue(true)
+      })
+    },
+    mockExecuteGraphQL
+  };
+});
+
+const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
 
 describe('Integration /api/mutate', () => {
   beforeEach(() => {
-    executeGraphQL.mockClear();
+    mockExecuteGraphQL.mockReset();
   });
 
   it('should create a node and return JSON payload from Dgraph', async () => {
     // Mock Dgraph response for AddNode
-    executeGraphQL.mockResolvedValueOnce({
+    mockExecuteGraphQL.mockResolvedValueOnce({
       addNode: {
         node: [
           {
@@ -67,7 +79,7 @@ describe('Integration /api/mutate', () => {
 
   it('should create a node with nested hierarchyAssignments', async () => {
     // Mock Dgraph response for AddNodeWithHierarchy
-    executeGraphQL.mockResolvedValueOnce({
+    mockExecuteGraphQL.mockResolvedValueOnce({
       addNode: {
         node: [
           {
@@ -121,13 +133,13 @@ describe('Integration /api/mutate', () => {
 
 describe('Integration /api/traverse', () => {
   beforeEach(() => {
-    executeGraphQL.mockClear();
+    mockExecuteGraphQL.mockReset();
   });
 
   it('should filter out dangling edges during traversal', async () => {
     const rootId = 'root-with-dangling';
     // Mock Dgraph traversal response
-    executeGraphQL.mockResolvedValueOnce({
+    mockExecuteGraphQL.mockResolvedValueOnce({
       queryNode: [
         {
           id: rootId,
@@ -160,7 +172,7 @@ describe('Integration /api/traverse', () => {
 
   it('should return all edges for a clean graph', async () => {
     const rootId = 'clean-root';
-    executeGraphQL.mockResolvedValueOnce({
+    mockExecuteGraphQL.mockResolvedValueOnce({
       queryNode: [
         {
           id: rootId,
