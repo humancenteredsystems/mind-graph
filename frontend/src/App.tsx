@@ -3,6 +3,7 @@ import './App.css';
 import GraphView from './components/GraphView';
 import { useGraphState } from './hooks/useGraphState';
 import { log } from './utils/logger';
+import { theme } from './config';
 import { useUIContext } from './context/UIContext';
 import { HierarchyProvider, useHierarchyContext } from './context/HierarchyContext';
 import NodeFormModal from './components/NodeFormModal';
@@ -75,7 +76,7 @@ return (
       
       {/* Use isLoading for initial load indicator */}
       {(isLoading || isExpanding) && <p>Loading graph data...</p>}
-        {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+        {error && <p style={{ color: theme.colors.text.error }}>Error: {error}</p>}
         {/* Render GraphView once initial loading is complete */}
         {!isLoading && (
       <GraphView

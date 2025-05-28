@@ -63,6 +63,27 @@ export const theme = {
       success: colors.success[600],
     },
     
+    // Level colors for GraphView nodes
+    levels: {
+      1: getLevelColor(1),
+      2: 'red', // Special case preserved
+      3: getLevelColor(3),
+      4: getLevelColor(4),
+      5: getLevelColor(5),
+      6: getLevelColor(6),
+      7: getLevelColor(7),
+      8: getLevelColor(8),
+    },
+    
+    // Status colors for SettingsModal
+    status: {
+      active: colors.success[500],
+      inactive: colors.danger[500],
+      trial: colors.danger[600],
+      licensed: colors.success[600],
+      oss: colors.gray[500],
+    },
+    
     node: {
       default: colors.legacy.nodeDefault,
       selected: colors.legacy.selectedBackground,
@@ -106,6 +127,50 @@ export const theme = {
             return Math.max(FONT_SIZE_MAPPING.MIN, FONT_SIZE_MAPPING.MAX - (normalizedLength * sizeRange));
           },
         },
+      },
+    },
+    
+    form: {
+      container: {
+        marginBottom: spacing.scale(3), // 12px
+      },
+      field: {
+        width: '100%',
+        padding: spacing.scale(1), // 4px
+        marginBottom: spacing.scale(3), // 12px
+        border: `1px solid ${colors.gray[300]}`,
+        borderRadius: radius.sm,
+        fontSize: fontSize.sm,
+      },
+      label: {
+        display: 'block',
+        marginBottom: spacing.scale(1), // 4px
+        fontWeight: 500,
+        color: colors.legacy.textDefault,
+      },
+      error: {
+        color: colors.danger[600],
+        fontSize: fontSize.xs,
+        marginTop: spacing.scale(1), // 4px
+        marginBottom: spacing.scale(3), // 12px
+      },
+      actions: {
+        textAlign: 'right' as const,
+        marginTop: spacing.scale(4), // 16px
+      },
+    },
+    
+    button: {
+      base: {
+        border: 'none',
+        borderRadius: radius.sm,
+        padding: `${spacing.scale(1)}px ${spacing.scale(2)}px`, // 4px 8px
+        cursor: 'pointer',
+        fontSize: fontSize.sm,
+        fontWeight: 500,
+      },
+      secondary: {
+        marginRight: spacing.scale(2), // 8px
       },
     },
     

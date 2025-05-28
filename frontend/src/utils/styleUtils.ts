@@ -59,11 +59,7 @@ export const buildModalStyle = (options: {
  */
 export const buildButtonStyle = (variant: 'primary' | 'secondary' | 'danger' = 'primary') => {
   const baseStyle = {
-    border: 'none',
-    borderRadius: theme.components.modal.borderRadius,
-    padding: `${theme.components.modal.padding / 2}px ${theme.components.modal.padding}px`,
-    cursor: 'pointer',
-    fontWeight: 500,
+    ...theme.components.button.base,
   };
 
   switch (variant) {
@@ -79,6 +75,7 @@ export const buildButtonStyle = (variant: 'primary' | 'secondary' | 'danger' = '
         background: theme.colors.background.secondary,
         color: theme.colors.text.primary,
         border: `1px solid ${theme.colors.border.default}`,
+        ...theme.components.button.secondary,
       });
     case 'danger':
       return css({
@@ -95,15 +92,74 @@ export const buildButtonStyle = (variant: 'primary' | 'secondary' | 'danger' = '
  * Builds input styles
  */
 export const buildInputStyle = () => css({
-  padding: `${theme.components.modal.padding / 2}px`,
-  border: `1px solid ${theme.colors.border.default}`,
-  borderRadius: theme.components.modal.borderRadius,
-  fontSize: 14,
-  width: '100%',
-  '&:focus': {
-    outline: 'none',
-    borderColor: theme.colors.border.active,
-  },
+  ...theme.components.form.field,
+});
+
+/**
+ * Builds form field container styles
+ */
+export const buildFormFieldStyle = () => css({
+  ...theme.components.form.container,
+});
+
+/**
+ * Builds form label styles
+ */
+export const buildFormLabelStyle = () => css({
+  ...theme.components.form.label,
+});
+
+/**
+ * Builds form error message styles
+ */
+export const buildFormErrorStyle = () => css({
+  ...theme.components.form.error,
+});
+
+/**
+ * Builds form actions container styles
+ */
+export const buildFormActionsStyle = () => css({
+  ...theme.components.form.actions,
+});
+
+/**
+ * Builds drawer styles
+ */
+export const buildDrawerStyle = () => css({
+  position: 'fixed' as const,
+  top: 0,
+  right: 0,
+  bottom: 0,
+  width: 300,
+  background: theme.components.drawer.background,
+  borderLeft: `1px solid ${theme.components.drawer.border}`,
+  boxShadow: theme.components.drawer.shadow,
+  zIndex: theme.zIndex.modal,
+});
+
+/**
+ * Builds drawer header styles
+ */
+export const buildDrawerHeaderStyle = () => css({
+  padding: theme.components.drawer.header.padding,
+  borderBottom: `1px solid ${theme.components.drawer.header.borderBottom}`,
+});
+
+/**
+ * Builds drawer tab styles
+ */
+export const buildDrawerTabStyle = (isActive: boolean) => css({
+  flex: 1,
+  padding: `${theme.components.drawer.header.padding}px`,
+  border: 'none',
+  background: isActive 
+    ? theme.components.drawer.tab.active.background 
+    : theme.components.drawer.tab.inactive.background,
+  cursor: 'pointer',
+  borderBottom: `2px solid ${isActive 
+    ? theme.components.drawer.tab.active.borderColor 
+    : theme.components.drawer.tab.inactive.borderColor}`,
 });
 
 /**
@@ -122,4 +178,40 @@ export const buildTabStyle = (isActive: boolean) => css({
   borderBottom: `2px solid ${isActive 
     ? theme.components.settingsModal.tab.active.borderColor 
     : theme.components.settingsModal.tab.inactive.borderColor}`,
+});
+
+/**
+ * Builds context menu styles
+ */
+export const buildContextMenuStyle = (position: { x: number; y: number }) => css({
+  position: 'fixed' as const,
+  left: position.x,
+  top: position.y,
+  background: theme.components.contextMenu.background,
+  border: `1px solid ${theme.components.contextMenu.border}`,
+  borderRadius: theme.components.contextMenu.borderRadius,
+  boxShadow: theme.components.contextMenu.shadow,
+  zIndex: theme.zIndex.popover,
+});
+
+/**
+ * Builds context menu item styles
+ */
+export const buildContextMenuItemStyle = (disabled?: boolean) => css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: theme.components.contextMenu.item.padding,
+  cursor: disabled ? 'default' : 'pointer',
+  fontSize: theme.components.contextMenu.item.fontSize,
+  color: disabled ? theme.components.contextMenu.item.disabledColor : theme.colors.text.primary,
+});
+
+/**
+ * Builds context menu shortcut text styles
+ */
+export const buildContextMenuShortcutStyle = () => css({
+  marginLeft: 8,
+  fontSize: theme.components.contextMenu.item.fontSize,
+  color: theme.components.contextMenu.item.shortcutColor,
 });

@@ -1,12 +1,12 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
-import cytoscape, { Core, ElementDefinition, StylesheetCSS } from 'cytoscape';
+import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import klay from 'cytoscape-klay';
 import { NodeData, EdgeData } from '../types/graph';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { log } from '../utils/logger';
-import { theme, getLevelColor, INTERACTIONS, config } from '../config';
+import { theme, INTERACTIONS, config } from '../config';
 import { normalizeHierarchyId } from '../utils/graphUtils';
 
 // Register Cytoscape plugins ONCE at module load
@@ -69,6 +69,17 @@ const GraphView: React.FC<GraphViewProps> = ({
   const shortTermTapTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
   const potentialClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 });
 
+  // Generate level styles dynamically using theme colors
+  const generateLevelStyles = () => {
+    return Object.entries(theme.colors.levels).map(([level, color]) => ({
+      selector: `node[levelNumber = ${level}]`,
+      style: {
+        'background-color': color,
+        ...(level === '1' && { shape: 'ellipse' }),
+      },
+    }));
+  };
+
   // Build elements: filter hidden nodes and edges
   const elements = useMemo<ElementDefinition[]>(() => {
     const visible = nodes.filter(n => !hiddenNodeIds.has(n.id));
@@ -111,10 +122,6 @@ const GraphView: React.FC<GraphViewProps> = ({
           x: levelNum * config.nodeHorizontalSpacing, 
           y: idx * config.nodeVerticalSpacing 
         },
-        style: {
-          'border-color': expanded ? theme.colors.node.border.expanded : theme.colors.node.border.default,
-          'border-width': expanded ? config.activeBorderWidth : config.defaultBorderWidth,
-        },
       };
     });
     const validIds = new Set(visible.map(n => n.id));
@@ -146,55 +153,8 @@ const GraphView: React.FC<GraphViewProps> = ({
         'border-color': theme.colors.node.border.default,
       },
     },
-    {
-      selector: 'node[levelNumber = 1]',
-      style: {
-        shape: 'ellipse',
-        'background-color': getLevelColor(1),
-      },
-    },
-    {
-      selector: 'node[levelNumber = 2]',
-      style: {
-        'background-color': getLevelColor(2),
-      },
-    },
-    {
-      selector: 'node[levelNumber = 3]',
-      style: {
-        'background-color': getLevelColor(3),
-      },
-    },
-    {
-      selector: 'node[levelNumber = 4]',
-      style: {
-        'background-color': getLevelColor(4),
-      },
-    },
-    {
-      selector: 'node[levelNumber = 5]',
-      style: {
-        'background-color': getLevelColor(5),
-      },
-    },
-    {
-      selector: 'node[levelNumber = 6]',
-      style: {
-        'background-color': getLevelColor(6),
-      },
-    },
-    {
-      selector: 'node[levelNumber = 7]',
-      style: {
-        'background-color': getLevelColor(7),
-      },
-    },
-    {
-      selector: 'node[levelNumber = 8]',
-      style: {
-        'background-color': getLevelColor(8),
-      },
-    },
+    // Dynamic level styles generated from theme
+    ...generateLevelStyles(),
     {
       selector: 'node[expanded = true]',
       style: {
