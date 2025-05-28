@@ -1,5 +1,5 @@
-require('dotenv').config();
 const axios = require('axios');
+const config = require('../config');
 
 /**
  * DgraphTenant - A tenant-aware Dgraph client that handles namespace-specific operations
@@ -7,7 +7,7 @@ const axios = require('axios');
 class DgraphTenant {
   constructor(namespace = null) {
     this.namespace = namespace;
-    this.baseUrl = process.env.DGRAPH_BASE_URL || 'http://localhost:8080';
+    this.baseUrl = config.dgraphBaseUrl;
     this.endpoint = this.buildEndpoint();
     
     console.log(`[DGRAPH_TENANT] Created tenant client for namespace: ${namespace || 'default'}`);
@@ -114,8 +114,7 @@ class DgraphTenantFactory {
    * @returns {DgraphTenant} - A new tenant client for test namespace
    */
   static createTestTenant() {
-    const testNamespace = process.env.DGRAPH_NAMESPACE_TEST || '0x1';
-    return new DgraphTenant(testNamespace);
+    return new DgraphTenant(config.testNamespace);
   }
 }
 

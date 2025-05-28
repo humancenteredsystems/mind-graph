@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const config = require('../config');
 const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
 const { enrichNodeInputs } = require('../services/nodeEnrichment');
 const { 
@@ -8,9 +9,8 @@ const {
 } = require('../services/validation');
 const axios = require('axios');
 
-// Derive Dgraph endpoint URLs from the base URL
-const DGRAPH_BASE_URL = process.env.DGRAPH_BASE_URL.replace(/\/+$/, ''); // Remove trailing slash
-const DGRAPH_ADMIN_SCHEMA_URL = `${DGRAPH_BASE_URL}/admin/schema`;
+// Use admin URL from config
+const DGRAPH_ADMIN_SCHEMA_URL = config.dgraphAdminUrl;
 
 // Helper function to get adaptive tenant-aware Dgraph client from request context
 async function getTenantClient(req) {

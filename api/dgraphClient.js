@@ -1,12 +1,9 @@
-require('dotenv').config(); // Load environment variables from .env file
 const axios = require('axios');
+const config = require('./config');
 
-// Log the raw environment variable value for debugging
-console.log('[DGRAPHCLIENT DEBUG] Attempting to read DGRAPH_BASE_URL. Value:', process.env.DGRAPH_BASE_URL);
-const DGRAPH_BASE_URL_FROM_ENV = process.env.DGRAPH_BASE_URL || 'http://localhost:8080';
-// Log the value it decided to use
-console.log('[DGRAPHCLIENT DEBUG] DGRAPH_BASE_URL_FROM_ENV decided as:', DGRAPH_BASE_URL_FROM_ENV);
-const DGRAPH_ENDPOINT = `${DGRAPH_BASE_URL_FROM_ENV.replace(/\/+$/, '')}/graphql`;
+// Log the configuration values for debugging
+console.log('[DGRAPHCLIENT DEBUG] Using DGRAPH_BASE_URL from config:', config.dgraphBaseUrl);
+const DGRAPH_ENDPOINT = `${config.dgraphBaseUrl.replace(/\/+$/, '')}/graphql`;
 console.log('[DGRAPHCLIENT DEBUG] Final DGRAPH_ENDPOINT:', DGRAPH_ENDPOINT);
 
 /**

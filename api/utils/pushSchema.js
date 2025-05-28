@@ -1,4 +1,5 @@
 const axios = require('axios');
+const config = require('../config');
 
 /**
  * Push schema to Dgraph admin endpoint with optional namespace support
@@ -10,7 +11,7 @@ const axios = require('axios');
 async function pushSchemaViaHttp(schema, namespace = null, customAdminUrl = null) {
   try {
     // Build admin URL with optional namespace
-    const baseAdminUrl = customAdminUrl || process.env.DGRAPH_ADMIN_URL || 'http://localhost:8080/admin/schema';
+    const baseAdminUrl = customAdminUrl || config.dgraphAdminUrl;
     const adminUrl = namespace ? `${baseAdminUrl}?namespace=${namespace}` : baseAdminUrl;
     
     console.log(`[PUSH_SCHEMA] Pushing schema to ${adminUrl}`);

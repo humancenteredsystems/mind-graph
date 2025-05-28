@@ -1,4 +1,5 @@
-require('dotenv').config(); // Load environment variables from .env file
+// Load centralized configuration (which loads dotenv once)
+const config = require('./config');
 
 // --- Global Error Handlers ---
 process.on('uncaughtException', (err, origin) => {
@@ -25,21 +26,16 @@ app.use((req, res, next) => {
   next();
 });
 
-const PORT = process.env.PORT || 3000; // Use PORT from .env or default to 3000
+const PORT = config.port;
 
-// Ensure DGRAPH_BASE_URL is set
-if (!process.env.DGRAPH_BASE_URL) {
-  console.error("FATAL ERROR: DGRAPH_BASE_URL environment variable is not set.");
-  console.error("Please set DGRAPH_BASE_URL to your Dgraph instance's base URL (e.g., http://localhost:8080 or https://your-remote-dgraph.onrender.com).");
-  process.exit(1);
-}
+// The config module already validates DGRAPH_BASE_URL, so no need to check again
 
 // Middleware
 app.use(express.json()); // Parse JSON bodies
 
 // CORS Middleware - Allow specified origins or all (*)
 app.use((req, res, next) => {
-  const allowedOrigin = process.env.CORS_ORIGIN || '*';
+  const allowedOrigin = config.corsOrigin;
   res.set('Access-Control-Allow-Origin', allowedOrigin);
   // Allow common methods and headers needed for GraphQL/API requests
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -90,6 +86,6 @@ module.exports = app;
 if (!module.parent) {
   app.listen(PORT, () => {
     console.log(`API server listening on port ${PORT}`);
-    console.log(`Multi-tenant mode: ${process.env.ENABLE_MULTI_TENANT === 'true' ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`Multi-tenant mode: ${config.enableMultiTenant ? 'ENABLED' : 'DISABLED'}`);
   });
 }

@@ -1,5 +1,5 @@
-require('dotenv').config();
 const crypto = require('crypto');
+const config = require('../config');
 const { DgraphTenantFactory } = require('./dgraphTenant');
 const { pushSchemaViaHttp } = require('../utils/pushSchema');
 const fs = require('fs').promises;
@@ -17,10 +17,10 @@ class TenantManager {
     this.tenantFactory = dependencies.tenantFactory || DgraphTenantFactory;
     
     // Environment configuration
-    this.defaultNamespace = process.env.DGRAPH_NAMESPACE_DEFAULT || '0x0';
-    this.testNamespace = process.env.DGRAPH_NAMESPACE_TEST || '0x1';
-    this.namespacePrefix = process.env.DGRAPH_NAMESPACE_PREFIX || '0x';
-    this.enableMultiTenant = process.env.ENABLE_MULTI_TENANT === 'true';
+    this.defaultNamespace = config.defaultNamespace;
+    this.testNamespace = config.testNamespace;
+    this.namespacePrefix = config.namespacePrefix;
+    this.enableMultiTenant = config.enableMultiTenant;
     
     console.log(`[TENANT_MANAGER] Initialized with multi-tenant: ${this.enableMultiTenant}`);
   }

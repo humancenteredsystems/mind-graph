@@ -1,19 +1,19 @@
 const express = require('express');
 const router = express.Router();
+const config = require('../config');
 const { authenticateAdmin } = require('../middleware/auth');
 const schemaRegistry = require('../services/schemaRegistry');
 const { pushSchemaViaHttp } = require('../utils/pushSchema');
 const { sendDgraphAdminRequest } = require('../utils/dgraphAdmin');
 
-// Derive Dgraph endpoint URLs from the base URL
-const DGRAPH_BASE_URL = process.env.DGRAPH_BASE_URL.replace(/\/+$/, ''); // Remove trailing slash
-const DGRAPH_ADMIN_SCHEMA_URL = `${DGRAPH_BASE_URL}/admin/schema`;
-const DGRAPH_ALTER_URL = `${DGRAPH_BASE_URL}/alter`;
+// Use URLs from config
+const DGRAPH_ADMIN_SCHEMA_URL = config.dgraphAdminUrl;
+const DGRAPH_ALTER_URL = `${config.dgraphBaseUrl.replace(/\/+$/, '')}/alter`;
 
 // Helper function to drop all data from the configured Dgraph instance
 async function dropAllData(target, namespace = null) { // Keep target parameter for potential future validation/logging
   // CRITICAL SAFETY CHECK: In multi-tenant mode, namespace MUST be specified
-  const isMultiTenant = process.env.ENABLE_MULTI_TENANT === 'true';
+  const isMultiTenant = config.enableMultiTenant;
   
   if (isMultiTenant && !namespace) {
     console.error('[DROP ALL] SAFETY VIOLATION: Attempted dropAll without namespace in multi-tenant mode!');
@@ -117,7 +117,7 @@ router.post('/admin/dropAll', authenticateAdmin, async (req, res) => {
     // Extract namespace from tenant context
     const namespace = req.tenantContext?.namespace;
     const tenantId = req.tenantContext?.tenantId;
-    const isMultiTenant = process.env.ENABLE_MULTI_TENANT === 'true';
+    const isMultiTenant = config.enableMultiTenant;
     
     // SAFETY CHECK: In multi-tenant mode, require explicit namespace confirmation
     if (isMultiTenant && confirmNamespace !== namespace) {

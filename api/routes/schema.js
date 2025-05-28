@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const config = require('../config');
 const schemaRegistry = require('../services/schemaRegistry');
 const { authenticateAdmin } = require('../middleware/auth');
 const { pushSchemaViaHttp } = require('../utils/pushSchema');
 
-// Derive Dgraph endpoint URLs from the base URL
-const DGRAPH_BASE_URL = process.env.DGRAPH_BASE_URL.replace(/\/+$/, ''); // Remove trailing slash
-const DGRAPH_ADMIN_SCHEMA_URL = `${DGRAPH_BASE_URL}/admin/schema`;
+// Use admin URL from config
+const DGRAPH_ADMIN_SCHEMA_URL = config.dgraphAdminUrl;
 
 // Helper function to push schema to the configured Dgraph instance
 async function pushSchemaToConfiguredDgraph(schema, namespace = null) {
