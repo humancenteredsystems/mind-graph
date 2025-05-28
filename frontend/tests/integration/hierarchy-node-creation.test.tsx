@@ -11,13 +11,15 @@ const {
   mockExecuteQuery,
   mockExecuteMutation,
   mockFetchAllNodeIds,
-  mockTransformAllGraphData
+  mockTransformAllGraphData,
+  mockNormalizeHierarchyId
 } = vi.hoisted(() => ({
   mockFetchHierarchies: vi.fn(),
   mockExecuteQuery: vi.fn(),
   mockExecuteMutation: vi.fn(),
   mockFetchAllNodeIds: vi.fn(),
-  mockTransformAllGraphData: vi.fn()
+  mockTransformAllGraphData: vi.fn(),
+  mockNormalizeHierarchyId: vi.fn()
 }));
 
 // Mock API Service with all named exports
@@ -31,6 +33,7 @@ vi.mock('../../src/services/ApiService', () => ({
 // Mock GraphUtils module
 vi.mock('../../src/utils/graphUtils', () => ({
   transformAllGraphData: mockTransformAllGraphData,
+  normalizeHierarchyId: mockNormalizeHierarchyId,
 }));
 
 // Mock Cytoscape with interaction capabilities
@@ -81,6 +84,9 @@ describe('Hierarchy Node Creation Integration', () => {
         { source: 'node1', target: 'node2', type: 'connects_to' }
       ]
     });
+
+    // Setup normalizeHierarchyId mock to return true for matching hierarchies
+    mockNormalizeHierarchyId.mockReturnValue(true);
   });
 
   it('loads hierarchies and displays them in selector', async () => {

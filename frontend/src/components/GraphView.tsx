@@ -7,6 +7,7 @@ import { useContextMenu } from '../context/ContextMenuContext';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { log } from '../utils/logger';
 import { theme, getLevelColor, INTERACTIONS, config } from '../config';
+import { normalizeHierarchyId } from '../utils/graphUtils';
 
 // Register Cytoscape plugins ONCE at module load
 cytoscape.use(klay);
@@ -74,25 +75,11 @@ const GraphView: React.FC<GraphViewProps> = ({
     const levelCounters: Record<number, number> = {};
     
     const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => {
-      // Find all matching assignments for this hierarchy
+      // Find all matching assignments for this hierarchy using centralized utility
       let matchingAssignments: any[] = [];
       
       if (Array.isArray(assignments)) {
-        // Try exact match
-        matchingAssignments = assignments.filter(a => a.hierarchyId === hierarchyId);
-        
-        // If none found, try with/without 'h' prefix
-        if (matchingAssignments.length === 0) {
-          if (hierarchyId.startsWith('h')) {
-            // Try without 'h' prefix
-            const numericId = hierarchyId.substring(1);
-            matchingAssignments = assignments.filter(a => a.hierarchyId === numericId);
-          } else {
-            // Try with 'h' prefix
-            const prefixedId = `h${hierarchyId}`;
-            matchingAssignments = assignments.filter(a => a.hierarchyId === prefixedId);
-          }
-        }
+        matchingAssignments = assignments.filter(a => normalizeHierarchyId(hierarchyId, a.hierarchyId));
       }
       
       // Sort by level number (descending) and take the highest level
@@ -408,7 +395,7 @@ const GraphView: React.FC<GraphViewProps> = ({
         const type = sel.length > 1 ? 'multi-node' : 'node';
         const data = tgt.data() as NodeData;
         // Determine if adding a child is valid via allowedTypesMap context
-        const assignments = data.assignments?.filter(a => a.hierarchyId === hierarchyId) || [];
+        const assignments = data.assignments?.filter(a => normalizeHierarchyId(hierarchyId, a.hierarchyId)) || [];
         assignments.sort((a, b) => b.levelNumber - a.levelNumber);
         const parentLevelNum = assignments[0]?.levelNumber ?? 0;
         const nextLevelNum = parentLevelNum + 1;

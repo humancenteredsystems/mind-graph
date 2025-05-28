@@ -14,7 +14,8 @@ const {
   mockFetchAllNodeIds,
   mockFetchSchema,
   mockFetchHealth,
-  mockTransformAllGraphData
+  mockTransformAllGraphData,
+  mockNormalizeHierarchyId
 } = vi.hoisted(() => ({
   mockFetchHierarchies: vi.fn(),
   mockExecuteQuery: vi.fn(),
@@ -23,7 +24,8 @@ const {
   mockFetchAllNodeIds: vi.fn(),
   mockFetchSchema: vi.fn(),
   mockFetchHealth: vi.fn(),
-  mockTransformAllGraphData: vi.fn()
+  mockTransformAllGraphData: vi.fn(),
+  mockNormalizeHierarchyId: vi.fn()
 }));
 
 // Mock API Service with all named exports
@@ -41,6 +43,7 @@ vi.mock('../../src/services/ApiService', () => ({
 // Mock GraphUtils module
 vi.mock('../../src/utils/graphUtils', () => ({
   transformAllGraphData: mockTransformAllGraphData,
+  normalizeHierarchyId: mockNormalizeHierarchyId,
 }));
 
 // Mock Cytoscape with interaction capabilities
@@ -93,6 +96,9 @@ describe('Context Menu Interactions Integration', () => {
         { source: 'node1', target: 'node2', type: 'connects_to' }
       ]
     });
+
+    // Setup normalizeHierarchyId mock to return true for matching hierarchies
+    mockNormalizeHierarchyId.mockReturnValue(true);
   });
 
   it('renders app without crashing', async () => {
