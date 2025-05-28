@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { MenuType, MenuItem } from '../types/contextMenu';
 import { useContextMenu } from '../context/ContextMenuContext';
+import { theme } from '../config';
 
 const ContextMenu: React.FC = () => {
   const { open, position, items, closeMenu } = useContextMenu();
@@ -32,10 +33,11 @@ const ContextMenu: React.FC = () => {
         listStyle: 'none',
         padding: 0,
         margin: 0,
-        background: '#fff',
-        border: '1px solid #ccc',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-        zIndex: 1000,
+        background: theme.components.contextMenu.background,
+        border: `1px solid ${theme.components.contextMenu.border}`,
+        borderRadius: theme.components.contextMenu.borderRadius,
+        boxShadow: theme.components.contextMenu.shadow,
+        zIndex: theme.zIndex.dropdown,
         minWidth: 160,
       }}
     >
@@ -47,9 +49,9 @@ const ContextMenu: React.FC = () => {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: '4px 8px',
+            padding: `${theme.components.contextMenu.item.padding}px`,
             cursor: item.disabled ? 'not-allowed' : 'pointer',
-            color: item.disabled ? '#ccc' : 'inherit',
+            color: item.disabled ? theme.components.contextMenu.item.disabledColor : 'inherit',
           }}
           onClick={() => {
             if (item.disabled) return;
@@ -68,7 +70,11 @@ const ContextMenu: React.FC = () => {
             {item.icon} {item.label}
           </span>
           {item.shortcut && (
-            <span style={{ marginLeft: 8, color: '#888', fontSize: '0.8em' }}>
+            <span style={{ 
+              marginLeft: 8, 
+              color: theme.components.contextMenu.item.shortcutColor, 
+              fontSize: `${theme.components.contextMenu.item.fontSize}px` 
+            }}>
               {item.shortcut}
             </span>
           )}

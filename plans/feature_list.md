@@ -1,10 +1,4 @@
 - Make context menus congruent
-- Ability to implement a structured node hierarchy
-    - New standalone nodes default to level 1
-    - New connected nodes default to parent + 1
-    - Levels, and only levels, determine the position in the hierarchy
-    - Types are associated with levels, but their association is configurable as part of the graph settings.
-    - Multiple types can be associated with a given level (e.g., Level 1 = Transportation, Level 2 = Car, Truck, Motorcycle)
 - Arrange nodes based on hierarchy levels
 - Expand children for selected nodes
 - Expand / contract
@@ -13,7 +7,9 @@
 - Mind map type nodes - "I want my nodes to look like Simple Mind Pro"
 - Swooping edges
 - Checklist nodes
-- Rate limite API requests
+- Rate limit API requests
 - Get working on mobile
 - Cross-Browser Compatibility
 - Responsive behavior when windows are resized, etc.
+- Clean up logging
+- View nodes as table

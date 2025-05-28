@@ -6,13 +6,7 @@ import { NodeData, EdgeData } from '../types/graph';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { log } from '../utils/logger';
-
-// Helper to compute a distinct color per level
-const getLevelColor = (level?: number): string => {
-  if (level === undefined || level < 1) return '#888';
-  const hue = (level * 40) % 360;
-  return `hsl(${hue}, 60%, 60%)`;
-};
+import { theme, getLevelColor, INTERACTIONS, config } from '../config';
 
 // Register Cytoscape plugins ONCE at module load
 cytoscape.use(klay);
@@ -126,10 +120,13 @@ const GraphView: React.FC<GraphViewProps> = ({
           levelLabel: assignmentForCurrent?.levelLabel,
           expanded,
         },
-        position: { x: levelNum * 200, y: idx * 100 },
+        position: { 
+          x: levelNum * config.nodeHorizontalSpacing, 
+          y: idx * config.nodeVerticalSpacing 
+        },
         style: {
-          'border-color': expanded ? '#FF9800' : '#555',
-          'border-width': expanded ? 3 : 1,
+          'border-color': expanded ? theme.colors.node.border.expanded : theme.colors.node.border.default,
+          'border-width': expanded ? config.activeBorderWidth : config.defaultBorderWidth,
         },
       };
     });
@@ -147,83 +144,83 @@ const GraphView: React.FC<GraphViewProps> = ({
     {
       selector: 'node',
       style: {
-        'background-color': '#888',
+        'background-color': theme.colors.node.default,
         shape: 'round-rectangle',
         label: 'data(label)',
-        width: '80px',
-        height: '40px',
-        'font-size': 'mapData(labelLength, 0, 20, 14, 6)',
-        color: '#333',
+        width: `${config.nodeWidth}px`,
+        height: `${config.nodeHeight}px`,
+        'font-size': `mapData(labelLength, ${config.labelLengthMin}, ${config.labelLengthMax}, ${config.maxFontSize}, ${config.minFontSize})`,
+        color: theme.colors.text.primary,
         'text-valign': 'center',
         'text-halign': 'center',
         'text-wrap': 'wrap',
-        'text-max-width': '70px',
-        'border-width': 1,
-        'border-color': '#555',
+        'text-max-width': `${config.nodeTextMaxWidth}px`,
+        'border-width': config.defaultBorderWidth,
+        'border-color': theme.colors.node.border.default,
       },
     },
     {
       selector: 'node[levelNumber = 1]',
       style: {
         shape: 'ellipse',
-        'background-color': 'hsl(40, 60%, 60%)',
+        'background-color': getLevelColor(1),
       },
     },
     {
       selector: 'node[levelNumber = 2]',
       style: {
-        'background-color': 'red',
+        'background-color': getLevelColor(2),
       },
     },
     {
       selector: 'node[levelNumber = 3]',
       style: {
-        'background-color': 'hsl(120, 60%, 60%)',
+        'background-color': getLevelColor(3),
       },
     },
     {
       selector: 'node[levelNumber = 4]',
       style: {
-        'background-color': 'hsl(160, 60%, 60%)',
+        'background-color': getLevelColor(4),
       },
     },
     {
       selector: 'node[levelNumber = 5]',
       style: {
-        'background-color': 'hsl(200, 60%, 60%)',
+        'background-color': getLevelColor(5),
       },
     },
     {
       selector: 'node[levelNumber = 6]',
       style: {
-        'background-color': 'hsl(240, 60%, 60%)',
+        'background-color': getLevelColor(6),
       },
     },
     {
       selector: 'node[levelNumber = 7]',
       style: {
-        'background-color': 'hsl(280, 60%, 60%)',
+        'background-color': getLevelColor(7),
       },
     },
     {
       selector: 'node[levelNumber = 8]',
       style: {
-        'background-color': 'hsl(320, 60%, 60%)',
+        'background-color': getLevelColor(8),
       },
     },
     {
       selector: 'node[expanded = true]',
       style: {
-        'border-width': 3,
-        'border-color': '#FF9800',
+        'border-width': config.activeBorderWidth,
+        'border-color': theme.colors.node.border.expanded,
       },
     },
     {
       selector: 'edge',
       style: {
         width: 1,
-        'line-color': '#ccc',
-        'target-arrow-color': '#ccc',
+        'line-color': theme.colors.edge.default,
+        'target-arrow-color': theme.colors.edge.arrow,
         'target-arrow-shape': 'triangle',
         'curve-style': 'bezier',
       },
@@ -231,17 +228,17 @@ const GraphView: React.FC<GraphViewProps> = ({
     {
       selector: 'edge:selected',
       style: {
-        'line-color': '#ff0000',
-        'width': 3,
+        'line-color': theme.colors.edge.selected,
+        'width': config.activeBorderWidth,
       },
     },
     {
       selector: 'node:selected',
       style: {
-        'border-width': 3,
-        'border-color': '#ff0000',
+        'border-width': config.activeBorderWidth,
+        'border-color': theme.colors.node.border.selected,
         'border-style': 'solid',
-        'background-color': '#ff9999',
+        'background-color': theme.colors.node.selected,
       },
     },
   ];
@@ -275,8 +272,8 @@ const GraphView: React.FC<GraphViewProps> = ({
     log('GraphView', 'Multi-select enabled: autounselectify(false) and boxSelectionEnabled(true)');
     
     // Refined manual double-click detection logic
-    const DOUBLE_CLICK_DELAY = 400; // Max time between clicks for double-click (ms)
-    const SHORT_TERM_DEBOUNCE = 50; // Time to wait to confirm a single tap isn't a duplicate firing (ms)
+    const DOUBLE_CLICK_DELAY = config.doubleClickDelay; // Max time between clicks for double-click (ms)
+    const SHORT_TERM_DEBOUNCE = config.shortTermDebounce; // Time to wait to confirm a single tap isn't a duplicate firing (ms)
 
     const handleTap = (e: any) => {
       const targetNode = e.target;
@@ -464,7 +461,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    cy.layout({ name: 'preset', padding: 10 }).run();
+    cy.layout({ name: 'preset', padding: config.graphPadding }).run();
   }, [elements]);
 
     // Track selection order for multi-node operations
