@@ -54,8 +54,8 @@ class BaseTool:
         # API configuration
         parser.add_argument(
             "--api-key", "-k",
-            default=os.environ.get("MIMS_ADMIN_API_KEY", ""),
-            help="Admin API key (default: from MIMS_ADMIN_API_KEY env var)"
+            default=os.environ.get("ADMIN_API_KEY", ""),
+            help="Admin API key (default: from ADMIN_API_KEY env var)"
         )
         
         parser.add_argument(
@@ -119,7 +119,7 @@ class BaseTool:
         """Validate parsed arguments. Override in subclasses."""
         # Check API key
         if not self.args.api_key:
-            self.error("API key is required. Set MIMS_ADMIN_API_KEY environment variable or use --api-key.")
+            self.error("API key is required. Set ADMIN_API_KEY environment variable or use --api-key.")
             return False
         
         # Validate tenant ID
@@ -187,7 +187,7 @@ class BaseTool:
             return 130
         except AuthenticationError as e:
             self.error(f"Authentication failed: {e}")
-            self.info("💡 Check your API key in MIMS_ADMIN_API_KEY environment variable")
+            self.info("💡 Check your API key in ADMIN_API_KEY environment variable")
             return 1
         except TenantNotFoundError as e:
             self.error(str(e))

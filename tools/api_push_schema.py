@@ -142,15 +142,15 @@ def main():
     )
     parser.add_argument(
         "--api-key", "-k",
-        default=os.environ.get("MIMS_ADMIN_API_KEY", ""),
-        help="Admin API Key (default: from MIMS_ADMIN_API_KEY environment variable)"
+        default=os.environ.get("ADMIN_API_KEY", ""),
+        help="Admin API Key (default: from ADMIN_API_KEY environment variable)"
     )
     
     args = parser.parse_args()
 
     # Check for API key
     if not args.api_key:
-        print("❌ Error: Admin API key is required. Set MIMS_ADMIN_API_KEY environment variable or use --api-key.")
+        print("❌ Error: Admin API key is required. Set ADMIN_API_KEY environment variable or use --api-key.")
         return 1
 
     # Handle list option

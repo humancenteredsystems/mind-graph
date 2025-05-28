@@ -194,11 +194,6 @@ const GraphView: React.FC<GraphViewProps> = ({
   const attachCy = (cy: Core) => {
     cyRef.current = cy;
     log('GraphView', 'Cytoscape instance attached');
-    // Expose cyInstance in development mode (Optional: Keep if needed for other debugging)
-    // if (import.meta.env.DEV) {
-    //   (window as any).cyInstance = cy;
-    //   log('GraphView', 'cyInstance exposed');
-    // }
   };
   
   // Set up all event handlers - SEPARATED from attachCy for clarity

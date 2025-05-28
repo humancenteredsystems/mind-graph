@@ -5,7 +5,10 @@
 process.env.NODE_ENV = 'test';
 process.env.DGRAPH_BASE_URL = 'http://localhost:8080';
 process.env.PORT = '3001'; // Use different port for tests
-process.env.ADMIN_API_KEY = process.env.MIMS_ADMIN_API_KEY || 'test-admin-key-from-env';
+// Use ADMIN_API_KEY from environment (must be set when running tests)
+if (!process.env.ADMIN_API_KEY) {
+  throw new Error('ADMIN_API_KEY environment variable must be set for tests');
+}
 process.env.ENABLE_MULTI_TENANT = 'true';
 process.env.DGRAPH_NAMESPACE_TEST = '0x1';
 process.env.DGRAPH_NAMESPACE_DEFAULT = '0x0';
@@ -165,19 +168,8 @@ process.on('uncaughtException', (error) => {
   // Don't exit the process in tests, just log the error
 });
 
-// Mock external dependencies that shouldn't be called during tests
-jest.mock('axios', () => ({
-  post: jest.fn(),
-  get: jest.fn(),
-  put: jest.fn(),
-  delete: jest.fn(),
-  create: jest.fn(() => ({
-    post: jest.fn(),
-    get: jest.fn(),
-    put: jest.fn(),
-    delete: jest.fn()
-  }))
-}));
+// Note: Not globally mocking axios to allow real integration tests to make HTTP calls
+// Individual unit tests should mock axios locally if needed
 
 // Mock file system operations for consistent testing
 jest.mock('fs', () => ({
@@ -271,7 +263,7 @@ global.TEST_CONSTANTS = {
   VALID_EDGE_TYPES: ['relates_to', 'contains', 'depends_on'],
   DEFAULT_HIERARCHY_ID: 'test-hierarchy',
   DEFAULT_LEVEL_ID: 'test-level',
-  ADMIN_API_KEY: 'test-admin-key'
+  ADMIN_API_KEY: process.env.ADMIN_API_KEY
 };
 
 // Helper to create consistent test data

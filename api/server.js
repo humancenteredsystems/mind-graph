@@ -5,15 +5,11 @@ const config = require('./config');
 process.on('uncaughtException', (err, origin) => {
   console.error('[GLOBAL] Uncaught Exception:', err);
   console.error('[GLOBAL] Origin:', origin);
-  // Optionally exit gracefully, but for debugging, just log for now
-  // process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[GLOBAL] Unhandled Rejection at:', promise);
   console.error('[GLOBAL] Reason:', reason);
-  // Optionally exit gracefully
-  // process.exit(1);
 });
 // --- End Global Error Handlers ---
 
