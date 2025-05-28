@@ -9,7 +9,7 @@ MakeItMakeSense.io is an interactive platform designed for exploring, contributi
 The core components include:
 *   **Dgraph Backend:** Graph database managed via Docker with optional multi-tenant support.
 *   **Node.js/Express API:** Provides a GraphQL interface and RESTful endpoints with tenant-aware operations.
-*   **React/Vite Frontend:** Interactive graph visualization using Cytoscape.js.
+*   **React/Vite Frontend:** Interactive graph visualization using Cytoscape.js with centralized theme system.
 *   **Python Utility Tools:** Scripts for database management and data handling.
 
 Key capabilities include multi-hierarchy support for nodes, automatic hierarchy assignment during node creation, and **enterprise-grade multi-tenant architecture** with complete data isolation.
@@ -40,7 +40,7 @@ curl -X POST http://localhost:3000/api/query \
 
 *   **Database:** Dgraph (via Docker) - OSS for single-tenant, Enterprise for multi-tenant
 *   **Backend API:** Node.js, Express.js with tenant context middleware
-*   **Frontend:** React 19, Vite, TypeScript, Cytoscape.js, Axios
+*   **Frontend:** React 19, Vite, TypeScript, Cytoscape.js, Axios with centralized theme system and CSS-in-JS styling
 *   **Utility Tools:** Python, requests with tenant-aware operations
 *   **Development Environment:** Docker Compose, Nodemon, Concurrently
 *   **Testing:** Vitest (Frontend), Jest (API), Playwright (E2E) with real database integration tests
@@ -126,6 +126,21 @@ Once the development environment is running and the schema is pushed:
 *   Explore the graph.
 *   **Node Interaction:** Double-click (or double-tap) on a node to open its details drawer.
 *   **Multi-Tenant Testing:** Use `X-Tenant-Id` headers to test tenant isolation.
+
+## Frontend Architecture
+
+The frontend features a modern, maintainable styling architecture:
+
+### Theme System
+- **Design Tokens** (`frontend/src/config/tokens.ts`): Base design values (colors, spacing, typography)
+- **Theme Configuration** (`frontend/src/config/theme.ts`): Semantic theme built from tokens with component-specific styling
+- **Style Utilities** (`frontend/src/utils/styleUtils.ts`): Helper functions for consistent component styling
+
+### Key Features
+- **Dynamic Level Colors**: Automatically generated colors for 8 hierarchy levels using HSL color space
+- **CSS-in-JS Approach**: Type-safe styling with theme integration
+- **Centralized Styling**: No inline styles or hardcoded values
+- **Component Builders**: Reusable style builders for modals, forms, buttons, and other UI elements
 
 ## Running Tests
 
@@ -262,7 +277,7 @@ Comprehensive project documentation can be found in the `/docs` directory:
 ### Reference Documentation
 *   [Dgraph dropAll Limitation](docs/dgraph-dropall-limitation.md) - Critical multi-tenant safety information
 *   [Dgraph Troubleshooting](docs/dgraph_troubleshooting.md) - Common issues and solutions
-*   [UI Elements](docs/ui-elements.md) - Frontend component specifications
+*   [UI Elements](docs/ui-elements.md) - Frontend component specifications and styling guide
 
 ## Deployment
 
@@ -275,7 +290,6 @@ For instructions on deploying the services to a production-like environment (e.g
 *   Enhanced multi-tenant analytics and monitoring.
 *   Tenant-specific API keys and enhanced security.
 *   Performance monitoring and resource quotas per tenant.
-*   Refine frontend UI/UX and add more visualization options.
 *   Increase test coverage across all components.
 *   Continuously update and maintain documentation.
 
@@ -288,6 +302,12 @@ When contributing to multi-tenant features, please:
 - Follow namespace safety practices
 - Update relevant documentation
 - Include both mocked and real integration tests
+
+When contributing to frontend features, please:
+- Use the centralized theme system for all styling
+- Follow the CSS-in-JS patterns with style utilities
+- Avoid inline styles and hardcoded colors
+- Maintain consistency with existing component patterns
 
 ## License
 

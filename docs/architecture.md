@@ -33,22 +33,32 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 - TypeScript
 - react-cytoscapejs (with `cytoscape-klay` layout plugin) for graph rendering
 - Axios for API calls
+- Centralized theme system with design tokens and CSS-in-JS styling
 - **Target Hosting:** Static site (e.g., Render)
+
+### Styling Architecture (Current Implementation)
+- **Design Tokens** (`frontend/src/config/tokens.ts`): Base design values (colors, spacing, typography, shadows)
+- **Theme Configuration** (`frontend/src/config/theme.ts`): Semantic theme built from tokens with component-specific styling
+- **Style Utilities** (`frontend/src/utils/styleUtils.ts`): Helper functions for consistent component styling
+- **Dynamic Level Colors**: Automatically generated colors for 8 hierarchy levels using HSL color space
+- **CSS-in-JS Approach**: Type-safe styling with theme integration, no inline styles or hardcoded values
 
 ### Features (Current Implementation)
 - Interactive graph visualization via react-cytoscapejs.
 - On initial load, fetches all node IDs, then iteratively fetches data for each node and its immediate connections using the `/api/traverse` endpoint (which is hierarchy-aware) to build a view of the graph.
 - Basic pan and zoom provided via react-cytoscapejs (Cytoscape.js plugin).
-- Styling for different node types (`concept`, `example`, `question`).
+- Dynamic styling for different node types (`concept`, `example`, `question`) and hierarchy levels.
 - Uses Klay layout algorithm.
 - Add Node and Add Connected Node via context menu and NodeFormModal.
 - Edit Node via context menu and NodeDrawer.
+- Centralized theme-based styling system with consistent UI components.
 
 ### Features (Future Goals)
 - Submit changes as branches for review.
 - Advanced visualization controls (filtering, hierarchy depth, cross-links).
 - Search functionality integration.
 - Hotkeys for power users.
+- Dark mode and custom theme support.
 
 ---
 
@@ -207,7 +217,7 @@ type HierarchyAssignment {
     b. For each node ID, it calls `POST /api/traverse` (via `ApiService.fetchTraversalData`), passing the active `hierarchyId`. This endpoint returns the node and its immediate neighbors within that hierarchy.
     c. The frontend aggregates this data to build the graph view.
 4. Frontend transforms the aggregated data into the format required by Cytoscape.
-5. Frontend renders the graph via react-cytoscapejs. Nodes can be visually organized or styled based on their hierarchy level.
+5. Frontend renders the graph via react-cytoscapejs. Nodes are dynamically styled based on their hierarchy level using the centralized theme system.
 6. User can switch hierarchies via the UI, which updates the `hierarchyId` in `HierarchyContext` and triggers a re-load/re-filter of the graph data according to the new hierarchy.
 
 ## 🚀 Example Workflow (Current Implementation - Node Creation with Hierarchy)
@@ -226,7 +236,7 @@ type HierarchyAssignment {
    - Validates node type is allowed at the specified level
    - Preserves client's hierarchy assignment structure
 9. **Database Storage:** Server sends validated mutation to Dgraph with proper `hierarchyAssignments`.
-10. **Response & Update:** New node is created with correct hierarchy assignment, frontend updates graph state.
+10. **Response & Update:** New node is created with correct hierarchy assignment, frontend updates graph state and applies theme-based styling.
 
 ## 🚀 Example Workflow (Future Goal - Branching/Merging)
 
@@ -247,6 +257,7 @@ type HierarchyAssignment {
 - Contributor dashboards
 - Multi-branch diffs and merge history
 - Semantic tagging and AI-generated summaries
+- Custom theme and styling extensions
 
 ---
 
