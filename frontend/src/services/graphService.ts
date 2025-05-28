@@ -1,14 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
-import { NodeData, EdgeData, RawNodeResponse } from '../../types/graph';
-import { executeMutation, deleteNodeCascade } from '../../services/ApiService';
-import { log } from '../../utils/logger';
+import { NodeData, EdgeData, RawNodeResponse } from '../types/graph';
+import { executeMutation, deleteNodeCascade } from './ApiService';
+import { log } from '../utils/logger';
 import {
   ADD_NODE_WITH_HIERARCHY,
   ADD_EDGE_MUTATION,
   UPDATE_NODE_MUTATION,
   DELETE_NODE_MUTATION,
   DELETE_EDGE_MUTATION
-} from '../../graphql/mutations';
+} from '../graphql/mutations';
 
 export interface GraphOperations {
   addNode: (values: { label: string; type: string; hierarchyId: string; levelId: string }, parentId?: string) => Promise<void>;

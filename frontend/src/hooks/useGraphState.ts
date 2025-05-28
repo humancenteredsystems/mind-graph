@@ -5,13 +5,13 @@ import { transformTraversalData, transformAllGraphData } from '../utils/graphUti
 import { GET_ALL_NODES_AND_EDGES_QUERY } from '../graphql/queries';
 import { NodeData, EdgeData } from '../types/graph';
 import { log } from '../utils/logger';
-import { createGraphOperations, GraphOperations } from './graph/graphOperations';
+import { createGraphOperations, GraphOperations } from '../services/graphService';
 import {
   findHierarchyDescendants,
   findImmediateChildren,
   getNodeHierarchyLevel,
   logExpansionOperation
-} from '../utils/graphExpansionUtils';
+} from '../utils/graphUtils';
 
 interface ExpansionDetails {
   addedNodes: string[];
