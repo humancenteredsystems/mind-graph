@@ -12,7 +12,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined, // Opt out of parallel tests on CI? Adjust as needed.
   reporter: 'html', // Reporter to use. See https://playwright.dev/docs/test-reporters
   use: {
-    baseURL: 'http://localhost:5174', // Base URL for the dev server
+    baseURL: 'http://localhost:5173', // Base URL for the dev server
     trace: 'on-first-retry', // Collect trace when retrying the failed test
   },
   projects: [ // Configure projects for major browsers

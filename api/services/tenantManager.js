@@ -1,6 +1,7 @@
 require('dotenv').config();
 const crypto = require('crypto');
 const { DgraphTenantFactory } = require('./dgraphTenant');
+const { pushSchemaViaHttp } = require('../utils/pushSchema');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -8,7 +9,14 @@ const path = require('path');
  * TenantManager - Manages tenant namespaces and lifecycle operations
  */
 class TenantManager {
-  constructor() {
+  constructor(dependencies = {}) {
+    // Dependency injection - use provided dependencies or defaults
+    this.pushSchema = dependencies.pushSchema || pushSchemaViaHttp;
+    this.fileSystem = dependencies.fileSystem || fs;
+    this.schemaPath = dependencies.schemaPath || path.join(__dirname, '../../schemas/default.graphql');
+    this.tenantFactory = dependencies.tenantFactory || DgraphTenantFactory;
+    
+    // Environment configuration
     this.defaultNamespace = process.env.DGRAPH_NAMESPACE_DEFAULT || '0x0';
     this.testNamespace = process.env.DGRAPH_NAMESPACE_TEST || '0x1';
     this.namespacePrefix = process.env.DGRAPH_NAMESPACE_PREFIX || '0x';
@@ -48,11 +56,10 @@ class TenantManager {
    */
   async initializeTenantSchema(namespace) {
     try {
-      const { pushSchemaViaHttp } = require('../utils/pushSchema');
       const schemaContent = await this.getDefaultSchema();
       
       console.log(`[TENANT_MANAGER] Pushing schema to namespace ${namespace}`);
-      await pushSchemaViaHttp(schemaContent, namespace);
+      await this.pushSchema(schemaContent, namespace);
       
     } catch (error) {
       console.error(`[TENANT_MANAGER] Failed to initialize schema for namespace ${namespace}:`, error);
@@ -66,8 +73,7 @@ class TenantManager {
    */
   async getDefaultSchema() {
     try {
-      const schemaPath = path.join(__dirname, '../../schemas/default.graphql');
-      return await fs.readFile(schemaPath, 'utf8');
+      return await this.fileSystem.readFile(this.schemaPath, 'utf8');
     } catch (error) {
       console.error('[TENANT_MANAGER] Failed to read default schema:', error);
       throw new Error('Could not load default schema');
@@ -80,7 +86,7 @@ class TenantManager {
    */
   async seedDefaultHierarchies(namespace) {
     try {
-      const tenant = DgraphTenantFactory.createTenant(namespace);
+      const tenant = this.tenantFactory.createTenant(namespace);
       
       const defaultHierarchies = [
         {
@@ -179,7 +185,7 @@ class TenantManager {
   async tenantExists(tenantId) {
     try {
       const namespace = await this.getTenantNamespace(tenantId);
-      const tenant = DgraphTenantFactory.createTenant(namespace);
+      const tenant = this.tenantFactory.createTenant(namespace);
       
       // Try a simple query to check if namespace is accessible
       const query = `query { __schema { types { name } } }`;
@@ -202,7 +208,7 @@ class TenantManager {
       console.log(`[TENANT_MANAGER] Deleting tenant ${tenantId} from namespace ${namespace}`);
       
       // For development, we'll just clear the data rather than deleting the namespace
-      const tenant = DgraphTenantFactory.createTenant(namespace);
+      const tenant = this.tenantFactory.createTenant(namespace);
       
       const dropMutation = `
         mutation {
