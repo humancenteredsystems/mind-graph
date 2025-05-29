@@ -5,11 +5,17 @@
  * Tests the complete chain from frontend localStorage to backend tenant context
  */
 
-const axios = require('axios');
+import axios from 'axios';
 
 // Configuration
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001/api';
-const TEST_SCENARIOS = [
+
+interface TestScenario {
+  name: string;
+  tenantId: string | null;
+}
+
+const TEST_SCENARIOS: TestScenario[] = [
   { name: 'Default OSS Tenant', tenantId: 'default' },
   { name: 'Test Enterprise Tenant', tenantId: 'test-tenant' },
   { name: 'Custom Tenant', tenantId: 'custom-tenant' },
@@ -19,7 +25,7 @@ const TEST_SCENARIOS = [
 /**
  * Test system status endpoint with different tenant scenarios
  */
-async function testTenantResolution() {
+async function testTenantResolution(): Promise<void> {
   console.log('🔍 Testing Tenant Resolution Flow\n');
   console.log('='.repeat(50));
   
@@ -29,7 +35,7 @@ async function testTenantResolution() {
     
     try {
       // Prepare headers
-      const headers = {};
+      const headers: Record<string, string> = {};
       if (scenario.tenantId) {
         headers['X-Tenant-Id'] = scenario.tenantId;
         console.log(`   Sending X-Tenant-Id: ${scenario.tenantId}`);
@@ -62,10 +68,11 @@ async function testTenantResolution() {
       }
       
     } catch (error) {
-      console.log(`❌ ERROR: ${error.message}`);
-      if (error.response) {
-        console.log(`   Status: ${error.response.status}`);
-        console.log(`   Data: ${JSON.stringify(error.response.data, null, 2)}`);
+      const err = error as any;
+      console.log(`❌ ERROR: ${err.message}`);
+      if (err.response) {
+        console.log(`   Status: ${err.response.status}`);
+        console.log(`   Data: ${JSON.stringify(err.response.data, null, 2)}`);
       }
     }
   }
@@ -74,7 +81,7 @@ async function testTenantResolution() {
 /**
  * Test health endpoint
  */
-async function testHealthEndpoint() {
+async function testHealthEndpoint(): Promise<void> {
   console.log('\n\n🏥 Testing Health Endpoint');
   console.log('='.repeat(30));
   
@@ -88,14 +95,15 @@ async function testHealthEndpoint() {
     console.log(`   Timestamp: ${health.timestamp}`);
     
   } catch (error) {
-    console.log(`❌ Health check failed: ${error.message}`);
+    const err = error as Error;
+    console.log(`❌ Health check failed: ${err.message}`);
   }
 }
 
 /**
  * Test frontend localStorage simulation
  */
-async function testFrontendSimulation() {
+async function testFrontendSimulation(): Promise<void> {
   console.log('\n\n🌐 Simulating Frontend Behavior');
   console.log('='.repeat(35));
   
@@ -110,8 +118,8 @@ async function testFrontendSimulation() {
     console.log('-'.repeat(25));
     
     // Simulate axios interceptor logic
-    const tenantId = scenario.localStorage.tenantId || 'default';
-    console.log(`   localStorage.tenantId: ${scenario.localStorage.tenantId || 'undefined'}`);
+    const tenantId = (scenario.localStorage as any).tenantId || 'default';
+    console.log(`   localStorage.tenantId: ${(scenario.localStorage as any).tenantId || 'undefined'}`);
     console.log(`   Resolved tenantId: ${tenantId}`);
     console.log(`   Would send X-Tenant-Id: ${tenantId}`);
     
@@ -130,7 +138,8 @@ async function testFrontendSimulation() {
       }
       
     } catch (error) {
-      console.log(`   ❌ ERROR: ${error.message}`);
+      const err = error as Error;
+      console.log(`   ❌ ERROR: ${err.message}`);
     }
   }
 }
@@ -138,7 +147,7 @@ async function testFrontendSimulation() {
 /**
  * Main test runner
  */
-async function main() {
+async function main(): Promise<void> {
   console.log('🚀 Tenant Resolution Diagnostic Tool');
   console.log('=====================================\n');
   
@@ -151,7 +160,8 @@ async function main() {
     console.log('Check the results above to verify tenant resolution is working correctly.');
     
   } catch (error) {
-    console.error('\n💥 Diagnostic failed:', error.message);
+    const err = error as Error;
+    console.error('\n💥 Diagnostic failed:', err.message);
     process.exit(1);
   }
 }
@@ -161,4 +171,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { testTenantResolution, testHealthEndpoint, testFrontendSimulation };
+export { testTenantResolution, testHealthEndpoint, testFrontendSimulation };

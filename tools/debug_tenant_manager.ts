@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const { TenantManager } = require('../api/services/tenantManager');
+import { TenantManager } from '../api/services/tenantManager';
 
-async function debugTenantManager() {
+async function debugTenantManager(): Promise<void> {
   console.log('🔍 Debugging Tenant Manager');
   console.log('='.repeat(40));
   
@@ -28,7 +28,8 @@ async function debugTenantManager() {
     console.log(`  generateNamespaceId('test-tenant'): ${tm.generateNamespaceId('test-tenant')}`);
     
   } catch (error) {
-    console.error('❌ Error in namespace resolution:', error.message);
+    const err = error as Error;
+    console.error('❌ Error in namespace resolution:', err.message);
   }
   
   console.log('\n📊 Tenant Info:');
@@ -50,7 +51,8 @@ async function debugTenantManager() {
     console.log(`    Is Default: ${testInfo.isDefaultTenant}`);
     
   } catch (error) {
-    console.error('❌ Error getting tenant info:', error.message);
+    const err = error as Error;
+    console.error('❌ Error getting tenant info:', err.message);
   }
 }
 

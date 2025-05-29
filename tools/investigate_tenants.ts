@@ -4,14 +4,20 @@
  * Investigation script to determine active tenants and data distribution
  */
 
-const axios = require('axios');
+import axios from 'axios';
 
 const DGRAPH_BASE_URL = process.env.DGRAPH_BASE_URL || 'http://localhost:8080';
+
+interface QueryResult {
+  queryHierarchy?: Array<{ id: string; name: string }>;
+  queryNode?: Array<{ id: string; label: string; type: string }>;
+  queryEdge?: Array<{ type: string; fromId: string; toId: string }>;
+}
 
 /**
  * Query a specific namespace for hierarchies and nodes
  */
-async function queryNamespace(namespace = null) {
+async function queryNamespace(namespace: string | null = null): Promise<QueryResult | null> {
   const endpoint = namespace 
     ? `${DGRAPH_BASE_URL}/graphql?namespace=${namespace}`
     : `${DGRAPH_BASE_URL}/graphql`;
@@ -46,18 +52,18 @@ async function queryNamespace(namespace = null) {
       return null;
     }
     
-    const data = response.data.data;
+    const data: QueryResult = response.data.data;
     console.log(`   ✅ Query successful`);
     console.log(`   📊 Hierarchies: ${data.queryHierarchy?.length || 0}`);
     console.log(`   📊 Nodes: ${data.queryNode?.length || 0}`);
     console.log(`   📊 Edges: ${data.queryEdge?.length || 0}`);
     
-    if (data.queryHierarchy?.length > 0) {
+    if (data.queryHierarchy?.length && data.queryHierarchy.length > 0) {
       console.log(`   📋 Hierarchy names:`);
       data.queryHierarchy.forEach(h => console.log(`      - ${h.name} (${h.id})`));
     }
     
-    if (data.queryNode?.length > 0) {
+    if (data.queryNode?.length && data.queryNode.length > 0) {
       console.log(`   📋 Sample nodes:`);
       data.queryNode.slice(0, 3).forEach(n => console.log(`      - ${n.label} (${n.type})`));
     }
@@ -65,9 +71,10 @@ async function queryNamespace(namespace = null) {
     return data;
     
   } catch (error) {
-    console.log(`   ❌ Error: ${error.message}`);
-    if (error.response?.data) {
-      console.log(`   📄 Response:`, error.response.data);
+    const err = error as any;
+    console.log(`   ❌ Error: ${err.message}`);
+    if (err.response?.data) {
+      console.log(`   📄 Response:`, err.response.data);
     }
     return null;
   }
@@ -76,7 +83,7 @@ async function queryNamespace(namespace = null) {
 /**
  * Check API system status with different tenant headers
  */
-async function checkAPITenantStatus() {
+async function checkAPITenantStatus(): Promise<void> {
   console.log(`\n🌐 Checking API System Status`);
   console.log(`=`.repeat(40));
   
@@ -100,7 +107,8 @@ async function checkAPITenantStatus() {
       console.log(`   Namespace: ${status.namespace || 'null'}`);
       
     } catch (error) {
-      console.log(`   ❌ Error: ${error.message}`);
+      const err = error as Error;
+      console.log(`   ❌ Error: ${err.message}`);
     }
   }
 }
@@ -108,7 +116,7 @@ async function checkAPITenantStatus() {
 /**
  * Check what the frontend would send based on localStorage simulation
  */
-async function simulateFrontendBehavior() {
+async function simulateFrontendBehavior(): Promise<void> {
   console.log(`\n🖥️  Frontend Behavior Simulation`);
   console.log(`=`.repeat(40));
   
@@ -123,8 +131,8 @@ async function simulateFrontendBehavior() {
     console.log(`\n📱 ${scenario.description}:`);
     
     // Simulate TenantContext logic
-    const tenantId = scenario.localStorage.tenantId || 'default';
-    console.log(`   localStorage.tenantId: ${scenario.localStorage.tenantId || 'undefined'}`);
+    const tenantId = (scenario.localStorage as any).tenantId || 'default';
+    console.log(`   localStorage.tenantId: ${(scenario.localStorage as any).tenantId || 'undefined'}`);
     console.log(`   Resolved tenantId: ${tenantId}`);
     console.log(`   Would send X-Tenant-Id: ${tenantId}`);
     
@@ -135,7 +143,8 @@ async function simulateFrontendBehavior() {
       });
       console.log(`   API would return currentTenant: ${response.data.currentTenant}`);
     } catch (error) {
-      console.log(`   ❌ API Error: ${error.message}`);
+      const err = error as Error;
+      console.log(`   ❌ API Error: ${err.message}`);
     }
   }
 }
@@ -143,7 +152,7 @@ async function simulateFrontendBehavior() {
 /**
  * Main investigation function
  */
-async function main() {
+async function main(): Promise<void> {
   console.log('🕵️  Tenant Investigation Report');
   console.log('================================\n');
   
@@ -166,8 +175,8 @@ async function main() {
   console.log(`\n📊 ANALYSIS`);
   console.log('='.repeat(20));
   
-  const defaultHasData = defaultData && (defaultData.queryHierarchy?.length > 0 || defaultData.queryNode?.length > 0);
-  const testHasData = testData && (testData.queryHierarchy?.length > 0 || testData.queryNode?.length > 0);
+  const defaultHasData = defaultData && (defaultData.queryHierarchy?.length! > 0 || defaultData.queryNode?.length! > 0);
+  const testHasData = testData && (testData.queryHierarchy?.length! > 0 || testData.queryNode?.length! > 0);
   
   console.log(`\n📈 Data Distribution:`);
   console.log(`   Default namespace (0x0): ${defaultHasData ? 'HAS DATA' : 'EMPTY'}`);
@@ -198,4 +207,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { queryNamespace, checkAPITenantStatus, simulateFrontendBehavior };
+export { queryNamespace, checkAPITenantStatus, simulateFrontendBehavior };
