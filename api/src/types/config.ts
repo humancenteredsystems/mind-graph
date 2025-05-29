@@ -7,6 +7,7 @@ export interface Config {
   dgraphAdminUrl: string;
   dgraphAlterUrl: string;
   adminApiKey?: string;
+  corsOrigin: string;
   enableMultiTenant: boolean;
   defaultNamespace: string;
   testNamespace: string;

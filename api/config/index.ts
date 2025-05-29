@@ -14,6 +14,9 @@ const config: Config = {
   dgraphAdminUrl: '', // computed below 
   dgraphAlterUrl: '', // computed below
   
+  // CORS
+  corsOrigin: process.env.CORS_ORIGIN || '*',
+  
   // Multi-tenant
   enableMultiTenant: process.env.ENABLE_MULTI_TENANT === 'true',
   defaultNamespace: process.env.DGRAPH_NAMESPACE_DEFAULT || '0x0',

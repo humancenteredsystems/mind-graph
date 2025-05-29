@@ -44,9 +44,10 @@ export async function pushSchemaViaHttp(
     return { success: true, response: response.data, namespace };
   } catch (err: any) {
     console.error(`[PUSH_SCHEMA] Error pushing schema to ${namespace || 'default'}:`, err.message);
+    console.log('Caught error object:', err); // Add logging for the caught error
     // Provide more details if available in the response
     const errorDetails = err.response?.data || err.message;
-    return { success: true, error: errorDetails, namespace }; // Note: keeping original behavior where it returns success: true even on error
+    return { success: false, error: errorDetails, namespace };
   }
 }
 

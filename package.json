@@ -16,6 +16,7 @@
     "start-dev-env": "npm run start-dgraph && npm run dev"
   },
   "devDependencies": {
+    "@types/supertest": "^6.0.3",
     "concurrently": "^8.2.2"
   },
   "repository": {

@@ -1,0 +1,329 @@
+import express, { Request, Response } from 'express';
+import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
+import { authenticateAdmin } from '../middleware/auth';
+import { TenantRequest } from '../src/types';
+
+const router = express.Router();
+
+// Helper function to get tenant-aware Dgraph client from request context
+async function getTenantClient(req: TenantRequest) {
+  return await adaptiveTenantFactory.createTenantFromContext(req.tenantContext);
+}
+
+// Simple error helper
+const errorResponse = (res: Response, message: string, status = 500) => {
+  res.status(status).json({ error: message });
+};
+
+// Request types
+interface CreateHierarchyRequest {
+  id: string;
+  name: string;
+}
+
+interface UpdateHierarchyRequest {
+  name: string;
+}
+
+interface CreateLevelRequest {
+  hierarchyId: string;
+  levelNumber: number;
+  label: string;
+}
+
+interface UpdateLevelRequest {
+  label: string;
+}
+
+interface CreateAssignmentRequest {
+  nodeId: string;
+  hierarchyId: string;
+  levelId: string;
+}
+
+// --- Hierarchy CRUD ---
+
+// Get all hierarchies
+router.get('/hierarchy', async (req: Request, res: Response): Promise<void> => {
+  const query = `
+    query {
+      queryHierarchy {
+        id
+        name
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(query);
+    res.json(data.queryHierarchy);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+// Admin-protected routes
+router.use(authenticateAdmin);
+
+// Create a new hierarchy
+router.post('/hierarchy', async (req: Request, res: Response): Promise<void> => {
+  const { id, name }: CreateHierarchyRequest = req.body;
+  if (!id || !name) {
+    errorResponse(res, 'Missing required fields: id and name', 400);
+    return;
+  }
+  const mutation = `
+    mutation ($input: [AddHierarchyInput!]!) {
+      addHierarchy(input: $input) {
+        hierarchy {
+          id
+          name
+        }
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(mutation, { input: [{ id, name }] });
+    const hier = data.addHierarchy.hierarchy[0];
+    res.status(201).json(hier);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+// Get hierarchy by ID
+router.get('/hierarchy/:id', async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  // Basic validation for non-empty string ID
+  if (!id || !id.trim()) {
+    errorResponse(res, 'Invalid hierarchy ID: must be a non-empty string.', 400);
+    return;
+  }
+
+  const query = `
+    query ($id: ID!) {
+      queryHierarchy(filter: { id: { eq: $id } }) {
+        id
+        name
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(query, { id });
+    const hier = data.queryHierarchy[0];
+    if (!hier) {
+      errorResponse(res, 'Hierarchy not found', 404);
+      return;
+    }
+    res.json(hier);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+// Update an existing hierarchy
+router.put('/hierarchy/:id', async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { name }: UpdateHierarchyRequest = req.body;
+
+  if (!id || !id.trim()) {
+    errorResponse(res, 'Invalid hierarchy ID: must be a non-empty string.', 400);
+    return;
+  }
+  if (!name) {
+    errorResponse(res, 'Missing required field: name', 400);
+    return;
+  }
+  const mutation = `
+    mutation ($id: ID!, $name: String!) {
+      updateHierarchy(input: { filter: { id: { eq: $id } }, set: { name: $name } }) {
+        hierarchy {
+          id
+          name
+        }
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(mutation, { id, name });
+    const hier = data.updateHierarchy.hierarchy[0];
+    res.json(hier);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+// Delete a hierarchy
+router.delete('/hierarchy/:id', async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  if (!id || !id.trim()) {
+    errorResponse(res, 'Invalid hierarchy ID: must be a non-empty string.', 400);
+    return;
+  }
+  const mutation = `
+    mutation ($id: ID!) {
+      deleteHierarchy(filter: { id: { eq: $id } }) {
+        msg
+        numUids
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(mutation, { id });
+    res.json(data.deleteHierarchy);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+// --- Hierarchy Level CRUD ---
+
+// Create a new hierarchy level
+router.post('/hierarchy/level', async (req: Request, res: Response): Promise<void> => {
+  const { hierarchyId, levelNumber, label }: CreateLevelRequest = req.body;
+  if (!hierarchyId || !levelNumber || !label) {
+    errorResponse(res, 'Missing required fields: hierarchyId, levelNumber, and label', 400);
+    return;
+  }
+  const mutation = `
+    mutation ($input: [AddHierarchyLevelInput!]!) {
+      addHierarchyLevel(input: $input) {
+        hierarchyLevel {
+          id
+          levelNumber
+          label
+        }
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(mutation, { input: [{ hierarchy: { id: hierarchyId }, levelNumber, label }] });
+    const level = data.addHierarchyLevel.hierarchyLevel[0];
+    res.status(201).json(level);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+// Update an existing hierarchy level
+router.put('/hierarchy/level/:id', async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { label }: UpdateLevelRequest = req.body;
+
+  if (!id || !id.trim()) {
+    errorResponse(res, 'Invalid level ID: must be a non-empty string.', 400);
+    return;
+  }
+  if (!label) {
+    errorResponse(res, 'Missing required field: label', 400);
+    return;
+  }
+  const mutation = `
+    mutation ($id: ID!, $label: String!) {
+      updateHierarchyLevel(input: { filter: { id: { eq: $id } }, set: { label: $label } }) {
+        hierarchyLevel {
+          id
+          label
+        }
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(mutation, { id, label });
+    const level = data.updateHierarchyLevel.hierarchyLevel[0];
+    res.json(level);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+// Delete a hierarchy level
+router.delete('/hierarchy/level/:id', async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  if (!id || !id.trim()) {
+    errorResponse(res, 'Invalid level ID: must be a non-empty string.', 400);
+    return;
+  }
+  const mutation = `
+    mutation ($id: ID!) {
+      deleteHierarchyLevel(filter: { id: { eq: $id } }) {
+        msg
+        numUids
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(mutation, { id });
+    res.json(data.deleteHierarchyLevel);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+// --- Hierarchy Assignment CRUD ---
+
+// Create a new hierarchy assignment
+router.post('/hierarchy/assignment', async (req: Request, res: Response): Promise<void> => {
+  const { nodeId, hierarchyId, levelId }: CreateAssignmentRequest = req.body;
+  if (!nodeId || !hierarchyId || !levelId) {
+    errorResponse(res, 'Missing required fields: nodeId, hierarchyId, and levelId', 400);
+    return;
+  }
+  const mutation = `
+    mutation ($input: [AddHierarchyAssignmentInput!]!) {
+      addHierarchyAssignment(input: $input) {
+        hierarchyAssignment {
+          id
+          node { id label }
+          hierarchy { id name }
+          level { id label levelNumber }
+        }
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(mutation, { input: [{ node: { id: nodeId }, hierarchy: { id: hierarchyId }, level: { id: levelId } }] });
+    const assignment = data.addHierarchyAssignment.hierarchyAssignment[0];
+    res.status(201).json(assignment);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+// Delete a hierarchy assignment
+router.delete('/hierarchy/assignment/:id', async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  if (!id || !id.trim()) {
+    errorResponse(res, 'Invalid assignment ID: must be a non-empty string.', 400);
+    return;
+  }
+  const mutation = `
+    mutation ($id: ID!) {
+      deleteHierarchyAssignment(filter: { id: { eq: $id } }) {
+        msg
+        numUids
+      }
+    }
+  `;
+  try {
+    const tenantClient = await getTenantClient(req as TenantRequest);
+    const data = await tenantClient.executeGraphQL(mutation, { id });
+    res.json(data.deleteHierarchyAssignment);
+  } catch (err: any) {
+    errorResponse(res, err.message);
+  }
+});
+
+export default router;

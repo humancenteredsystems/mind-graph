@@ -30,7 +30,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "__tests__/**/*.js",
+    "__tests__/**/*.js", // Exclude all JS files in __tests__ and subdirectories
     "**/*.test.js",
     "**/*.spec.js"
   ]

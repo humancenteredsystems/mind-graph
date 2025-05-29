@@ -1,0 +1,1 @@
+{"version":3,"file":"dgraphClient.d.ts","sourceRoot":"","sources":["../dgraphClient.ts"],"names":[],"mappings":"AASA;;;;;;;GAOG;AACH,wBAAsB,cAAc,CAAC,CAAC,GAAG,GAAG,EAC1C,KAAK,EAAE,MAAM,EACb,SAAS,GAAE,MAAM,CAAC,MAAM,EAAE,GAAG,CAAM,EACnC,SAAS,GAAE,MAAM,GAAG,IAAW,GAC9B,OAAO,CAAC,CAAC,CAAC,CAiDZ;AAED,OAAO,EAAE,cAAc,IAAI,OAAO,EAAE,CAAC"}
