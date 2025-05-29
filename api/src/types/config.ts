@@ -11,6 +11,7 @@ export interface Config {
   defaultNamespace: string;
   testNamespace: string;
   namespacePrefix: string;
+  corsOrigin: string;
 }
 
 export interface DgraphConfig {

@@ -22,6 +22,9 @@ const config: Config = {
   
   // Security
   adminApiKey: process.env.ADMIN_API_KEY || undefined,
+  
+  // CORS
+  corsOrigin: process.env.CORS_ORIGIN || '*',
 };
 
 // Compute derived URLs from base URL

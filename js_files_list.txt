@@ -1,0 +1,13 @@
+api/routes/admin.js
+api/routes/system.js
+api/routes/graphql.js
+api/routes/hierarchy.js
+api/routes/diagnostic.js
+api/routes/schema.js
+api/routes/tenants.js
+api/utils/tenantMigration.js
+api/utils/dgraphAdmin.js
+api/jest.setup.js
+api/jest.config.js
+api/server.js
+api/controllers/tenantController.js

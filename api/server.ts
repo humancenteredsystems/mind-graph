@@ -1,5 +1,6 @@
 // Load centralized configuration (which loads dotenv once)
-const config = require('./config');
+import config from './config';
+import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 
 // --- Global Error Handlers ---
 process.on('uncaughtException', (err, origin) => {
@@ -13,11 +14,10 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 // --- End Global Error Handlers ---
 
-const express = require('express');
 const app = express();
 
 // Add a simple logging middleware to see incoming requests
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`[INCOMING REQUEST] ${req.method} ${req.url}`);
   next();
 });
@@ -30,7 +30,7 @@ const PORT = config.port;
 app.use(express.json()); // Parse JSON bodies
 
 // CORS Middleware - Allow specified origins or all (*)
-app.use((req, res, next) => {
+const corsMiddleware: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
   const allowedOrigin = config.corsOrigin;
   res.set('Access-Control-Allow-Origin', allowedOrigin);
   // Allow common methods and headers needed for GraphQL/API requests
@@ -38,13 +38,15 @@ app.use((req, res, next) => {
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Hierarchy-Id, X-Tenant-Id');
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
+    res.sendStatus(204);
+    return;
   }
   next();
-});
+};
+app.use(corsMiddleware);
 
 // Root endpoint
-app.get('/', (req, res) => {
+app.get('/', (req: Request, res: Response) => {
   res.send('MakeItMakeSense.io API is running!');
 });
 
@@ -76,10 +78,10 @@ app.use('/api', diagnosticRoutes);
 app.use('/api', hierarchyRoutes);
 app.use('/api', tenantRoutes);
 
-module.exports = app;
+export default app;
 
 // Start the server only if this file is run directly
-if (!module.parent) {
+if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`API server listening on port ${PORT}`);
     console.log(`Multi-tenant mode: ${config.enableMultiTenant ? 'ENABLED' : 'DISABLED'}`);
