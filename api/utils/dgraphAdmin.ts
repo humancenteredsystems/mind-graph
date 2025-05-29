@@ -1,4 +1,5 @@
-const axios = require('axios');
+import axios from 'axios';
+import { AdminOperationResult } from '../src/types/graphql';
 
 /**
  * sendDgraphAdminRequest
@@ -6,12 +7,16 @@ const axios = require('axios');
  * A shared helper to send JSON payloads to Dgraph admin endpoints.
  * Returns an object { success: boolean, data?: any, error?: string, details?: any }
  *
- * @param {string} url - The full URL of the Dgraph admin endpoint (e.g., /alter or /admin/schema).
- * @param {object} payload - The JSON payload to POST.
- * @param {string|null} namespace - Optional namespace for multi-tenant operations (e.g., '0x0', '0x1').
- * @returns {Promise<object>}
+ * @param url - The full URL of the Dgraph admin endpoint (e.g., /alter or /admin/schema).
+ * @param payload - The JSON payload to POST.
+ * @param namespace - Optional namespace for multi-tenant operations (e.g., '0x0', '0x1').
+ * @returns Promise<AdminOperationResult>
  */
-async function sendDgraphAdminRequest(url, payload, namespace = null) {
+export async function sendDgraphAdminRequest(
+  url: string, 
+  payload: object, 
+  namespace: string | null = null
+): Promise<AdminOperationResult> {
   // Build URL with optional namespace parameter
   const finalUrl = namespace ? `${url}?namespace=${namespace}` : url;
   
@@ -32,16 +37,17 @@ async function sendDgraphAdminRequest(url, payload, namespace = null) {
       };
     }
   } catch (error) {
-    console.error(`[DGRAPH ADMIN REQUEST] Error sending request to ${finalUrl}:`, error.message);
-    if (error.response) {
-      console.error('[DGRAPH ADMIN REQUEST] Response status:', error.response.status);
-      console.error('[DGRAPH ADMIN REQUEST] Response data:', error.response.data);
+    const err = error as any; // Using any for axios error handling
+    console.error(`[DGRAPH ADMIN REQUEST] Error sending request to ${finalUrl}:`, err.message);
+    if (err.response) {
+      console.error('[DGRAPH ADMIN REQUEST] Response status:', err.response.status);
+      console.error('[DGRAPH ADMIN REQUEST] Response data:', err.response.data);
       return {
         success: false,
-        error: `Dgraph admin request failed: ${error.response.status} - ${error.response.statusText}`,
-        details: error.response.data
+        error: `Dgraph admin request failed: ${err.response.status} - ${err.response.statusText}`,
+        details: err.response.data
       };
-    } else if (error.request) {
+    } else if (err.request) {
       return {
         success: false,
         error: `No response received from Dgraph admin at ${finalUrl}`
@@ -49,10 +55,8 @@ async function sendDgraphAdminRequest(url, payload, namespace = null) {
     } else {
       return {
         success: false,
-        error: `Error setting up Dgraph admin request: ${error.message}`
+        error: `Error setting up Dgraph admin request: ${err.message}`
       };
     }
   }
 }
-
-module.exports = { sendDgraphAdminRequest };

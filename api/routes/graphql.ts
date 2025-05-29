@@ -1,24 +1,37 @@
-const express = require('express');
-const router = express.Router();
-const config = require('../config');
-const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
-const { enrichNodeInputs } = require('../services/nodeEnrichment');
-const { 
+import express, { Request, Response } from 'express';
+import config from '../config';
+import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
+import { enrichNodeInputs } from '../services/nodeEnrichment';
+import { 
   InvalidLevelError, 
   NodeTypeNotAllowedError 
-} = require('../services/validation');
-const axios = require('axios');
+} from '../services/validation';
+import axios from 'axios';
+import { 
+  GraphQLRequest, 
+  GraphQLResponse,
+  GraphQLOperation 
+} from '../src/types/graphql';
+import { Node } from '../src/types/domain';
+
+const router = express.Router();
 
 // Use admin URL from config
 const DGRAPH_ADMIN_SCHEMA_URL = config.dgraphAdminUrl;
 
 // Helper function to get adaptive tenant-aware Dgraph client from request context
-async function getTenantClient(req) {
-  return await adaptiveTenantFactory.createTenantFromContext(req.tenantContext);
+async function getTenantClient(req: Request) {
+  // Convert TenantContext to UserContext format expected by adaptiveTenantFactory
+  const userContext = req.tenantContext ? {
+    namespace: req.tenantContext.namespace,
+    tenantId: req.tenantContext.tenantId
+  } : null;
+  
+  return await adaptiveTenantFactory.createTenantFromContext(userContext);
 }
 
 // Helper function to filter outgoing edges with missing target nodes
-function filterValidOutgoingEdges(node) {
+function filterValidOutgoingEdges(node: Node): Node {
   if (!node.outgoing) return node;
 
   const validOutgoing = node.outgoing.filter(edge =>
@@ -36,10 +49,11 @@ function filterValidOutgoingEdges(node) {
 // -------------------------------------------------------------------
 
 // Endpoint to execute arbitrary GraphQL queries
-router.post('/query', async (req, res) => {
-  const { query, variables } = req.body;
+router.post('/query', async (req: Request, res: Response): Promise<void> => {
+  const { query, variables }: GraphQLRequest = req.body;
   if (!query) {
-    return res.status(400).json({ error: 'Missing required field: query' });
+    res.status(400).json({ error: 'Missing required field: query' });
+    return;
   }
   try {
     const tenantClient = await getTenantClient(req);
@@ -49,25 +63,30 @@ router.post('/query', async (req, res) => {
     // Log the detailed error
     console.error(`Error in /api/query endpoint:`, error);
     // Provide a more specific error message if possible
-    const errorMessage = error.message.includes('GraphQL query failed:')
+    const errorMessage = error instanceof Error && error.message.includes('GraphQL query failed:')
       ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
       : 'Server error executing query.';
-    const statusCode = error.message.includes('GraphQL query failed:') ? 400 : 500;
+    const statusCode = error instanceof Error && error.message.includes('GraphQL query failed:') ? 400 : 500;
     res.status(statusCode).json({ error: errorMessage });
   }
 });
 
 // Endpoint to execute arbitrary GraphQL mutations
-router.post('/mutate', async (req, res) => {
-  let { mutation, variables = {} } = req.body;
+router.post('/mutate', async (req: Request, res: Response): Promise<void> => {
+  let { mutation, variables = {} }: { mutation: string; variables?: any } = req.body;
   if (!mutation) {
-    return res.status(400).json({ error: 'Missing required field: mutation' });
+    res.status(400).json({ error: 'Missing required field: mutation' });
+    return;
   }
   try {
     // Enrich addNode inputs with nested hierarchyAssignments
     // Focus on the operation being performed rather than specific mutation names
-    const hierarchyIdFromHeader = req.headers['x-hierarchy-id'];
-    variables = await enrichNodeInputs(variables, hierarchyIdFromHeader, mutation);
+    const hierarchyIdFromHeader = req.headers['x-hierarchy-id'] as string;
+    
+    // Only call enrichNodeInputs if variables has the expected structure
+    if (variables && typeof variables === 'object' && 'input' in variables) {
+      variables = await enrichNodeInputs(variables, hierarchyIdFromHeader, mutation);
+    }
     
     // For mutations that don't need transformation, or for addNode after input enrichment, execute normally
     // Log the input being sent to Dgraph for addNode mutations
@@ -89,19 +108,20 @@ router.post('/mutate', async (req, res) => {
     if (error instanceof InvalidLevelError || error instanceof NodeTypeNotAllowedError) {
       res.status(400).json({ error: error.message }); // Or 422 Unprocessable Entity
     } else {
-      const errorMessage = error.message.includes('GraphQL query failed:')
+      const errorMessage = error instanceof Error && error.message.includes('GraphQL query failed:')
         ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
         : 'Server error executing mutation.';
-      const statusCode = error.message.includes('GraphQL query failed:') ? 400 : 500;
+      const statusCode = error instanceof Error && error.message.includes('GraphQL query failed:') ? 400 : 500;
       res.status(statusCode).json({ error: errorMessage });
     }
   }
 });
 
-router.post('/traverse', async (req, res) => {
-  const { rootId } = req.body;
+router.post('/traverse', async (req: Request, res: Response): Promise<void> => {
+  const { rootId }: { rootId: string } = req.body;
   if (!rootId) {
-    return res.status(400).json({ error: 'Missing required field: rootId' });
+    res.status(400).json({ error: 'Missing required field: rootId' });
+    return;
   }
   try {
     const tenantClient = await getTenantClient(req);
@@ -127,27 +147,31 @@ router.post('/traverse', async (req, res) => {
     );
     const data = raw.queryNode || [];
     const safe = data.map(filterValidOutgoingEdges);
-    return res.json({ data: { queryNode: safe } });
+    res.json({ data: { queryNode: safe } });
   } catch (err) {
-    if (err.message?.startsWith('GraphQL query failed:')) {
-      return res.status(400).json({ error: `GraphQL error during traversal: ${err.message}` });
+    const error = err as Error;
+    if (error.message?.startsWith('GraphQL query failed:')) {
+      res.status(400).json({ error: `GraphQL error during traversal: ${error.message}` });
+      return;
     }
-    return res.status(500).json({ error: 'Server error during traversal.' });
+    res.status(500).json({ error: 'Server error during traversal.' });
   }
 });
 
 // Endpoint for searching nodes (using @search directive fields)
-router.get('/search', async (req, res) => {
-  const { term, field = 'label' } = req.query; // Default search field to 'label'
+router.get('/search', async (req: Request, res: Response): Promise<void> => {
+  const { term, field = 'label' }: { term?: string; field?: string } = req.query;
 
   if (!term) {
-    return res.status(400).json({ error: 'Missing required query parameter: term' });
+    res.status(400).json({ error: 'Missing required query parameter: term' });
+    return;
   }
 
   // Basic validation for field name
   const allowedFields = ['label']; // Only allow searching indexed fields
   if (!allowedFields.includes(field)) {
-      return res.status(400).json({ error: `Invalid search field: ${field}. Allowed fields: ${allowedFields.join(', ')}` });
+      res.status(400).json({ error: `Invalid search field: ${field}. Allowed fields: ${allowedFields.join(', ')}` });
+      return;
   }
 
   const query = `
@@ -167,9 +191,10 @@ router.get('/search', async (req, res) => {
     const result = await tenantClient.executeGraphQL(query, variables);
     res.json(result);
   } catch (error) {
-    console.error(`Error in /api/search endpoint: ${error.message}`);
-    if (error.message.startsWith('GraphQL query failed:')) {
-       res.status(400).json({ error: `GraphQL error during search: ${error.message}` });
+    const err = error as Error;
+    console.error(`Error in /api/search endpoint: ${err.message}`);
+    if (err.message.startsWith('GraphQL query failed:')) {
+       res.status(400).json({ error: `GraphQL error during search: ${err.message}` });
     } else {
        res.status(500).json({ error: 'Server error during search.' });
     }
@@ -177,7 +202,7 @@ router.get('/search', async (req, res) => {
 });
 
 // Endpoint to get the current GraphQL schema from Dgraph
-router.get('/schema', async (req, res) => {
+router.get('/schema', async (req: Request, res: Response): Promise<void> => {
     try {
         // Build namespace-aware admin URL
         const namespace = req.tenantContext?.namespace;
@@ -196,8 +221,9 @@ router.get('/schema', async (req, res) => {
              throw new Error('Schema not found in Dgraph admin response.');
         }
     } catch (error) {
-        console.error(`Error fetching schema from Dgraph admin: ${error.message}`);
-        if (error.response) {
+        const err = error as Error;
+        console.error(`Error fetching schema from Dgraph admin: ${err.message}`);
+        if (axios.isAxiosError(error) && error.response) {
             console.error('Dgraph admin response status:', error.response.status);
             console.error('Dgraph admin response data:', error.response.data);
         }
@@ -206,11 +232,12 @@ router.get('/schema', async (req, res) => {
 });
 
 // Cascade delete endpoint for nodes and their related edges
-router.post('/deleteNodeCascade', async (req, res) => {
-  const { nodeId } = req.body;
+router.post('/deleteNodeCascade', async (req: Request, res: Response): Promise<void> => {
+  const { nodeId }: { nodeId: string } = req.body;
 
   if (!nodeId) {
-    return res.status(400).json({ error: 'Missing nodeId in request body.' });
+    res.status(400).json({ error: 'Missing nodeId in request body.' });
+    return;
   }
 
   try {
@@ -260,16 +287,17 @@ router.post('/deleteNodeCascade', async (req, res) => {
     }
 
   } catch (error) {
-    console.error('[DELETE NODE CASCADE] Error:', error);
-    const errorMessage = error.message.includes('GraphQL query failed:')
-      ? `GraphQL error during delete: ${error.message.replace('GraphQL query failed: ', '')}`
-      : `Server error during delete: ${error.message}`;
+    const err = error as Error;
+    console.error('[DELETE NODE CASCADE] Error:', err);
+    const errorMessage = err.message.includes('GraphQL query failed:')
+      ? `GraphQL error during delete: ${err.message.replace('GraphQL query failed: ', '')}`
+      : `Server error during delete: ${err.message}`;
     res.status(500).json({ error: errorMessage });
   }
 });
 
 // Simple health check endpoint for compatibility
-router.get('/health', async (req, res) => {
+router.get('/health', async (req: Request, res: Response): Promise<void> => {
   try {
     // Execute a simple introspection query to test GraphQL connectivity
     const tenantClient = await getTenantClient(req);
@@ -281,14 +309,15 @@ router.get('/health', async (req, res) => {
       timestamp: new Date()
     });
   } catch (error) {
-    console.error('[HEALTH] Error during health check:', error);
+    const err = error as Error;
+    console.error('[HEALTH] Error during health check:', err);
     res.status(500).json({
       apiStatus: 'ERROR',
       dgraphStatus: 'disconnected',
-      error: error.message,
+      error: err.message,
       timestamp: new Date()
     });
   }
 });
 
-module.exports = router;
+export default router;

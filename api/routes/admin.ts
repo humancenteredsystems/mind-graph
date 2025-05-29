@@ -1,17 +1,25 @@
-const express = require('express');
+import express, { Request, Response } from 'express';
+import config from '../config';
+import { authenticateAdmin } from '../middleware/auth';
+import * as schemaRegistry from '../services/schemaRegistry';
+import { pushSchemaViaHttp } from '../utils/pushSchema';
+import { sendDgraphAdminRequest } from '../utils/dgraphAdmin';
+import { 
+  DropAllRequest, 
+  DropAllResponse, 
+  SchemaRequest, 
+  AdminOperationResult, 
+  SchemaPushResult 
+} from '../src/types/graphql';
+
 const router = express.Router();
-const config = require('../config');
-const { authenticateAdmin } = require('../middleware/auth');
-const schemaRegistry = require('../services/schemaRegistry');
-const { pushSchemaViaHttp } = require('../utils/pushSchema');
-const { sendDgraphAdminRequest } = require('../utils/dgraphAdmin');
 
 // Use URLs from config
 const DGRAPH_ADMIN_SCHEMA_URL = config.dgraphAdminUrl;
 const DGRAPH_ALTER_URL = `${config.dgraphBaseUrl.replace(/\/+$/, '')}/alter`;
 
 // Helper function to drop all data from the configured Dgraph instance
-async function dropAllData(target, namespace = null) { // Keep target parameter for potential future validation/logging
+async function dropAllData(target: string, namespace: string | null = null): Promise<AdminOperationResult> {
   // CRITICAL SAFETY CHECK: In multi-tenant mode, namespace MUST be specified
   const isMultiTenant = config.enableMultiTenant;
   
@@ -45,7 +53,7 @@ async function dropAllData(target, namespace = null) { // Keep target parameter 
   console.log(`[DROP ALL] Multi-tenant mode: ${isMultiTenant}`);
   console.log(`[DROP ALL] ===================================`);
   
-  const result = await sendDgraphAdminRequest(url, payload, namespace);
+  const result = await sendDgraphAdminRequest(url, payload, namespace) as AdminOperationResult;
 
   // Log the result for audit trail
   if (result.success) {
@@ -58,9 +66,9 @@ async function dropAllData(target, namespace = null) { // Keep target parameter 
 }
 
 // Helper function to push schema to the configured Dgraph instance
-async function pushSchemaToConfiguredDgraph(schema, namespace = null) {
+async function pushSchemaToConfiguredDgraph(schema: string, namespace: string | null = null): Promise<AdminOperationResult> {
   const url = DGRAPH_ADMIN_SCHEMA_URL; // Use the derived URL
-  const result = await pushSchemaViaHttp(schema, namespace, url);
+  const result = await pushSchemaViaHttp(schema, namespace || undefined, url);
 
   // Add verification step if needed
 
@@ -71,15 +79,15 @@ async function pushSchemaToConfiguredDgraph(schema, namespace = null) {
 // -------------------------------------------------------------------
 
 // Endpoint to push schema directly or from registry
-router.post('/admin/schema', authenticateAdmin, async (req, res) => {
+router.post('/admin/schema', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { schema, schemaId } = req.body;
+    const { schema, schemaId }: SchemaRequest = req.body;
 
     // Extract namespace from tenant context
     const namespace = req.tenantContext?.namespace;
 
     // Determine which schema to use
-    let schemaContent;
+    let schemaContent: string;
 
     if (schemaId) {
       console.log(`[SCHEMA PUSH] Using schema ${schemaId} from registry`);
@@ -87,47 +95,51 @@ router.post('/admin/schema', authenticateAdmin, async (req, res) => {
     } else if (schema) {
       schemaContent = schema;
     } else {
-      return res.status(400).json({ error: 'Missing required field: schema or schemaId' });
+      res.status(400).json({ error: 'Missing required field: schema or schemaId' });
+      return;
     }
 
     console.log(`[SCHEMA PUSH] Pushing schema to configured Dgraph instance${namespace ? ` for namespace ${namespace}` : ''}`);
-    const result = await pushSchemaToConfiguredDgraph(schemaContent, namespace);
+    const result: SchemaPushResult = await pushSchemaToConfiguredDgraph(schemaContent, namespace || null);
 
     if (result.success) {
-      return res.json({ success: true, results: result });
+      res.json({ success: true, results: result });
     } else {
       console.error('[SCHEMA PUSH] Push failed:', result.error);
-      return res.status(500).json({ success: false, message: 'Schema push encountered errors', results: result });
+      res.status(500).json({ success: false, message: 'Schema push encountered errors', results: result });
     }
   } catch (err) {
     console.error('[SCHEMA PUSH] Error:', err);
-    return res.status(500).json({ success: false, message: err.message });
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ success: false, message: errorMessage });
   }
 });
 
 // POST /api/admin/dropAll - Endpoint to drop all data from Dgraph instance(s)
-router.post('/admin/dropAll', authenticateAdmin, async (req, res) => {
-  const { target, confirmNamespace } = req.body;
+router.post('/admin/dropAll', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { target, confirmNamespace }: DropAllRequest = req.body;
 
   if (!target || !['local', 'remote', 'both'].includes(target)) {
-    return res.status(400).json({ error: 'Missing or invalid required field: target. Must be "local", "remote", or "both".' });
+    res.status(400).json({ error: 'Missing or invalid required field: target. Must be "local", "remote", or "both".' });
+    return;
   }
 
   try {
     // Extract namespace from tenant context
-    const namespace = req.tenantContext?.namespace;
+    const namespace = req.tenantContext?.namespace || undefined;
     const tenantId = req.tenantContext?.tenantId;
     const isMultiTenant = config.enableMultiTenant;
     
     // SAFETY CHECK: In multi-tenant mode, require explicit namespace confirmation
     if (isMultiTenant && confirmNamespace !== namespace) {
       console.error(`[DROP ALL] SAFETY CHECK FAILED: confirmNamespace (${confirmNamespace}) does not match context namespace (${namespace})`);
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Namespace confirmation required',
         details: `For safety, you must provide confirmNamespace: "${namespace}" in the request body to confirm the target namespace`,
         currentNamespace: namespace,
         currentTenant: tenantId
       });
+      return;
     }
     
     console.log(`[DROP ALL] === REQUEST DETAILS ===`);
@@ -137,30 +149,33 @@ router.post('/admin/dropAll', authenticateAdmin, async (req, res) => {
     console.log(`[DROP ALL] Confirmed: ${confirmNamespace === namespace ? 'YES' : 'NO'}`);
     console.log(`[DROP ALL] ======================`);
     
-    const result = await dropAllData(target, namespace);
+    const result: AdminOperationResult = await dropAllData(target, namespace || null);
 
     if (result.success) {
-      res.json({
+      const response: DropAllResponse = {
         success: true,
         message: `Drop all data operation completed successfully for configured Dgraph instance${namespace ? ` in namespace ${namespace}` : ''}`,
         namespace: namespace,
         tenantId: tenantId,
         data: result.data
-      });
+      };
+      res.json(response);
     } else {
-      res.status(500).json({
+      const response: DropAllResponse = {
         success: false,
         message: `Drop all data operation encountered errors`,
         error: result.error,
         details: result.details,
         namespace: namespace,
         tenantId: tenantId
-      });
+      };
+      res.status(500).json(response);
     }
   } catch (error) {
     console.error('[DROP ALL] Error in endpoint handler:', error);
-    res.status(500).json({ success: false, message: error.message });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ success: false, message: errorMessage });
   }
 });
 
-module.exports = router;
+export default router;

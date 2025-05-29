@@ -65,3 +65,35 @@ export interface SchemaResponse {
   code: string;
   message: string;
 }
+
+// Admin operation types
+export interface DropAllRequest {
+  target: 'local' | 'remote' | 'both';
+  confirmNamespace?: string;
+}
+
+export interface DropAllResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+  details?: string;
+  namespace?: string;
+  tenantId?: string;
+  data?: any;
+}
+
+export interface SchemaRequest {
+  schema?: string;
+  schemaId?: string;
+}
+
+export interface AdminOperationResult {
+  success: boolean;
+  error?: string;
+  details?: string;
+  data?: any;
+}
+
+export interface SchemaPushResult extends AdminOperationResult {
+  results?: any;
+}

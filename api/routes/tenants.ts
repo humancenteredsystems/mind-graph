@@ -1,17 +1,17 @@
-const express = require('express');
-const router = express.Router();
-const { TenantManager } = require('../services/tenantManager');
-const { authenticateAdmin } = require('../middleware/auth');
-const { ensureTenant } = require('../middleware/tenantContext');
+import express, { Request, Response } from 'express';
+import { TenantManager } from '../services/tenantManager';
+import { authenticateAdmin } from '../middleware/auth';
+import { ensureTenant } from '../middleware/tenantContext';
 
+const router = express.Router();
 const tenantManager = new TenantManager();
 
 // --- Public Tenant Operations ---
 
 // Get current tenant information
-router.get('/tenant/info', async (req, res) => {
+router.get('/tenant/info', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { tenantId } = req.tenantContext;
+    const { tenantId } = req.tenantContext!;
     const tenantInfo = await tenantManager.getTenantInfo(tenantId);
     
     res.json({
@@ -19,7 +19,8 @@ router.get('/tenant/info', async (req, res) => {
       context: req.tenantContext
     });
   } catch (error) {
-    console.error('[TENANT_INFO] Error:', error);
+    const err = error as Error;
+    console.error('[TENANT_INFO] Error:', err);
     res.status(500).json({ error: 'Failed to get tenant information' });
   }
 });
@@ -28,18 +29,20 @@ router.get('/tenant/info', async (req, res) => {
 router.use(authenticateAdmin);
 
 // Create a new tenant
-router.post('/tenant', ensureTenant, async (req, res) => {
+router.post('/tenant', ensureTenant, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { tenantId } = req.body;
+    const { tenantId }: { tenantId: string } = req.body;
     
     if (!tenantId) {
-      return res.status(400).json({ error: 'Missing required field: tenantId' });
+      res.status(400).json({ error: 'Missing required field: tenantId' });
+      return;
     }
 
     // Check if tenant already exists
     const exists = await tenantManager.tenantExists(tenantId);
     if (exists) {
-      return res.status(409).json({ error: 'Tenant already exists' });
+      res.status(409).json({ error: 'Tenant already exists' });
+      return;
     }
 
     // Create the tenant
@@ -52,49 +55,54 @@ router.post('/tenant', ensureTenant, async (req, res) => {
       namespace
     });
   } catch (error) {
-    console.error('[CREATE_TENANT] Error:', error);
+    const err = error as Error;
+    console.error('[CREATE_TENANT] Error:', err);
     res.status(500).json({ error: 'Failed to create tenant' });
   }
 });
 
 // List all tenants
-router.get('/tenant', async (req, res) => {
+router.get('/tenant', async (req: Request, res: Response): Promise<void> => {
   try {
     const tenants = await tenantManager.listTenants();
     res.json(tenants);
   } catch (error) {
-    console.error('[LIST_TENANTS] Error:', error);
+    const err = error as Error;
+    console.error('[LIST_TENANTS] Error:', err);
     res.status(500).json({ error: 'Failed to list tenants' });
   }
 });
 
 // Get specific tenant information
-router.get('/tenant/:tenantId', async (req, res) => {
+router.get('/tenant/:tenantId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId } = req.params;
     const tenantInfo = await tenantManager.getTenantInfo(tenantId);
     
     res.json(tenantInfo);
   } catch (error) {
-    console.error('[GET_TENANT] Error:', error);
+    const err = error as Error;
+    console.error('[GET_TENANT] Error:', err);
     res.status(500).json({ error: 'Failed to get tenant information' });
   }
 });
 
 // Delete a tenant
-router.delete('/tenant/:tenantId', async (req, res) => {
+router.delete('/tenant/:tenantId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId } = req.params;
     
     // Prevent deletion of system tenants
     if (tenantId === 'default' || tenantId === 'test-tenant') {
-      return res.status(400).json({ error: 'Cannot delete system tenants' });
+      res.status(400).json({ error: 'Cannot delete system tenants' });
+      return;
     }
 
     // Check if tenant exists
     const exists = await tenantManager.tenantExists(tenantId);
     if (!exists) {
-      return res.status(404).json({ error: 'Tenant not found' });
+      res.status(404).json({ error: 'Tenant not found' });
+      return;
     }
 
     // Delete the tenant
@@ -105,23 +113,25 @@ router.delete('/tenant/:tenantId', async (req, res) => {
       tenantId
     });
   } catch (error) {
-    console.error('[DELETE_TENANT] Error:', error);
+    const err = error as Error;
+    console.error('[DELETE_TENANT] Error:', err);
     res.status(500).json({ error: 'Failed to delete tenant' });
   }
 });
 
 // Initialize test tenant (for development)
-router.post('/tenant/test/init', async (req, res) => {
+router.post('/tenant/test/init', async (req: Request, res: Response): Promise<void> => {
   try {
     const testTenantId = 'test-tenant';
     
     // Check if test tenant already exists
     const exists = await tenantManager.tenantExists(testTenantId);
     if (exists) {
-      return res.json({
+      res.json({
         message: 'Test tenant already exists',
         tenant: await tenantManager.getTenantInfo(testTenantId)
       });
+      return;
     }
 
     // Create test tenant
@@ -134,13 +144,14 @@ router.post('/tenant/test/init', async (req, res) => {
       namespace
     });
   } catch (error) {
-    console.error('[INIT_TEST_TENANT] Error:', error);
+    const err = error as Error;
+    console.error('[INIT_TEST_TENANT] Error:', err);
     res.status(500).json({ error: 'Failed to initialize test tenant' });
   }
 });
 
 // Reset test tenant (clear all data)
-router.post('/tenant/test/reset', async (req, res) => {
+router.post('/tenant/test/reset', async (req: Request, res: Response): Promise<void> => {
   try {
     const testTenantId = 'test-tenant';
     
@@ -155,9 +166,10 @@ router.post('/tenant/test/reset', async (req, res) => {
       namespace
     });
   } catch (error) {
-    console.error('[RESET_TEST_TENANT] Error:', error);
+    const err = error as Error;
+    console.error('[RESET_TEST_TENANT] Error:', err);
     res.status(500).json({ error: 'Failed to reset test tenant' });
   }
 });
 
-module.exports = router;
+export default router;

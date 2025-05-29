@@ -1,32 +1,37 @@
-const { TenantManager } = require('../services/tenantManager');
-const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
+import { Request, Response, NextFunction } from 'express';
+import { TenantManager } from '../services/tenantManager';
+import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
 
 /**
  * TenantController - Universal tenant management with OSS/Enterprise compatibility
  * Provides tenant CRUD operations that adapt to available Dgraph capabilities
  */
-class TenantController {
+export class TenantController {
+  private tenantManager: TenantManager;
+
   constructor() {
     this.tenantManager = new TenantManager();
   }
 
-  async createTenant(req, res, next) {
+  async createTenant(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { tenantId } = req.body;
+      const { tenantId }: { tenantId: string } = req.body;
       
       if (!tenantId) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'tenantId is required'
         });
+        return;
       }
       
       // Check if multi-tenant mode is supported
       const capabilities = adaptiveTenantFactory.getCapabilities();
       if (!capabilities?.namespacesSupported) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Multi-tenant mode not supported in OSS deployment',
           mode: 'oss-single-tenant'
         });
+        return;
       }
       
       console.log(`[TENANT_CONTROLLER] Creating tenant: ${tenantId}`);
@@ -44,7 +49,7 @@ class TenantController {
     }
   }
 
-  async getTenantInfo(req, res, next) {
+  async getTenantInfo(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { tenantId } = req.params;
       
@@ -58,14 +63,14 @@ class TenantController {
     }
   }
 
-  async listTenants(req, res, next) {
+  async listTenants(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const capabilities = adaptiveTenantFactory.getCapabilities();
       
       if (!capabilities?.namespacesSupported) {
         // OSS mode: return default tenant only
         console.log(`[TENANT_CONTROLLER] OSS mode - returning default tenant`);
-        return res.json([{
+        res.json([{
           tenantId: 'default',
           namespace: '0x0',
           mode: 'oss-single-tenant',
@@ -73,6 +78,7 @@ class TenantController {
           isDefaultTenant: true,
           isTestTenant: false
         }]);
+        return;
       }
       
       // Enterprise mode: return all tenants
@@ -85,24 +91,26 @@ class TenantController {
     }
   }
 
-  async deleteTenant(req, res, next) {
+  async deleteTenant(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { tenantId } = req.params;
       
       // Prevent deletion of system tenants
       if (tenantId === 'default' || tenantId === 'test-tenant') {
-        return res.status(400).json({
+        res.status(400).json({
           error: `Cannot delete system tenant: ${tenantId}`
         });
+        return;
       }
       
       // Check if multi-tenant mode is supported
       const capabilities = adaptiveTenantFactory.getCapabilities();
       if (!capabilities?.namespacesSupported) {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Multi-tenant mode not supported in OSS deployment',
           mode: 'oss-single-tenant'
         });
+        return;
       }
       
       console.log(`[TENANT_CONTROLLER] Deleting tenant: ${tenantId}`);
@@ -119,7 +127,7 @@ class TenantController {
     }
   }
 
-  async getCapabilities(req, res, next) {
+  async getCapabilities(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const capabilities = adaptiveTenantFactory.getCapabilities();
       
@@ -136,5 +144,3 @@ class TenantController {
     }
   }
 }
-
-module.exports = { TenantController };

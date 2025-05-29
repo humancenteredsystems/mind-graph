@@ -1,27 +1,79 @@
-const { DgraphTenantFactory } = require('../services/dgraphTenant');
-const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
-const fs = require('fs').promises;
-const path = require('path');
+import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
+import { DgraphTenant } from '../services/dgraphTenant';
+import { promises as fs } from 'fs';
+import path from 'path';
+
+interface BackupMetadata {
+  tenantId: string;
+  backupDate: string;
+  version: string;
+  mode: 'enterprise' | 'oss';
+}
+
+interface BackupData {
+  metadata: BackupMetadata;
+  data: {
+    nodes?: any[];
+    hierarchies?: any[];
+    edges?: any[];
+  };
+}
+
+interface BackupResult {
+  success: boolean;
+  backupPath: string;
+  tenantId: string;
+  nodeCount: number;
+  hierarchyCount: number;
+  edgeCount: number;
+}
+
+interface RestoreResult {
+  success: boolean;
+  tenantId: string;
+  backupPath: string;
+  restoredCounts: {
+    nodes: number;
+    hierarchies: number;
+    edges: number;
+  };
+}
+
+interface BackupInfo {
+  filename: string;
+  path: string;
+  size: number;
+  created: Date;
+  metadata: Partial<BackupMetadata>;
+  counts: {
+    nodes: number;
+    hierarchies: number;
+    edges: number;
+  };
+}
 
 /**
  * TenantMigration - Universal migration utilities that work in both OSS and Enterprise modes
  * Provides backup/restore capabilities with automatic adaptation to available features
  */
-class TenantMigration {
+export class TenantMigration {
+  private backupDir: string;
+
   constructor() {
     this.backupDir = process.env.TENANT_BACKUP_DIR || './backups';
   }
 
-  async ensureBackupDirectory() {
+  async ensureBackupDirectory(): Promise<void> {
     try {
       await fs.mkdir(this.backupDir, { recursive: true });
     } catch (error) {
-      console.error(`[MIGRATION] Failed to create backup directory: ${error.message}`);
+      const err = error as Error;
+      console.error(`[MIGRATION] Failed to create backup directory: ${err.message}`);
       throw error;
     }
   }
 
-  async backupTenant(tenantId, backupPath = null) {
+  async backupTenant(tenantId: string, backupPath: string | null = null): Promise<BackupResult> {
     console.log(`[MIGRATION] Backing up tenant ${tenantId}`);
     
     try {
@@ -80,7 +132,7 @@ class TenantMigration {
       }
       
       // Add metadata to backup
-      const backupData = {
+      const backupData: BackupData = {
         metadata: {
           tenantId,
           backupDate: new Date().toISOString(),
@@ -107,13 +159,13 @@ class TenantMigration {
     }
   }
 
-  async restoreTenant(tenantId, backupPath) {
+  async restoreTenant(tenantId: string, backupPath: string): Promise<RestoreResult> {
     console.log(`[MIGRATION] Restoring tenant ${tenantId} from ${backupPath}`);
     
     try {
       // Read and validate backup file
       const backupContent = await fs.readFile(backupPath, 'utf8');
-      const backupData = JSON.parse(backupContent);
+      const backupData: BackupData = JSON.parse(backupContent);
       
       if (!backupData.data) {
         throw new Error('Invalid backup file format - missing data section');
@@ -166,7 +218,7 @@ class TenantMigration {
     }
   }
 
-  async restoreHierarchy(tenant, hierarchy) {
+  async restoreHierarchy(tenant: DgraphTenant, hierarchy: any): Promise<void> {
     try {
       const mutation = `
         mutation RestoreHierarchy($input: [AddHierarchyInput!]!) {
@@ -179,10 +231,10 @@ class TenantMigration {
       const hierarchyInput = {
         id: hierarchy.id,
         name: hierarchy.name,
-        levels: hierarchy.levels?.map(level => ({
+        levels: hierarchy.levels?.map((level: any) => ({
           levelNumber: level.levelNumber,
           label: level.label,
-          allowedTypes: level.allowedTypes?.map(at => ({ typeName: at.typeName })) || []
+          allowedTypes: level.allowedTypes?.map((at: any) => ({ typeName: at.typeName })) || []
         })) || []
       };
       
@@ -193,7 +245,7 @@ class TenantMigration {
     }
   }
 
-  async restoreNodes(tenant, nodes) {
+  async restoreNodes(tenant: DgraphTenant, nodes: any[]): Promise<void> {
     try {
       const mutation = `
         mutation RestoreNodes($input: [AddNodeInput!]!) {
@@ -207,7 +259,7 @@ class TenantMigration {
       const batchSize = 50;
       for (let i = 0; i < nodes.length; i += batchSize) {
         const batch = nodes.slice(i, i + batchSize);
-        const nodeInputs = batch.map(node => ({
+        const nodeInputs = batch.map((node: any) => ({
           id: node.id,
           label: node.label,
           type: node.type,
@@ -223,7 +275,7 @@ class TenantMigration {
     }
   }
 
-  async restoreEdges(tenant, edges) {
+  async restoreEdges(tenant: DgraphTenant, edges: any[]): Promise<void> {
     try {
       const mutation = `
         mutation RestoreEdges($input: [AddEdgeInput!]!) {
@@ -237,7 +289,7 @@ class TenantMigration {
       const batchSize = 50;
       for (let i = 0; i < edges.length; i += batchSize) {
         const batch = edges.slice(i, i + batchSize);
-        const edgeInputs = batch.map(edge => ({
+        const edgeInputs = batch.map((edge: any) => ({
           from: { id: edge.fromId },
           fromId: edge.fromId,
           to: { id: edge.toId },
@@ -253,19 +305,19 @@ class TenantMigration {
     }
   }
 
-  async listBackups() {
+  async listBackups(): Promise<BackupInfo[]> {
     try {
       await this.ensureBackupDirectory();
       const files = await fs.readdir(this.backupDir);
       const backupFiles = files.filter(file => file.endsWith('.json'));
       
-      const backups = [];
+      const backups: BackupInfo[] = [];
       for (const file of backupFiles) {
         try {
           const filePath = path.join(this.backupDir, file);
           const stats = await fs.stat(filePath);
           const content = await fs.readFile(filePath, 'utf8');
-          const backupData = JSON.parse(content);
+          const backupData: BackupData = JSON.parse(content);
           
           backups.push({
             filename: file,
@@ -280,16 +332,15 @@ class TenantMigration {
             }
           });
         } catch (error) {
-          console.warn(`[MIGRATION] Could not read backup file ${file}:`, error.message);
+          const err = error as Error;
+          console.warn(`[MIGRATION] Could not read backup file ${file}:`, err.message);
         }
       }
       
-      return backups.sort((a, b) => b.created - a.created);
+      return backups.sort((a, b) => b.created.getTime() - a.created.getTime());
     } catch (error) {
       console.error(`[MIGRATION] Failed to list backups:`, error);
       throw error;
     }
   }
 }
-
-module.exports = { TenantMigration };
