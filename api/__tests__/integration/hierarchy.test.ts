@@ -1,23 +1,14 @@
-const request = require('supertest');
-const app = require('../../server');
-const { mockHierarchies } = require('../helpers/mockData');
+import request from 'supertest';
+import app from '../../server';
+import { mockHierarchies } from '../helpers/mockData';
+import { TestMockFactory, TestDataBuilder } from '../helpers/mockFactory';
+import { MockedIntegrationTestBase } from '../helpers/testBase';
 
 // Mock the adaptive tenant factory
-jest.mock('../../services/adaptiveTenantFactory', () => {
-  const mockExecuteGraphQL = jest.fn();
-  return {
-    adaptiveTenantFactory: {
-      createTenantFromContext: jest.fn().mockResolvedValue({
-        executeGraphQL: mockExecuteGraphQL,
-        getNamespace: jest.fn().mockReturnValue('0x0'),
-        isDefaultNamespace: jest.fn().mockReturnValue(true)
-      })
-    },
-    mockExecuteGraphQL
-  };
-});
+const tenantMock = TestMockFactory.createTenantFactoryMock();
+jest.mock('../../services/adaptiveTenantFactory', () => tenantMock);
 
-const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
+const { mockExecuteGraphQL } = tenantMock;
 
 describe('Hierarchy API Integration', () => {
   beforeEach(() => {

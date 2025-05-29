@@ -1,6 +1,6 @@
-const request = require('supertest');
-const app = require('../../server');
-const { testRequest, verifyInTestTenant, createTestNodeData } = require('../helpers/realTestHelpers');
+import request from 'supertest';
+import app from '../../server';
+import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
 describe('Real Integration: Basic CRUD Operations', () => {
   beforeAll(async () => {
@@ -118,7 +118,7 @@ describe('Real Integration: Basic CRUD Operations', () => {
       expect(Array.isArray(response.body.queryNode)).toBe(true);
 
       // Should contain seeded test data
-      const nodeIds = response.body.queryNode.map(n => n.id);
+      const nodeIds = response.body.queryNode.map((n: any) => n.id);
       expect(nodeIds).toContain('test-concept-1');
       expect(nodeIds).toContain('test-example-1');
     });

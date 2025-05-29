@@ -1,9 +1,16 @@
-import { pushSchemaViaHttp } from '../../../utils/pushSchema';
 import axios from 'axios';
+import { TestMockFactory } from '../../helpers/mockFactory';
+import { isAxiosError, getErrorMessage, getErrorData } from '../../helpers/graphqlTestUtils';
 
-// Mock axios
+// Mock axios first
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
+
+// Mock config completely to avoid dotenv issues
+jest.mock('../../../config', () => TestMockFactory.createConfigMock());
+
+// Import after mocking
+import { pushSchemaViaHttp } from '../../../utils/pushSchema';
 
 describe('pushSchema Utility', () => {
   beforeEach(() => {
@@ -98,13 +105,59 @@ describe('pushSchema Utility', () => {
 
     it('should handle errors without response data', async () => {
       const error = new Error('Connection refused');
-      // No response property
       mockedAxios.post.mockRejectedValueOnce(error);
 
       const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Connection refused');
+    });
+
+    it('should handle nested response data structure', async () => {
+      const mockResponse = {
+        status: 200,
+        data: {
+          data: { code: 'Success', message: 'Done' }
+        }
+      };
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
+
+      const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
+
+      expect(result.success).toBe(true);
+      expect(result.response).toEqual({ code: 'Success', message: 'Done' });
+    });
+
+    it('should use default config URL when no custom URL provided', async () => {
+      const mockResponse = {
+        status: 200,
+        data: { code: 'Success', message: 'Done' }
+      };
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
+
+      await pushSchemaViaHttp(mockSchema, null, null);
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'http://localhost:8080/admin/schema',
+        mockSchema,
+        { headers: { 'Content-Type': 'application/graphql' } }
+      );
+    });
+
+    it('should handle namespace parameter', async () => {
+      const mockResponse = {
+        status: 200,
+        data: { code: 'Success', message: 'Done' }
+      };
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
+
+      await pushSchemaViaHttp(mockSchema, '0x1', adminUrl);
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        `${adminUrl}?namespace=0x1`,
+        mockSchema,
+        { headers: { 'Content-Type': 'application/graphql' } }
+      );
     });
   });
 });

@@ -1,6 +1,6 @@
-const request = require('supertest');
-const app = require('../../server');
-const { testRequest, verifyInTestTenant, createTestNodeData } = require('../helpers/realTestHelpers');
+import request from 'supertest';
+import app from '../../server';
+import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
 describe('Real Integration: Hierarchy Operations', () => {
   beforeAll(async () => {
@@ -24,10 +24,10 @@ describe('Real Integration: Hierarchy Operations', () => {
       expect(Array.isArray(response.body)).toBe(true);
       
       // Should contain the seeded test hierarchy
-      const hierarchyIds = response.body.map(h => h.id);
+      const hierarchyIds = response.body.map((h: any) => h.id);
       expect(hierarchyIds).toContain('test-hierarchy-1');
       
-      const testHierarchy = response.body.find(h => h.id === 'test-hierarchy-1');
+      const testHierarchy = response.body.find((h: any) => h.id === 'test-hierarchy-1');
       expect(testHierarchy).toBeTruthy();
       expect(testHierarchy.name).toBe('Test Hierarchy 1');
     });
@@ -106,7 +106,7 @@ describe('Real Integration: Hierarchy Operations', () => {
         }
       `);
 
-      const levelNumbers = verification.getHierarchy.levels.map(l => l.levelNumber);
+      const levelNumbers = verification.getHierarchy.levels.map((l: any) => l.levelNumber);
       expect(levelNumbers).toContain(3);
     });
 
@@ -175,7 +175,7 @@ describe('Real Integration: Hierarchy Operations', () => {
       `);
 
       const assignments = verification.getNode.hierarchyAssignments;
-      const hierarchyIds = assignments.map(a => a.hierarchy.id);
+      const hierarchyIds = assignments.map((a: any) => a.hierarchy.id);
       expect(hierarchyIds).toContain('test-hierarchy-1');
     });
 
@@ -251,7 +251,7 @@ describe('Real Integration: Hierarchy Operations', () => {
       expect(createdNode.hierarchyAssignments).toBeDefined();
       
       // Verify hierarchy assignment was automatically created
-      const hierarchyIds = createdNode.hierarchyAssignments.map(a => a.hierarchy.id);
+      const hierarchyIds = createdNode.hierarchyAssignments.map((a: any) => a.hierarchy.id);
       expect(hierarchyIds).toContain('test-hierarchy-1');
     });
 
@@ -377,7 +377,7 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       // Should find concept nodes at level 1
       const level1Nodes = levelQuery.body.queryNode;
-      const level1NodeIds = level1Nodes.map(n => n.id);
+      const level1NodeIds = level1Nodes.map((n: any) => n.id);
       expect(level1NodeIds).toContain(conceptNode.id);
     });
 

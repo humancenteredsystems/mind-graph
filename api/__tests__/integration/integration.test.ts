@@ -1,22 +1,12 @@
-const request = require('supertest');
-const app = require('../../server');
+import request from 'supertest';
+import app from '../../server';
+import { TestMockFactory } from '../helpers/mockFactory';
 
 // Mock the adaptive tenant factory
-jest.mock('../../services/adaptiveTenantFactory', () => {
-  const mockExecuteGraphQL = jest.fn();
-  return {
-    adaptiveTenantFactory: {
-      createTenantFromContext: jest.fn().mockResolvedValue({
-        executeGraphQL: mockExecuteGraphQL,
-        getNamespace: jest.fn().mockReturnValue('0x0'),
-        isDefaultNamespace: jest.fn().mockReturnValue(true)
-      })
-    },
-    mockExecuteGraphQL
-  };
-});
+const tenantMock = TestMockFactory.createTenantFactoryMock();
+jest.mock('../../services/adaptiveTenantFactory', () => tenantMock);
 
-const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
+const { mockExecuteGraphQL } = tenantMock;
 
 describe('Integration /api/mutate', () => {
   beforeEach(() => {
@@ -166,7 +156,7 @@ describe('Integration /api/traverse', () => {
     expect(res.body).toHaveProperty('data.queryNode');
     const node = res.body.data.queryNode[0];
     expect(node.outgoing.length).toBe(2);
-    const targets = node.outgoing.map(e => e.to.id);
+    const targets = node.outgoing.map((e: any) => e.to.id);
     expect(targets).toEqual(expect.arrayContaining(['child-node-1', 'related-node-2']));
   });
 

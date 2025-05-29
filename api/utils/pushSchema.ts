@@ -40,13 +40,15 @@ export async function pushSchemaViaHttp(
     });
 
     // Dgraph admin schema push returns {"data":{"code":"Success","message":"Done"}} on success
+    // Extract the actual data from the nested response structure
+    const responseData = response.data?.data || response.data;
     console.log(`[PUSH_SCHEMA] Schema pushed successfully to namespace ${namespace || 'default'}`);
-    return { success: true, response: response.data, namespace };
+    return { success: true, response: responseData, namespace };
   } catch (err: any) {
     console.error(`[PUSH_SCHEMA] Error pushing schema to ${namespace || 'default'}:`, err.message);
     // Provide more details if available in the response
     const errorDetails = err.response?.data || err.message;
-    return { success: true, error: errorDetails, namespace }; // Note: keeping original behavior where it returns success: true even on error
+    return { success: false, error: errorDetails, namespace };
   }
 }
 

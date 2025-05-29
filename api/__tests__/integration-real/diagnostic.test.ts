@@ -1,6 +1,7 @@
-const request = require('supertest');
-const app = require('../../server');
-const { adaptiveTenantFactory } = require('../../services/adaptiveTenantFactory');
+import request from 'supertest';
+import app from '../../server';
+import { adaptiveTenantFactory } from '../../services/adaptiveTenantFactory';
+import { getErrorMessage } from '../helpers/graphqlTestUtils';
 
 describe('Real Integration: Diagnostic Tests', () => {
   describe('Basic Connectivity', () => {
@@ -29,8 +30,8 @@ describe('Real Integration: Diagnostic Tests', () => {
         // Try a simple query to see if the client works
         const result = await testClient.executeGraphQL('query { __schema { types { name } } }');
         console.log('Schema query result:', !!result);
-      } catch (error) {
-        console.error('Failed to create test client:', error.message);
+      } catch (error: unknown) {
+        console.error('Failed to create test client:', getErrorMessage(error));
         throw error;
       }
     });
@@ -42,8 +43,8 @@ describe('Real Integration: Diagnostic Tests', () => {
         // Try to setup test database
         const setupResult = await global.testUtils.setupTestDatabase();
         console.log('Setup test database result:', setupResult);
-      } catch (error) {
-        console.error('Test database setup failed:', error.message);
+      } catch (error: unknown) {
+        console.error('Test database setup failed:', getErrorMessage(error));
         throw error;
       }
     });

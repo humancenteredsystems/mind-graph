@@ -1,6 +1,7 @@
-const request = require('supertest');
-const app = require('../../server');
-const { testRequest, verifyInTestTenant, createTestNodeData } = require('../helpers/realTestHelpers');
+import request from 'supertest';
+import app from '../../server';
+import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
+import { TestArrayUtils } from '../helpers/graphqlTestUtils';
 
 describe('Real Integration: GraphQL Operations', () => {
   beforeAll(async () => {
@@ -37,7 +38,7 @@ describe('Real Integration: GraphQL Operations', () => {
       expect(Array.isArray(response.body.queryNode)).toBe(true);
       
       // Should contain seeded test data
-      const nodeIds = response.body.queryNode.map(n => n.id);
+      const nodeIds = response.body.queryNode.map((n: any) => n.id);
       expect(nodeIds).toContain('test-concept-1');
       expect(nodeIds).toContain('test-example-1');
     });
@@ -127,8 +128,8 @@ describe('Real Integration: GraphQL Operations', () => {
       expect(Array.isArray(response.body.queryNode)).toBe(true);
       
       // Should find nodes with "Test" in the label
-      const foundLabels = response.body.queryNode.map(n => n.label);
-      foundLabels.forEach(label => {
+      const foundLabels = response.body.queryNode.map((n: any) => n.label);
+      foundLabels.forEach((label: string) => {
         expect(label.toLowerCase()).toContain('test');
       });
     });
@@ -295,7 +296,7 @@ describe('Real Integration: GraphQL Operations', () => {
       `);
 
       const outgoingEdges = verification.getNode.outgoing;
-      const connectedNodeIds = outgoingEdges.map(e => e.to.id);
+      const connectedNodeIds = outgoingEdges.map((e: any) => e.to.id);
       expect(connectedNodeIds).toContain(toNode.id);
     });
 
@@ -573,7 +574,7 @@ describe('Real Integration: GraphQL Operations', () => {
       expect(response.body.queryNode).toBeDefined();
       
       // All returned nodes should match the filters
-      response.body.queryNode.forEach(node => {
+      response.body.queryNode.forEach((node: any) => {
         expect(node.type).toBe('concept');
         expect(node.label.toLowerCase()).toContain('test');
       });
@@ -663,8 +664,8 @@ describe('Real Integration: GraphQL Operations', () => {
         }
       `;
 
-      // Execute multiple concurrent requests
-      const requests = Array(5).fill().map(() =>
+      // Execute multiple concurrent requests using type-safe array utility
+      const requests = TestArrayUtils.createMappedArray(5, () =>
         testRequest(app)
           .post('/api/query')
           .send({ query })
@@ -681,7 +682,7 @@ describe('Real Integration: GraphQL Operations', () => {
 
     it('should handle large batch mutations efficiently', async () => {
       const batchSize = 10;
-      const batchData = Array(batchSize).fill().map((_, index) => 
+      const batchData = TestArrayUtils.createMappedArray(batchSize, (index) => 
         createTestNodeData({ 
           label: `Batch Node ${index}`, 
           type: 'concept' 

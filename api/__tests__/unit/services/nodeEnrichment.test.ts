@@ -1,5 +1,5 @@
-const { enrichNodeInputs } = require('../../../services/nodeEnrichment');
-const { createMockAddNodeInput, mockHierarchies } = require('../../helpers/mockData');
+import { enrichNodeInputs } from '../../../services/nodeEnrichment';
+import { createMockAddNodeInput } from '../../helpers/mockData';
 
 // Mock the validation service
 jest.mock('../../../services/validation', () => ({
@@ -8,7 +8,10 @@ jest.mock('../../../services/validation', () => ({
   getLevelIdForNode: jest.fn()
 }));
 
-const validation = require('../../../services/validation');
+import * as validation from '../../../services/validation';
+
+// Type the mocked validation functions
+const mockValidation = validation as jest.Mocked<typeof validation>;
 
 describe('nodeEnrichment service', () => {
   beforeEach(() => {
@@ -39,14 +42,14 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
-      validation.validateLevelIdAndAllowedType.mockResolvedValueOnce();
+      mockValidation.validateLevelIdAndAllowedType.mockResolvedValueOnce({} as any);
 
       const result = await enrichNodeInputs(variables, hierarchyId, mutation);
 
       expect(result.input).toHaveLength(1);
       expect(result.input[0]).toHaveProperty('hierarchyAssignments');
-      expect(result.input[0].hierarchyAssignments).toHaveLength(1);
-      expect(result.input[0].hierarchyAssignments[0]).toEqual({
+      expect(result.input[0].hierarchyAssignments!).toHaveLength(1);
+      expect(result.input[0].hierarchyAssignments![0]).toEqual({
         hierarchy: { id: 'hierarchy1' },
         level: { id: 'level1' }
       });
@@ -66,7 +69,7 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
-      validation.validateLevelIdAndAllowedType.mockRejectedValueOnce(
+      mockValidation.validateLevelIdAndAllowedType.mockRejectedValueOnce(
         new Error('Node type "invalid-type" is not allowed at level "Domain"')
       );
 
@@ -84,12 +87,12 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
-      validation.validateLevelIdAndAllowedType.mockResolvedValueOnce();
+      mockValidation.validateLevelIdAndAllowedType.mockResolvedValueOnce({} as any);
 
       const result = await enrichNodeInputs(variables, hierarchyId, mutation);
 
       expect(result.input[0]).toHaveProperty('hierarchyAssignments');
-      expect(result.input[0].hierarchyAssignments[0]).toEqual({
+      expect(result.input[0].hierarchyAssignments![0]).toEqual({
         hierarchy: { id: 'hierarchy1' },
         level: { id: 'level1' }
       });
@@ -104,14 +107,14 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
-      validation.getLevelIdForNode.mockResolvedValueOnce('level2');
-      validation.validateLevelIdAndAllowedType.mockResolvedValueOnce();
+      mockValidation.getLevelIdForNode.mockResolvedValueOnce('level2');
+      mockValidation.validateLevelIdAndAllowedType.mockResolvedValueOnce({} as any);
 
       const result = await enrichNodeInputs(variables, hierarchyId, mutation);
 
-      expect(validation.getLevelIdForNode).toHaveBeenCalledWith('parent-node', 'hierarchy1');
+      expect(mockValidation.getLevelIdForNode).toHaveBeenCalledWith('parent-node', 'hierarchy1');
       expect(result.input[0]).toHaveProperty('hierarchyAssignments');
-      expect(result.input[0].hierarchyAssignments[0]).toEqual({
+      expect(result.input[0].hierarchyAssignments![0]).toEqual({
         hierarchy: { id: 'hierarchy1' },
         level: { id: 'level2' }
       });
@@ -126,7 +129,7 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
-      validation.validateLevelIdAndAllowedType.mockResolvedValue();
+      mockValidation.validateLevelIdAndAllowedType.mockResolvedValue({} as any);
 
       const result = await enrichNodeInputs(variables, hierarchyId, mutation);
 

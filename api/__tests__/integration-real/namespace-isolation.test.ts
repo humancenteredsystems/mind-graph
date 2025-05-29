@@ -1,7 +1,7 @@
-const request = require('supertest');
-const app = require('../../server');
-const { adaptiveTenantFactory } = require('../../services/adaptiveTenantFactory');
-const { testRequest, verifyInTestTenant, createTestNodeData } = require('../helpers/realTestHelpers');
+import request from 'supertest';
+import app from '../../server';
+import { adaptiveTenantFactory } from '../../services/adaptiveTenantFactory';
+import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
 describe('Real Integration: Namespace Isolation', () => {
   beforeAll(async () => {
@@ -106,12 +106,12 @@ describe('Real Integration: Namespace Isolation', () => {
         .expect(200);
 
       // Test tenant should have seeded data
-      const testNodeIds = testResponse.body.queryNode.map(n => n.id);
+      const testNodeIds = testResponse.body.queryNode.map((n: any) => n.id);
       expect(testNodeIds).toContain('test-concept-1');
       expect(testNodeIds).toContain('test-example-1');
 
       // Default namespace should be empty or have different data
-      const defaultNodeIds = defaultResponse.body.queryNode.map(n => n.id);
+      const defaultNodeIds = defaultResponse.body.queryNode.map((n: any) => n.id);
       expect(defaultNodeIds).not.toContain('test-concept-1');
       expect(defaultNodeIds).not.toContain('test-example-1');
     });
@@ -261,7 +261,7 @@ describe('Real Integration: Namespace Isolation', () => {
         .expect(200);
 
       // Should get test tenant data
-      const nodeIds = response.body.queryNode.map(n => n.id);
+      const nodeIds = response.body.queryNode.map((n: any) => n.id);
       expect(nodeIds).toContain('test-concept-1');
     });
 
@@ -282,7 +282,7 @@ describe('Real Integration: Namespace Isolation', () => {
         .expect(200);
 
       // Should get default namespace data (empty or different)
-      const nodeIds = response.body.queryNode.map(n => n.id);
+      const nodeIds = response.body.queryNode.map((n: any) => n.id);
       expect(nodeIds).not.toContain('test-concept-1');
     });
   });
