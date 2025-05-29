@@ -1,0 +1,2 @@
+Require statements: 6671
+module.exports: 2428

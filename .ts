@@ -1,5 +1,5 @@
-const { TenantManager } = require('../services/tenantManager');
-const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
+import { TenantManager } from "../services/tenantManager";
+import { adaptiveTenantFactory } from "../services/adaptiveTenantFactory";
 
 /**
  * TenantController - Universal tenant management with OSS/Enterprise compatibility
