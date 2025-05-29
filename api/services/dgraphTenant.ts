@@ -1,11 +1,16 @@
-const axios = require('axios');
-const config = require('../config');
+import axios, { AxiosResponse } from 'axios';
+import config from '../config';
+import { DgraphQueryResponse } from '../src/types';
 
 /**
  * DgraphTenant - A tenant-aware Dgraph client that handles namespace-specific operations
  */
-class DgraphTenant {
-  constructor(namespace = null) {
+export class DgraphTenant {
+  private namespace: string | null;
+  private baseUrl: string;
+  private endpoint: string;
+
+  constructor(namespace: string | null = null) {
     this.namespace = namespace;
     this.baseUrl = config.dgraphBaseUrl;
     this.endpoint = this.buildEndpoint();
@@ -16,23 +21,23 @@ class DgraphTenant {
   /**
    * Build the GraphQL endpoint URL with optional namespace parameter
    */
-  buildEndpoint() {
+  private buildEndpoint(): string {
     const baseEndpoint = `${this.baseUrl.replace(/\/+$/, '')}/graphql`;
     return this.namespace ? `${baseEndpoint}?namespace=${this.namespace}` : baseEndpoint;
   }
 
   /**
    * Execute a GraphQL query or mutation against the tenant's namespace
-   * @param {string} query - The GraphQL query string
-   * @param {object} variables - Variables for the query
-   * @returns {Promise<object>} - The data part of the GraphQL response
+   * @param query - The GraphQL query string
+   * @param variables - Variables for the query
+   * @returns The data part of the GraphQL response
    */
-  async executeGraphQL(query, variables = {}) {
+  async executeGraphQL<T = any>(query: string, variables: Record<string, any> = {}): Promise<T> {
     const queryPreview = query.substring(0, 100).replace(/\s+/g, ' ');
     console.log(`[DGRAPH_TENANT] Executing query in namespace ${this.namespace || 'default'}: ${queryPreview}...`);
     
     try {
-      const response = await axios.post(this.endpoint, {
+      const response: AxiosResponse<DgraphQueryResponse<T>> = await axios.post(this.endpoint, {
         query,
         variables,
       }, {
@@ -43,13 +48,13 @@ class DgraphTenant {
       if (response.data.errors) {
         console.error(`[DGRAPH_TENANT] GraphQL Errors in namespace ${this.namespace || 'default'}:`, 
           JSON.stringify(response.data.errors, null, 2));
-        throw new Error(`GraphQL query failed: ${response.data.errors.map(e => e.message).join(', ')}`);
+        throw new Error(`GraphQL query failed: ${response.data.errors.map((e: any) => e.message).join(', ')}`);
       }
 
       console.log(`[DGRAPH_TENANT] Query executed successfully in namespace ${this.namespace || 'default'}`);
       return response.data.data;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[DGRAPH_TENANT] Error in namespace ${this.namespace || 'default'}: ${error.message}`);
       
       if (error.response) {
@@ -66,14 +71,14 @@ class DgraphTenant {
   /**
    * Get the namespace this tenant is operating in
    */
-  getNamespace() {
+  getNamespace(): string | null {
     return this.namespace;
   }
 
   /**
    * Check if this tenant is using the default namespace
    */
-  isDefaultNamespace() {
+  isDefaultNamespace(): boolean {
     return this.namespace === null || this.namespace === '0x0';
   }
 }
@@ -81,41 +86,39 @@ class DgraphTenant {
 /**
  * DgraphTenantFactory - Factory for creating tenant-specific Dgraph clients
  */
-class DgraphTenantFactory {
+export class DgraphTenantFactory {
   /**
    * Create a new DgraphTenant instance for the specified namespace
-   * @param {string|null} namespace - The namespace to operate in (null for default)
-   * @returns {DgraphTenant} - A new tenant client instance
+   * @param namespace - The namespace to operate in (null for default)
+   * @returns A new tenant client instance
    */
-  static createTenant(namespace = null) {
+  static createTenant(namespace: string | null = null): DgraphTenant {
     return new DgraphTenant(namespace);
   }
 
   /**
    * Create a tenant client from a user context object
-   * @param {object} userContext - User context containing namespace information
-   * @returns {DgraphTenant} - A new tenant client instance
+   * @param userContext - User context containing namespace information
+   * @returns A new tenant client instance
    */
-  static createTenantFromContext(userContext) {
+  static createTenantFromContext(userContext?: { namespace?: string | null }): DgraphTenant {
     const namespace = userContext?.namespace || null;
     return new DgraphTenant(namespace);
   }
 
   /**
    * Create a tenant client for the default namespace
-   * @returns {DgraphTenant} - A new tenant client for default namespace
+   * @returns A new tenant client for default namespace
    */
-  static createDefaultTenant() {
+  static createDefaultTenant(): DgraphTenant {
     return new DgraphTenant(null);
   }
 
   /**
    * Create a tenant client for the test namespace
-   * @returns {DgraphTenant} - A new tenant client for test namespace
+   * @returns A new tenant client for test namespace
    */
-  static createTestTenant() {
+  static createTestTenant(): DgraphTenant {
     return new DgraphTenant(config.testNamespace);
   }
 }
-
-module.exports = { DgraphTenant, DgraphTenantFactory };

@@ -1,4 +1,6 @@
-const { TenantManager } = require('../services/tenantManager');
+import { Request, Response, NextFunction } from 'express';
+import { TenantManager } from '../services/tenantManager';
+import { TenantContext } from '../src/types';
 
 const tenantManager = new TenantManager();
 
@@ -6,10 +8,10 @@ const tenantManager = new TenantManager();
  * Middleware to set tenant context for each request
  * Resolves tenant ID to namespace and attaches to request context
  */
-async function setTenantContext(req, res, next) {
+export async function setTenantContext(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     // Extract tenant ID from headers, JWT, or default to test tenant for development
-    const tenantId = req.headers['x-tenant-id'] || 
+    const tenantId = req.headers['x-tenant-id'] as string || 
                      req.user?.tenantId || 
                      (process.env.NODE_ENV === 'test' ? 'test-tenant' : 'default');
     
@@ -26,7 +28,7 @@ async function setTenantContext(req, res, next) {
 
     console.log(`[TENANT_CONTEXT] Request for tenant ${tenantId} -> namespace ${namespace}`);
     next();
-  } catch (error) {
+  } catch (error: any) {
     console.error('[TENANT_CONTEXT] Failed to resolve tenant context:', error);
     
     // Fallback to default tenant
@@ -46,9 +48,9 @@ async function setTenantContext(req, res, next) {
 /**
  * Middleware to ensure tenant exists, creating it if necessary
  */
-async function ensureTenant(req, res, next) {
+export async function ensureTenant(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId } = req.tenantContext;
+    const { tenantId } = req.tenantContext!;
     
     // Skip for default tenant
     if (tenantId === 'default') {
@@ -63,15 +65,15 @@ async function ensureTenant(req, res, next) {
       await tenantManager.createTenant(tenantId);
       
       // Update context with creation info
-      req.tenantContext.wasCreated = true;
+      req.tenantContext!.wasCreated = true;
     }
     
     next();
-  } catch (error) {
+  } catch (error: any) {
     console.error('[TENANT_CONTEXT] Failed to ensure tenant exists:', error);
     
     // For development, continue with error logged
-    req.tenantContext.ensureError = error.message;
+    req.tenantContext!.ensureError = error.message;
     next();
   }
 }
@@ -79,26 +81,20 @@ async function ensureTenant(req, res, next) {
 /**
  * Middleware to validate tenant access (placeholder for future auth)
  */
-async function validateTenantAccess(req, res, next) {
+export async function validateTenantAccess(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { tenantId } = req.tenantContext;
+    const { tenantId } = req.tenantContext!;
     
     // For development, allow all access
     // In production, this would validate JWT claims, API keys, etc.
     
     console.log(`[TENANT_CONTEXT] Validated access for tenant: ${tenantId}`);
     next();
-  } catch (error) {
+  } catch (error: any) {
     console.error('[TENANT_CONTEXT] Access validation failed:', error);
-    return res.status(403).json({ 
+    res.status(403).json({ 
       error: 'Tenant access denied',
       tenantId: req.tenantContext?.tenantId 
     });
   }
 }
-
-module.exports = { 
-  setTenantContext, 
-  ensureTenant, 
-  validateTenantAccess 
-};

@@ -1,20 +1,61 @@
-const { 
+import { 
   validateHierarchyId, 
   validateLevelIdAndAllowedType, 
   getLevelIdForNode 
-} = require('./validation');
+} from './validation';
+
+// Input structure for node creation
+interface NodeInput {
+  id?: string;
+  label: string;
+  type: string;
+  hierarchyId?: string;
+  levelId?: string;
+  parentId?: string;
+  hierarchyAssignments?: Array<{
+    hierarchy: { id: string };
+    level: { id: string };
+  }>;
+}
+
+// Enriched node input for GraphQL mutation
+interface EnrichedNodeInput {
+  id?: string;
+  label: string;
+  type: string;
+  hierarchyAssignments?: Array<{
+    hierarchy: { id: string };
+    level: { id: string };
+  }>;
+}
+
+// Variables structure for mutation
+interface MutationVariables {
+  input: NodeInput[];
+  [key: string]: any;
+}
+
+// Return type for enriched variables
+interface EnrichedMutationVariables {
+  input: EnrichedNodeInput[];
+  [key: string]: any;
+}
 
 /**
  * Enriches addNode inputs with nested hierarchyAssignments
  * Handles validation and transformation of client input for node creation
  */
-async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
+export async function enrichNodeInputs(
+  variables: MutationVariables, 
+  hierarchyIdFromHeader: string | null, 
+  mutation: string
+): Promise<EnrichedMutationVariables> {
   // Only enrich AddNodeWithHierarchy mutations; simple AddNode mutations bypass enrichment
   if (!Array.isArray(variables.input) || !mutation.includes('AddNodeWithHierarchy')) {
     return variables;
   }
 
-  const enrichedInputs = [];
+  const enrichedInputs: EnrichedNodeInput[] = [];
   
   for (const inputObj of variables.input) {
     // Client can override hierarchyId per input item, this also needs validation
@@ -29,7 +70,7 @@ async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
     // itemHierarchyId is now validated (either it's the validated header one, or a validated one from input)
 
     // Process each input object for node creation
-    let finalLevelId = null; // Will hold the levelId if an assignment is to be made
+    let finalLevelId: string | null = null; // Will hold the levelId if an assignment is to be made
     let shouldCreateAssignment = false;
 
     // Case 1: Client provides hierarchyAssignments array (standard frontend structure)
@@ -47,11 +88,17 @@ async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
       }
     } else if (inputObj.levelId) { // Case 2: Client explicitly provides top-level levelId
       console.log(`[MUTATE] Validating client-provided levelId: ${inputObj.levelId} for node type ${inputObj.type}`);
+      if (!itemHierarchyId) {
+        throw new Error('Hierarchy ID is required when providing levelId');
+      }
       await validateLevelIdAndAllowedType(inputObj.levelId, inputObj.type, itemHierarchyId);
       finalLevelId = inputObj.levelId;
       shouldCreateAssignment = true;
     } else if (inputObj.parentId) { // Case 3: Client provides parentId, calculate level
       console.log(`[MUTATE] Looking up levelId for parentId: ${inputObj.parentId} in hierarchy ${itemHierarchyId}`);
+      if (!itemHierarchyId) {
+        throw new Error('Hierarchy ID is required when providing parentId');
+      }
       const calculatedLevelId = await getLevelIdForNode(inputObj.parentId, itemHierarchyId);
       console.log(`[MUTATE] Validating calculated levelId: ${calculatedLevelId} for node type ${inputObj.type}`);
       await validateLevelIdAndAllowedType(calculatedLevelId, inputObj.type, itemHierarchyId);
@@ -59,13 +106,13 @@ async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
       shouldCreateAssignment = true;
     }
 
-    const nodeInput = {
+    const nodeInput: EnrichedNodeInput = {
       id: inputObj.id,
       label: inputObj.label,
       type: inputObj.type,
     };
 
-    if (shouldCreateAssignment && finalLevelId) {
+    if (shouldCreateAssignment && finalLevelId && itemHierarchyId) {
       // Use the client-provided hierarchyAssignments if available, otherwise construct from server logic
       if (inputObj.hierarchyAssignments && Array.isArray(inputObj.hierarchyAssignments) && inputObj.hierarchyAssignments.length > 0) {
         nodeInput.hierarchyAssignments = inputObj.hierarchyAssignments;
@@ -86,7 +133,3 @@ async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
   
   return { ...variables, input: enrichedInputs };
 }
-
-module.exports = {
-  enrichNodeInputs
-};

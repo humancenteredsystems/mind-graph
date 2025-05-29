@@ -1,22 +1,49 @@
-const axios = require('axios');
+import axios, { AxiosResponse } from 'axios';
+import { TenantCapabilities } from '../src/types';
+
+// License information interface
+interface LicenseInfo {
+  type: 'oss-only' | 'oss-trial' | 'enterprise-licensed' | 'unknown';
+  expiry: Date | null;
+}
+
+// Dgraph health response interface
+interface DgraphHealthResponse {
+  version?: string;
+  ee_features?: string[];
+  enterprise?: boolean;
+  license?: any;
+}
+
+// Dgraph Zero state response interface
+interface DgraphZeroStateResponse {
+  license?: {
+    user?: string;
+    enabled?: boolean;
+    expiryTs?: string;
+  };
+}
 
 /**
  * DgraphCapabilityDetector - Detects Dgraph Enterprise features and capabilities
  */
-class DgraphCapabilityDetector {
+export class DgraphCapabilityDetector {
+  private baseUrl: string;
+  private zeroUrl: string;
+  private cachedCapabilities: TenantCapabilities | null = null;
+  private lastDetection: number | null = null;
+  private cacheTimeout: number = 5 * 60 * 1000; // 5 minutes
+
   constructor() {
     this.baseUrl = process.env.DGRAPH_BASE_URL || 'http://localhost:8080';
     this.zeroUrl = process.env.DGRAPH_ZERO_URL || 'http://localhost:6080';
-    this.cachedCapabilities = null;
-    this.lastDetection = null;
-    this.cacheTimeout = 5 * 60 * 1000; // 5 minutes
   }
 
   /**
    * Detect Dgraph capabilities with caching
-   * @returns {Promise<object>} Capabilities object
+   * @returns Capabilities object
    */
-  async detectCapabilities() {
+  async detectCapabilities(): Promise<TenantCapabilities> {
     // Return cached result if still valid
     if (this.cachedCapabilities && this.lastDetection) {
       const age = Date.now() - this.lastDetection;
@@ -44,10 +71,8 @@ class DgraphCapabilityDetector {
       this.cachedCapabilities = {
         enterpriseDetected,
         namespacesSupported,
-        licenseType: licenseInfo.type,
-        licenseExpiry: licenseInfo.expiry,
         detectedAt: new Date(),
-        version: await this.detectVersion()
+        error: undefined
       };
       
       this.lastDetection = Date.now();
@@ -55,17 +80,14 @@ class DgraphCapabilityDetector {
       console.log('[DGRAPH_CAPABILITIES] Detection complete:', this.cachedCapabilities);
       return this.cachedCapabilities;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('[DGRAPH_CAPABILITIES] Error detecting capabilities:', error.message);
       
       // Fallback to OSS assumptions on network errors
       this.cachedCapabilities = {
         enterpriseDetected: false,
         namespacesSupported: false,
-        licenseType: 'unknown',
-        licenseExpiry: null,
         detectedAt: new Date(),
-        version: 'unknown',
         error: error.message
       };
       
@@ -76,16 +98,16 @@ class DgraphCapabilityDetector {
 
   /**
    * Detect license type and expiry information
-   * @returns {Promise<object>} License information
+   * @returns License information
    */
-  async detectLicenseInfo() {
+  async detectLicenseInfo(): Promise<LicenseInfo> {
     console.log('[DGRAPH_CAPABILITIES] Detecting license information...');
     
     try {
       const stateUrl = `${this.zeroUrl}/state`;
       console.log(`[DGRAPH_CAPABILITIES] Testing Zero state: ${stateUrl}`);
       
-      const response = await axios.get(stateUrl, {
+      const response: AxiosResponse<DgraphZeroStateResponse> = await axios.get(stateUrl, {
         timeout: 5000,
         validateStatus: (status) => status < 500
       });
@@ -100,7 +122,7 @@ class DgraphCapabilityDetector {
         });
 
         // Determine license type based on user field
-        let licenseType;
+        let licenseType: LicenseInfo['type'];
         if (!license.enabled) {
           licenseType = 'oss-only';
         } else if (license.user === '' || license.user === null || license.user === undefined) {
@@ -112,7 +134,7 @@ class DgraphCapabilityDetector {
         }
 
         // Parse expiry date
-        let expiryDate = null;
+        let expiryDate: Date | null = null;
         if (license.expiryTs) {
           expiryDate = new Date(parseInt(license.expiryTs) * 1000);
           console.log('[DGRAPH_CAPABILITIES] License expires:', expiryDate.toISOString());
@@ -130,7 +152,7 @@ class DgraphCapabilityDetector {
         };
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.log('[DGRAPH_CAPABILITIES] License detection failed:', error.message);
       return {
         type: 'unknown',
@@ -141,10 +163,9 @@ class DgraphCapabilityDetector {
 
   /**
    * Detect if Enterprise features are currently active
-   * Based on test results, the most reliable indicator is the ee_features array in health response
-   * @returns {Promise<boolean>} True if Enterprise features are active
+   * @returns True if Enterprise features are active
    */
-  async detectEnterpriseFeatures() {
+  async detectEnterpriseFeatures(): Promise<boolean> {
     console.log('[DGRAPH_CAPABILITIES] Detecting active Enterprise features...');
     
     try {
@@ -152,7 +173,7 @@ class DgraphCapabilityDetector {
       const healthUrl = `${this.baseUrl}/health`;
       console.log(`[DGRAPH_CAPABILITIES] Testing health endpoint: ${healthUrl}`);
       
-      const healthResponse = await axios.get(healthUrl, {
+      const healthResponse: AxiosResponse<DgraphHealthResponse[] | DgraphHealthResponse> = await axios.get(healthUrl, {
         timeout: 5000,
         validateStatus: (status) => status < 500
       });
@@ -186,30 +207,10 @@ class DgraphCapabilityDetector {
         }
       }
 
-      // Secondary method: Test Zero server enterprise license endpoint
-      // Based on test results, this endpoint exists when enterprise features are active
-      try {
-        const zeroUrl = `${this.zeroUrl}/enterpriseLicense`;
-        console.log(`[DGRAPH_CAPABILITIES] Testing Zero enterprise endpoint: ${zeroUrl}`);
-        
-        const zeroResponse = await axios.get(zeroUrl, {
-          timeout: 3000,
-          validateStatus: (status) => status < 500
-        });
-        
-        // If endpoint responds (even with error), enterprise features are available
-        if (zeroResponse.status !== 404) {
-          console.log('[DGRAPH_CAPABILITIES] ✅ Enterprise features detected via Zero server endpoint');
-          return true;
-        }
-      } catch (zeroError) {
-        console.log('[DGRAPH_CAPABILITIES] Zero server test failed (may not be accessible):', zeroError.message);
-      }
-
       console.log('[DGRAPH_CAPABILITIES] ❌ No active Enterprise features detected');
       return false;
 
-    } catch (error) {
+    } catch (error: any) {
       console.log('[DGRAPH_CAPABILITIES] Enterprise feature detection failed:', error.message);
       return false;
     }
@@ -217,9 +218,9 @@ class DgraphCapabilityDetector {
 
   /**
    * Test namespace support (separate check from Enterprise detection)
-   * @returns {Promise<boolean>} True if namespaces are supported and working
+   * @returns True if namespaces are supported and working
    */
-  async testNamespaceSupport() {
+  async testNamespaceSupport(): Promise<boolean> {
     console.log('[DGRAPH_CAPABILITIES] Testing namespace support...');
     
     try {
@@ -258,47 +259,17 @@ class DgraphCapabilityDetector {
       console.log('[DGRAPH_CAPABILITIES] ❌ Namespace support not detected');
       return false;
 
-    } catch (error) {
+    } catch (error: any) {
       console.log('[DGRAPH_CAPABILITIES] Namespace test failed:', error.message);
       return false;
     }
   }
 
   /**
-   * Attempt to detect Dgraph version
-   * @returns {Promise<string>} Version string or 'unknown'
-   */
-  async detectVersion() {
-    try {
-      // Try to get version from health endpoint
-      const healthUrl = `${this.baseUrl}/health`;
-      const response = await axios.get(healthUrl, { timeout: 3000 });
-      
-      // Check if response is an array (typical for Dgraph health)
-      if (Array.isArray(response.data) && response.data.length > 0) {
-        const alphaInfo = response.data[0];
-        if (alphaInfo.version) {
-          return alphaInfo.version;
-        }
-      }
-      
-      // Fallback for single object response
-      if (response.data && response.data.version) {
-        return response.data.version;
-      }
-      
-      return 'detected';
-    } catch (error) {
-      console.log('[DGRAPH_CAPABILITIES] Could not detect version:', error.message);
-      return 'unknown';
-    }
-  }
-
-  /**
    * Force refresh of capabilities cache
-   * @returns {Promise<object>} Fresh capabilities
+   * @returns Fresh capabilities
    */
-  async refreshCapabilities() {
+  async refreshCapabilities(): Promise<TenantCapabilities> {
     this.cachedCapabilities = null;
     this.lastDetection = null;
     return await this.detectCapabilities();
@@ -306,17 +277,12 @@ class DgraphCapabilityDetector {
 
   /**
    * Get cached capabilities without detection
-   * @returns {object|null} Cached capabilities or null
+   * @returns Cached capabilities or null
    */
-  getCachedCapabilities() {
+  getCachedCapabilities(): TenantCapabilities | null {
     return this.cachedCapabilities;
   }
 }
 
 // Export singleton instance
-const dgraphCapabilityDetector = new DgraphCapabilityDetector();
-
-module.exports = { 
-  DgraphCapabilityDetector, 
-  dgraphCapabilityDetector 
-};
+export const dgraphCapabilityDetector = new DgraphCapabilityDetector();

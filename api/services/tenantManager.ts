@@ -1,15 +1,50 @@
-const crypto = require('crypto');
-const config = require('../config');
-const { DgraphTenantFactory } = require('./dgraphTenant');
-const { pushSchemaViaHttp } = require('../utils/pushSchema');
-const fs = require('fs').promises;
-const path = require('path');
+import crypto from 'crypto';
+import config from '../config';
+import { DgraphTenantFactory } from './dgraphTenant';
+import { pushSchemaViaHttp } from '../utils/pushSchema';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { TenantInfo, CreateTenantResponse } from '../src/types';
+
+// Interfaces for dependency injection
+interface TenantManagerDependencies {
+  pushSchema?: (schema: string, namespace: string | null, adminUrl?: string) => Promise<any>;
+  fileSystem?: typeof fs;
+  schemaPath?: string;
+  tenantFactory?: typeof DgraphTenantFactory;
+}
+
+interface HierarchyLevel {
+  levelNumber: number;
+  label: string;
+  allowedTypes: string[];
+}
+
+interface HierarchyData {
+  id: string;
+  name: string;
+  levels: HierarchyLevel[];
+}
+
+interface DgraphTenant {
+  executeGraphQL: (query: string, variables?: Record<string, any>) => Promise<any>;
+}
 
 /**
  * TenantManager - Manages tenant namespaces and lifecycle operations
  */
-class TenantManager {
-  constructor(dependencies = {}) {
+export class TenantManager {
+  private pushSchema: (schema: string, namespace: string | null, adminUrl?: string) => Promise<any>;
+  private fileSystem: typeof fs;
+  private schemaPath: string;
+  private tenantFactory: typeof DgraphTenantFactory;
+  
+  public readonly defaultNamespace: string;
+  public readonly testNamespace: string;
+  public readonly namespacePrefix: string;
+  public readonly enableMultiTenant: boolean;
+
+  constructor(dependencies: TenantManagerDependencies = {}) {
     // Dependency injection - use provided dependencies or defaults
     this.pushSchema = dependencies.pushSchema || pushSchemaViaHttp;
     this.fileSystem = dependencies.fileSystem || fs;
@@ -27,10 +62,10 @@ class TenantManager {
 
   /**
    * Create a new tenant namespace with initial setup
-   * @param {string} tenantId - Unique identifier for the tenant
-   * @returns {Promise<string>} - The created namespace ID
+   * @param tenantId - Unique identifier for the tenant
+   * @returns The created namespace ID
    */
-  async createTenant(tenantId) {
+  async createTenant(tenantId: string): Promise<string> {
     const namespace = this.generateNamespaceId(tenantId);
     
     try {
@@ -52,9 +87,9 @@ class TenantManager {
 
   /**
    * Initialize schema in a tenant's namespace
-   * @param {string} namespace - The namespace to initialize
+   * @param namespace - The namespace to initialize
    */
-  async initializeTenantSchema(namespace) {
+  async initializeTenantSchema(namespace: string): Promise<void> {
     try {
       const schemaContent = await this.getDefaultSchema();
       
@@ -69,9 +104,9 @@ class TenantManager {
 
   /**
    * Get the default GraphQL schema content
-   * @returns {Promise<string>} - The schema content
+   * @returns The schema content
    */
-  async getDefaultSchema() {
+  async getDefaultSchema(): Promise<string> {
     try {
       return await this.fileSystem.readFile(this.schemaPath, 'utf8');
     } catch (error) {
@@ -82,13 +117,13 @@ class TenantManager {
 
   /**
    * Seed a tenant namespace with default hierarchies
-   * @param {string} namespace - The namespace to seed
+   * @param namespace - The namespace to seed
    */
-  async seedDefaultHierarchies(namespace) {
+  async seedDefaultHierarchies(namespace: string): Promise<void> {
     try {
       const tenant = this.tenantFactory.createTenant(namespace);
       
-      const defaultHierarchies = [
+      const defaultHierarchies: HierarchyData[] = [
         {
           id: 'default-hierarchy',
           name: 'Default Hierarchy',
@@ -113,10 +148,10 @@ class TenantManager {
 
   /**
    * Create a hierarchy in a specific namespace
-   * @param {object} hierarchyData - The hierarchy data to create
-   * @param {DgraphTenant} tenant - The tenant client to use
+   * @param hierarchyData - The hierarchy data to create
+   * @param tenant - The tenant client to use
    */
-  async createHierarchyInNamespace(hierarchyData, tenant) {
+  async createHierarchyInNamespace(hierarchyData: HierarchyData, tenant: DgraphTenant): Promise<void> {
     const mutation = `
       mutation CreateHierarchy($hierarchy: AddHierarchyInput!) {
         addHierarchy(input: [$hierarchy]) {
@@ -140,7 +175,7 @@ class TenantManager {
     const hierarchyInput = {
       id: hierarchyData.id,
       name: hierarchyData.name,
-      levels: hierarchyData.levels.map((level, index) => ({
+      levels: hierarchyData.levels.map((level) => ({
         levelNumber: level.levelNumber,
         label: level.label,
         allowedTypes: level.allowedTypes.map(typeName => ({ typeName }))
@@ -152,10 +187,10 @@ class TenantManager {
 
   /**
    * Generate a deterministic namespace ID from tenant ID
-   * @param {string} tenantId - The tenant identifier
-   * @returns {string} - The generated namespace ID
+   * @param tenantId - The tenant identifier
+   * @returns The generated namespace ID
    */
-  generateNamespaceId(tenantId) {
+  generateNamespaceId(tenantId: string): string {
     // Handle special cases
     if (tenantId === 'test-tenant') return this.testNamespace;
     if (tenantId === 'default') return this.defaultNamespace;
@@ -168,10 +203,10 @@ class TenantManager {
 
   /**
    * Get the namespace for a given tenant ID
-   * @param {string} tenantId - The tenant identifier
-   * @returns {Promise<string>} - The namespace ID
+   * @param tenantId - The tenant identifier
+   * @returns The namespace ID
    */
-  async getTenantNamespace(tenantId) {
+  async getTenantNamespace(tenantId: string): Promise<string> {
     // For now, generate deterministically
     // In production, this would query a tenant mapping table
     return this.generateNamespaceId(tenantId);
@@ -179,10 +214,10 @@ class TenantManager {
 
   /**
    * Check if a tenant exists
-   * @param {string} tenantId - The tenant identifier
-   * @returns {Promise<boolean>} - Whether the tenant exists
+   * @param tenantId - The tenant identifier
+   * @returns Whether the tenant exists
    */
-  async tenantExists(tenantId) {
+  async tenantExists(tenantId: string): Promise<boolean> {
     try {
       const namespace = await this.getTenantNamespace(tenantId);
       const tenant = this.tenantFactory.createTenant(namespace);
@@ -200,9 +235,9 @@ class TenantManager {
 
   /**
    * Delete a tenant and all its data
-   * @param {string} tenantId - The tenant identifier
+   * @param tenantId - The tenant identifier
    */
-  async deleteTenant(tenantId) {
+  async deleteTenant(tenantId: string): Promise<void> {
     try {
       const namespace = await this.getTenantNamespace(tenantId);
       console.log(`[TENANT_MANAGER] Deleting tenant ${tenantId} from namespace ${namespace}`);
@@ -235,10 +270,10 @@ class TenantManager {
 
   /**
    * Get tenant information
-   * @param {string} tenantId - The tenant identifier
-   * @returns {Promise<object>} - Tenant information
+   * @param tenantId - The tenant identifier
+   * @returns Tenant information
    */
-  async getTenantInfo(tenantId) {
+  async getTenantInfo(tenantId: string): Promise<TenantInfo> {
     const namespace = await this.getTenantNamespace(tenantId);
     const exists = await this.tenantExists(tenantId);
     
@@ -253,12 +288,12 @@ class TenantManager {
 
   /**
    * List all known tenants (for development/debugging)
-   * @returns {Promise<Array>} - List of tenant information
+   * @returns List of tenant information
    */
-  async listTenants() {
+  async listTenants(): Promise<TenantInfo[]> {
     // For development, return known tenants
     const knownTenants = ['default', 'test-tenant'];
-    const tenantInfos = [];
+    const tenantInfos: TenantInfo[] = [];
     
     for (const tenantId of knownTenants) {
       try {
@@ -272,5 +307,3 @@ class TenantManager {
     return tenantInfos;
   }
 }
-
-module.exports = { TenantManager };

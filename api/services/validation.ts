@@ -1,29 +1,68 @@
-const { executeGraphQL } = require('../dgraphClient');
+import { executeGraphQL } from '../dgraphClient';
+import { 
+  Node, 
+  Hierarchy, 
+  HierarchyLevel, 
+  HierarchyLevelType,
+  HierarchyAssignment 
+} from '../src/types';
 
 // Custom Error for Invalid Level operations
-class InvalidLevelError extends Error {
-  constructor(message) {
+export class InvalidLevelError extends Error {
+  constructor(message: string) {
     super(message);
     this.name = "InvalidLevelError";
   }
 }
 
 // Custom Error for Node Type Not Allowed at Level
-class NodeTypeNotAllowedError extends Error {
-  constructor(message) {
+export class NodeTypeNotAllowedError extends Error {
+  constructor(message: string) {
     super(message);
     this.name = "NodeTypeNotAllowedError";
   }
 }
 
+// GraphQL response types for validation queries
+interface GetHierarchyResponse {
+  getHierarchy: { id: string } | null;
+}
+
+interface GetLevelDetailsResponse {
+  getHierarchyLevel: {
+    id: string;
+    levelNumber: number;
+    hierarchy: { id: string };
+    allowedTypes: { typeName: string }[] | null;
+  } | null;
+}
+
+interface ParentLevelResponse {
+  queryNode: Array<{
+    hierarchyAssignments: Array<{
+      hierarchy: { id: string };
+      level: { levelNumber: number };
+    }>;
+  }>;
+}
+
+interface LevelsForHierarchyResponse {
+  queryHierarchy: Array<{
+    levels: Array<{
+      id: string;
+      levelNumber: number;
+    }>;
+  }>;
+}
+
 // Helper function to validate a hierarchy ID
-async function validateHierarchyId(hierarchyId) {
+export async function validateHierarchyId(hierarchyId: string): Promise<boolean> {
   if (!hierarchyId || typeof hierarchyId !== 'string') {
     return false; // Basic type check
   }
   const query = `query GetHierarchy($id: String!) { getHierarchy(id: $id) { id } }`;
   try {
-    const result = await executeGraphQL(query, { id: hierarchyId });
+    const result = await executeGraphQL<GetHierarchyResponse>(query, { id: hierarchyId });
     return !!(result.getHierarchy && result.getHierarchy.id);
   } catch (error) {
     console.error(`Error validating hierarchy ID ${hierarchyId}:`, error);
@@ -32,7 +71,11 @@ async function validateHierarchyId(hierarchyId) {
 }
 
 // Helper function to validate a level ID and check allowed node type
-async function validateLevelIdAndAllowedType(levelId, nodeType, hierarchyId) {
+export async function validateLevelIdAndAllowedType(
+  levelId: string, 
+  nodeType: string, 
+  hierarchyId?: string
+): Promise<{ id: string; levelNumber: number; hierarchy: { id: string }; allowedTypes: { typeName: string }[] | null }> {
   if (!levelId || typeof levelId !== 'string') {
     throw new InvalidLevelError(`A valid levelId string must be provided.`);
   }
@@ -54,7 +97,7 @@ async function validateLevelIdAndAllowedType(levelId, nodeType, hierarchyId) {
     }
   `;
   try {
-    const result = await executeGraphQL(query, { levelId });
+    const result = await executeGraphQL<GetLevelDetailsResponse>(query, { levelId });
     const levelDetails = result.getHierarchyLevel;
 
     if (!levelDetails || !levelDetails.id) {
@@ -76,7 +119,7 @@ async function validateLevelIdAndAllowedType(levelId, nodeType, hierarchyId) {
     }
     // If allowedTypes is null or empty, all types are permitted at this level.
     return levelDetails; // Return details if needed, or just true
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error validating level ID '${levelId}' for type '${nodeType}':`, error.message);
     if (error instanceof InvalidLevelError || error instanceof NodeTypeNotAllowedError) {
       throw error; // Re-throw custom errors
@@ -87,7 +130,7 @@ async function validateLevelIdAndAllowedType(levelId, nodeType, hierarchyId) {
 }
 
 // Helper to determine levelId for a new node within a hierarchy
-async function getLevelIdForNode(parentId, hierarchyId) {
+export async function getLevelIdForNode(parentId: string | null, hierarchyId: string): Promise<string> {
   let targetLevelNumber = 1; // Default if no parent or no matching assignment
 
   if (parentId) {
@@ -101,7 +144,7 @@ async function getLevelIdForNode(parentId, hierarchyId) {
         }
       }
     `;
-    const parentResp = await executeGraphQL(parentQuery, { nodeId: parentId });
+    const parentResp = await executeGraphQL<ParentLevelResponse>(parentQuery, { nodeId: parentId });
     const allAssignments = parentResp.queryNode[0]?.hierarchyAssignments;
     let relevantAssignment = null;
 
@@ -129,7 +172,7 @@ async function getLevelIdForNode(parentId, hierarchyId) {
       }
     }
   `;
-  const levelsResp = await executeGraphQL(levelsQuery, { h: hierarchyId });
+  const levelsResp = await executeGraphQL<LevelsForHierarchyResponse>(levelsQuery, { h: hierarchyId });
   const levelsData = levelsResp.queryHierarchy[0];
   if (!levelsData || !levelsData.levels) {
     // This case implies the hierarchyId itself might be invalid or has no levels defined.
@@ -146,11 +189,3 @@ async function getLevelIdForNode(parentId, hierarchyId) {
   }
   return level.id;
 }
-
-module.exports = {
-  InvalidLevelError,
-  NodeTypeNotAllowedError,
-  validateHierarchyId,
-  validateLevelIdAndAllowedType,
-  getLevelIdForNode
-};
