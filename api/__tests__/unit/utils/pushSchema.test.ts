@@ -1,8 +1,9 @@
-const { pushSchemaViaHttp } = require('../../../utils/pushSchema');
+import { pushSchemaViaHttp } from '../../../utils/pushSchema';
+import axios from 'axios';
 
 // Mock axios
 jest.mock('axios');
-const axios = require('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('pushSchema Utility', () => {
   beforeEach(() => {
@@ -18,13 +19,13 @@ describe('pushSchema Utility', () => {
         status: 200,
         data: { code: 'Success', message: 'Done' }
       };
-      axios.post.mockResolvedValueOnce(mockResponse);
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
 
       const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(true);
       expect(result.response).toEqual({ code: 'Success', message: 'Done' });
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(mockedAxios.post).toHaveBeenCalledWith(
         adminUrl,
         mockSchema,
         { headers: { 'Content-Type': 'application/graphql' } }
@@ -33,7 +34,7 @@ describe('pushSchema Utility', () => {
 
     it('should handle network errors', async () => {
       const networkError = new Error('Network Error');
-      axios.post.mockRejectedValueOnce(networkError);
+      mockedAxios.post.mockRejectedValueOnce(networkError);
 
       const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
@@ -42,12 +43,12 @@ describe('pushSchema Utility', () => {
     });
 
     it('should handle Dgraph error responses', async () => {
-      const dgraphError = new Error('Schema validation failed');
+      const dgraphError = new Error('Schema validation failed') as any;
       dgraphError.response = {
         status: 400,
         data: { error: 'Invalid schema syntax' }
       };
-      axios.post.mockRejectedValueOnce(dgraphError);
+      mockedAxios.post.mockRejectedValueOnce(dgraphError);
 
       const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
@@ -56,9 +57,9 @@ describe('pushSchema Utility', () => {
     });
 
     it('should handle timeout errors', async () => {
-      const timeoutError = new Error('timeout of 5000ms exceeded');
+      const timeoutError = new Error('timeout of 5000ms exceeded') as any;
       timeoutError.code = 'ECONNABORTED';
-      axios.post.mockRejectedValueOnce(timeoutError);
+      mockedAxios.post.mockRejectedValueOnce(timeoutError);
 
       const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
@@ -71,11 +72,11 @@ describe('pushSchema Utility', () => {
         status: 200,
         data: { code: 'Success', message: 'Done' }
       };
-      axios.post.mockResolvedValueOnce(mockResponse);
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
 
       await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(mockedAxios.post).toHaveBeenCalledWith(
         adminUrl,
         mockSchema,
         { headers: { 'Content-Type': 'application/graphql' } }
@@ -87,7 +88,7 @@ describe('pushSchema Utility', () => {
         status: 200,
         data: { message: 'Schema updated successfully' }
       };
-      axios.post.mockResolvedValueOnce(mockResponse);
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
 
       const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
@@ -98,7 +99,7 @@ describe('pushSchema Utility', () => {
     it('should handle errors without response data', async () => {
       const error = new Error('Connection refused');
       // No response property
-      axios.post.mockRejectedValueOnce(error);
+      mockedAxios.post.mockRejectedValueOnce(error);
 
       const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 

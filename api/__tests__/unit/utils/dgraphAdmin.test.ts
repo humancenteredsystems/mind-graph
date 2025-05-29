@@ -1,8 +1,9 @@
-const { sendDgraphAdminRequest } = require('../../../utils/dgraphAdmin');
+import { sendDgraphAdminRequest } from '../../../utils/dgraphAdmin';
+import axios from 'axios';
 
 // Mock axios
 jest.mock('axios');
-const axios = require('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('dgraphAdmin utils', () => {
   beforeEach(() => {
@@ -15,13 +16,13 @@ describe('dgraphAdmin utils', () => {
         status: 200,
         data: { message: 'Success' }
       };
-      axios.post.mockResolvedValueOnce(mockResponse);
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
 
       const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
 
       expect(result.success).toBe(true);
       expect(result.data).toEqual({ message: 'Success' });
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(mockedAxios.post).toHaveBeenCalledWith(
         'http://localhost:8080/admin/schema',
         { schema: 'test' },
         { headers: { 'Content-Type': 'application/json' } }
@@ -33,7 +34,7 @@ describe('dgraphAdmin utils', () => {
         status: 400,
         data: { error: 'Bad request' }
       };
-      axios.post.mockResolvedValueOnce(mockResponse);
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
 
       const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
 
@@ -43,13 +44,13 @@ describe('dgraphAdmin utils', () => {
     });
 
     it('should handle network errors with response', async () => {
-      const networkError = new Error('Network Error');
+      const networkError = new Error('Network Error') as any;
       networkError.response = {
         status: 500,
         statusText: 'Internal Server Error',
         data: { error: 'Server error' }
       };
-      axios.post.mockRejectedValueOnce(networkError);
+      mockedAxios.post.mockRejectedValueOnce(networkError);
 
       const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
 
@@ -59,9 +60,9 @@ describe('dgraphAdmin utils', () => {
     });
 
     it('should handle network errors without response', async () => {
-      const networkError = new Error('Network Error');
+      const networkError = new Error('Network Error') as any;
       networkError.request = {};
-      axios.post.mockRejectedValueOnce(networkError);
+      mockedAxios.post.mockRejectedValueOnce(networkError);
 
       const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
 
@@ -71,7 +72,7 @@ describe('dgraphAdmin utils', () => {
 
     it('should handle request setup errors', async () => {
       const setupError = new Error('Request setup failed');
-      axios.post.mockRejectedValueOnce(setupError);
+      mockedAxios.post.mockRejectedValueOnce(setupError);
 
       const result = await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' });
 
@@ -84,11 +85,11 @@ describe('dgraphAdmin utils', () => {
         status: 200,
         data: { message: 'Success' }
       };
-      axios.post.mockResolvedValueOnce(mockResponse);
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
 
       await sendDgraphAdminRequest('http://localhost:8080/alter', { drop_all: true });
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(mockedAxios.post).toHaveBeenCalledWith(
         'http://localhost:8080/alter',
         { drop_all: true },
         { headers: { 'Content-Type': 'application/json' } }

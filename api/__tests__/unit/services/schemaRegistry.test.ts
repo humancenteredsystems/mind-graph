@@ -1,11 +1,11 @@
-const {
+import {
   getAllSchemas,
   getSchemaById,
   getProductionSchema,
   getSchemaContent,
   addSchema,
   updateSchema
-} = require('../../../services/schemaRegistry');
+} from '../../../services/schemaRegistry';
 
 // Mock fs
 jest.mock('fs', () => ({
@@ -181,11 +181,11 @@ describe('SchemaRegistry Service', () => {
 
       expect(result.is_production).toBe(true);
       // Should have written registry with old production unmarked
-      const registryCall = fs.promises.writeFile.mock.calls.find(call => 
+      const registryCall = fs.promises.writeFile.mock.calls.find((call: any) => 
         call[0].includes('schema_registry.json')
       );
       const writtenRegistry = JSON.parse(registryCall[1]);
-      const oldProdSchema = writtenRegistry.schemas.find(s => s.id === 'old-prod');
+      const oldProdSchema = writtenRegistry.schemas.find((s: any) => s.id === 'old-prod');
       expect(oldProdSchema.is_production).toBe(false);
     });
   });

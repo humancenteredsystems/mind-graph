@@ -1,18 +1,29 @@
+// Load environment variables before Jest starts
+require('dotenv').config();
+
 module.exports = {
+  preset: 'ts-jest',
   testEnvironment: 'node',
-  setupFilesAfterEnv: ['./jest.setup.js'],
+  setupFilesAfterEnv: ['./jest.setup.ts'],
   testMatch: [
-    '**/__tests__/**/*.test.js',
-    '**/?(*.)+(spec|test).js'
+    '**/__tests__/**/*.test.ts',
+    '**/?(*.)+(spec|test).ts'
   ],
   collectCoverageFrom: [
-    'services/**/*.js',
-    'middleware/**/*.js',
-    'utils/**/*.js',
-    'routes/**/*.js',
+    'services/**/*.ts',
+    'middleware/**/*.ts',
+    'utils/**/*.ts',
+    'routes/**/*.ts',
+    'controllers/**/*.ts',
     '!**/__tests__/**',
     '!**/node_modules/**'
   ],
+  transform: {
+    '^.+\\.ts$': 'ts-jest'
+  },
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1'
+  },
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   coverageThreshold: {

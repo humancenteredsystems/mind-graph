@@ -1,13 +1,16 @@
-const { TenantManager } = require('../../services/tenantManager');
-const { DgraphTenantFactory } = require('../../services/dgraphTenant');
+import { TenantManager } from '../../services/tenantManager';
+import { DgraphTenantFactory } from '../../services/dgraphTenant';
 
-class TestDataSeeder {
+export class TestDataSeeder {
+  private tenantManager: TenantManager;
+  private TEST_TENANT_ID: string;
+
   constructor() {
     this.tenantManager = new TenantManager();
     this.TEST_TENANT_ID = 'test-tenant';
   }
 
-  async setupTestDatabase() {
+  async setupTestDatabase(): Promise<boolean> {
     console.log('[TEST_SETUP] Initializing real test database');
     
     try {
@@ -28,7 +31,7 @@ class TestDataSeeder {
     }
   }
 
-  async cleanupTestDatabase() {
+  async cleanupTestDatabase(): Promise<boolean> {
     console.log('[TEST_CLEANUP] Cleaning real test database');
     
     try {
@@ -41,7 +44,7 @@ class TestDataSeeder {
     }
   }
 
-  async seedTestData() {
+  async seedTestData(): Promise<boolean> {
     console.log('[TEST_SEED] Seeding minimal test data');
     
     try {
@@ -78,7 +81,7 @@ class TestDataSeeder {
     }
   }
 
-  async createTestNodes(testClient) {
+  async createTestNodes(testClient: any): Promise<void> {
     const testNodes = [
       { id: 'test-concept-1', label: 'Test Concept', type: 'concept' },
       { id: 'test-example-1', label: 'Test Example', type: 'example' }
@@ -95,23 +98,3 @@ class TestDataSeeder {
     await testClient.executeGraphQL(mutation, { input: testNodes });
   }
 }
-
-// Enhanced test utilities
-global.testUtils = {
-  ...global.testUtils,
-  testDataSeeder: new TestDataSeeder(),
-  
-  setupTestDatabase: async () => {
-    return await global.testUtils.testDataSeeder.setupTestDatabase();
-  },
-  
-  cleanupTestDatabase: async () => {
-    return await global.testUtils.testDataSeeder.cleanupTestDatabase();
-  },
-  
-  seedTestData: async () => {
-    return await global.testUtils.testDataSeeder.seedTestData();
-  }
-};
-
-module.exports = { TestDataSeeder };

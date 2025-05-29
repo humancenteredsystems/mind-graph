@@ -1,8 +1,8 @@
-const { TenantManager } = require('../../../services/tenantManager');
-const { DgraphTenantFactory } = require('../../../services/dgraphTenant');
+import { TenantManager } from '../../../services/tenantManager';
+import { DgraphTenantFactory } from '../../../services/dgraphTenant';
 
 describe('TenantManager', () => {
-  let tenantManager;
+  let tenantManager: TenantManager;
 
   beforeAll(() => {
     tenantManager = new TenantManager();
@@ -103,7 +103,7 @@ describe('DgraphTenantFactory', () => {
     });
 
     it('should handle missing context', () => {
-      const tenant = DgraphTenantFactory.createTenantFromContext(null);
+      const tenant = DgraphTenantFactory.createTenantFromContext(undefined);
       
       expect(tenant.getNamespace()).toBeNull();
       expect(tenant.isDefaultNamespace()).toBe(true);

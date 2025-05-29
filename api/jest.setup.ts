@@ -1,17 +1,20 @@
 // Consolidated Jest setup file for global test configuration
 // This file is executed before each test file
+// Environment variables are loaded in jest.config.js via dotenv
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';
 process.env.DGRAPH_BASE_URL = 'http://localhost:8080';
 process.env.PORT = '3001'; // Use different port for tests
-// Use ADMIN_API_KEY from environment (must be set when running tests)
-if (!process.env.ADMIN_API_KEY) {
-  throw new Error('ADMIN_API_KEY environment variable must be set for tests');
-}
+// ADMIN_API_KEY should now be loaded from .env file via dotenv in jest.config.js
 process.env.ENABLE_MULTI_TENANT = 'true';
 process.env.DGRAPH_NAMESPACE_TEST = '0x1';
 process.env.DGRAPH_NAMESPACE_DEFAULT = '0x0';
+
+// Verify ADMIN_API_KEY is loaded from .env
+if (!process.env.ADMIN_API_KEY) {
+  throw new Error('ADMIN_API_KEY environment variable must be set for tests (should be loaded from .env file)');
+}
 
 // Global test timeout (30 seconds for integration tests)
 jest.setTimeout(30000);
@@ -36,21 +39,22 @@ afterAll(() => {
 });
 
 // Import test utilities from consolidated setup
-const { TestDataSeeder } = require('./__tests__/helpers/testDataSeeder');
-const { DgraphTenantFactory } = require('./services/dgraphTenant');
-const { TenantManager } = require('./services/tenantManager');
+import { TestDataSeeder } from './__tests__/helpers/testDataSeeder';
+import { DgraphTenantFactory } from './services/dgraphTenant';
+import { TenantManager } from './services/tenantManager';
 
 const TEST_NAMESPACE = '0x1';
 const tenantManager = new TenantManager();
+const testDataSeeder = new TestDataSeeder();
 
 // Consolidated global test utilities
-global.testUtils = {
+(global as any).testUtils = {
   // Basic utilities
-  wait: (ms = 100) => new Promise(resolve => setTimeout(resolve, ms)),
-  generateTestId: (prefix = 'test') => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+  wait: (ms: number = 100) => new Promise(resolve => setTimeout(resolve, ms)),
+  generateTestId: (prefix: string = 'test') => `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
   
   // Mock creation utilities
-  createMockRequest: (overrides = {}) => ({
+  createMockRequest: (overrides: any = {}) => ({
     body: {},
     headers: {},
     params: {},
@@ -77,7 +81,7 @@ global.testUtils = {
   },
 
   // Aliases for backward compatibility
-  createMockReq: function(overrides = {}) {
+  createMockReq: function(overrides: any = {}) {
     return this.createMockRequest(overrides);
   },
   
@@ -141,7 +145,6 @@ global.testUtils = {
     console.log('[TEST_SEED] Seeding test data');
     
     try {
-      const testDataSeeder = new TestDataSeeder();
       await testDataSeeder.seedTestData();
       console.log('[TEST_SEED] Test data seeded successfully');
       return true;
@@ -150,6 +153,9 @@ global.testUtils = {
       return false;
     }
   },
+
+  // Include testDataSeeder instance
+  testDataSeeder,
 
   // Constants
   TEST_NAMESPACE,
@@ -171,7 +177,7 @@ process.on('uncaughtException', (error) => {
 // Note: Not globally mocking axios to allow real integration tests to make HTTP calls
 // Individual unit tests should mock axios locally if needed
 
-// Mock file system operations for consistent testing
+// Mock file system operations for consistent testing (after we've read .env)
 jest.mock('fs', () => ({
   promises: {
     readFile: jest.fn(),
@@ -188,7 +194,7 @@ jest.mock('fs', () => ({
 
 // Custom Jest matchers for common assertions
 expect.extend({
-  toBeValidNodeId(received) {
+  toBeValidNodeId(received: any) {
     const pass = typeof received === 'string' && received.length > 0;
     if (pass) {
       return {
@@ -203,7 +209,7 @@ expect.extend({
     }
   },
   
-  toBeValidHierarchyId(received) {
+  toBeValidHierarchyId(received: any) {
     const pass = typeof received === 'string' && received.length > 0;
     if (pass) {
       return {
@@ -218,7 +224,7 @@ expect.extend({
     }
   },
   
-  toHaveValidGraphQLResponse(received) {
+  toHaveValidGraphQLResponse(received: any) {
     const hasData = received && typeof received === 'object';
     const hasNoErrors = !received.errors || received.errors.length === 0;
     const pass = hasData && hasNoErrors;
@@ -254,11 +260,11 @@ afterEach(async () => {
   // if running against a real test database
   
   // Wait a bit to ensure async operations complete
-  await global.testUtils.wait(10);
+  await (global as any).testUtils.wait(10);
 });
 
 // Export common test constants
-global.TEST_CONSTANTS = {
+(global as any).TEST_CONSTANTS = {
   VALID_NODE_TYPES: ['ConceptNode', 'ExampleNode', 'QuestionNode'],
   VALID_EDGE_TYPES: ['relates_to', 'contains', 'depends_on'],
   DEFAULT_HIERARCHY_ID: 'test-hierarchy',
@@ -267,8 +273,8 @@ global.TEST_CONSTANTS = {
 };
 
 // Helper to create consistent test data
-global.createTestNode = (overrides = {}) => ({
-  id: global.testUtils.generateTestId('node'),
+(global as any).createTestNode = (overrides: any = {}) => ({
+  id: (global as any).testUtils.generateTestId('node'),
   label: 'Test Node',
   type: 'ConceptNode',
   status: 'active',
@@ -276,21 +282,21 @@ global.createTestNode = (overrides = {}) => ({
   ...overrides
 });
 
-global.createTestEdge = (overrides = {}) => ({
-  fromId: global.testUtils.generateTestId('from'),
-  toId: global.testUtils.generateTestId('to'),
+(global as any).createTestEdge = (overrides: any = {}) => ({
+  fromId: (global as any).testUtils.generateTestId('from'),
+  toId: (global as any).testUtils.generateTestId('to'),
   type: 'relates_to',
   ...overrides
 });
 
-global.createTestHierarchy = (overrides = {}) => ({
-  id: global.testUtils.generateTestId('hierarchy'),
+(global as any).createTestHierarchy = (overrides: any = {}) => ({
+  id: (global as any).testUtils.generateTestId('hierarchy'),
   name: 'Test Hierarchy',
   ...overrides
 });
 
-global.createTestLevel = (overrides = {}) => ({
-  id: global.testUtils.generateTestId('level'),
+(global as any).createTestLevel = (overrides: any = {}) => ({
+  id: (global as any).testUtils.generateTestId('level'),
   levelNumber: 1,
   label: 'Test Level',
   ...overrides

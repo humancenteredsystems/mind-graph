@@ -1,7 +1,10 @@
-const { authenticateAdmin } = require('../../../middleware/auth');
+import { authenticateAdmin } from '../../../middleware/auth';
+import { Request, Response, NextFunction } from 'express';
 
 describe('auth middleware', () => {
-  let req, res, next;
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: NextFunction;
 
   beforeEach(() => {
     req = testUtils.createMockReq();
@@ -14,16 +17,16 @@ describe('auth middleware', () => {
 
   describe('authenticateAdmin', () => {
     it('should call next() with valid API key', () => {
-      req.headers['x-admin-api-key'] = 'test-admin-key';
+      req.headers = { 'x-admin-api-key': 'test-admin-key' };
       
-      authenticateAdmin(req, res, next);
+      authenticateAdmin(req as Request, res as Response, next);
       
       expect(next).toHaveBeenCalledWith();
       expect(res.status).not.toHaveBeenCalled();
     });
 
     it('should return 401 with missing API key', () => {
-      authenticateAdmin(req, res, next);
+      authenticateAdmin(req as Request, res as Response, next);
       
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
@@ -33,9 +36,9 @@ describe('auth middleware', () => {
     });
 
     it('should return 401 with invalid API key', () => {
-      req.headers['x-admin-api-key'] = 'invalid-key';
+      req.headers = { 'x-admin-api-key': 'invalid-key' };
       
-      authenticateAdmin(req, res, next);
+      authenticateAdmin(req as Request, res as Response, next);
       
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
@@ -46,9 +49,9 @@ describe('auth middleware', () => {
 
     it('should return 401 when environment variable is missing', () => {
       delete process.env.ADMIN_API_KEY;
-      req.headers['x-admin-api-key'] = 'any-key';
+      req.headers = { 'x-admin-api-key': 'any-key' };
       
-      authenticateAdmin(req, res, next);
+      authenticateAdmin(req as Request, res as Response, next);
       
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith({
@@ -58,9 +61,9 @@ describe('auth middleware', () => {
     });
 
     it('should be case-sensitive for header name', () => {
-      req.headers['X-Admin-API-Key'] = 'test-admin-key';
+      req.headers = { 'X-Admin-API-Key': 'test-admin-key' };
       
-      authenticateAdmin(req, res, next);
+      authenticateAdmin(req as Request, res as Response, next);
       
       // Should fail because header is case-sensitive
       expect(res.status).toHaveBeenCalledWith(401);

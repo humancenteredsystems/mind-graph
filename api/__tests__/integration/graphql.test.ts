@@ -1,6 +1,6 @@
-const request = require('supertest');
-const app = require('../../server');
-const { mockNodes, mockHierarchies } = require('../helpers/mockData');
+import request from 'supertest';
+import app from '../../server';
+import { mockNodes, mockHierarchies } from '../helpers/mockData';
 
 // Mock the adaptive tenant factory
 jest.mock('../../services/adaptiveTenantFactory', () => {
@@ -640,7 +640,7 @@ describe('GraphQL Integration Tests', () => {
         .mockResolvedValueOnce({ queryNode: mockNodes })
         .mockResolvedValueOnce({ queryNode: mockNodes });
 
-      const requests = Array(5).fill().map(() =>
+      const requests = Array(5).fill(null).map(() =>
         request(app)
           .post('/api/query')
           .send({ query })

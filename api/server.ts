@@ -2,6 +2,18 @@
 import config from './config';
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 
+// Import route modules
+import systemRoutes from './routes/system';
+import graphqlRoutes from './routes/graphql';
+import schemaRoutes from './routes/schema';
+import adminRoutes from './routes/admin';
+import diagnosticRoutes from './routes/diagnostic';
+import hierarchyRoutes from './routes/hierarchy';
+import tenantRoutes from './routes/tenants';
+
+// Import middleware
+import { setTenantContext, ensureTenant, validateTenantAccess } from './middleware/tenantContext';
+
 // --- Global Error Handlers ---
 process.on('uncaughtException', (err, origin) => {
   console.error('[GLOBAL] Uncaught Exception:', err);
@@ -52,25 +64,15 @@ app.get('/', (req: Request, res: Response) => {
 
 // Mount system routes FIRST (before tenant middleware)
 // System routes don't need tenant context and should be accessible without tenant validation
-const systemRoutes = require('./routes/system');
 app.use('/api', systemRoutes);
 
 // Tenant Context Middleware - Add tenant context to remaining API requests
-const { setTenantContext, ensureTenant, validateTenantAccess } = require('./middleware/tenantContext');
-
 // Apply tenant middleware to all other API routes
 app.use('/api', setTenantContext);
 app.use('/api', validateTenantAccess);
 // Note: ensureTenant is applied selectively in routes that need it
 
 // Mount other route modules that require tenant context
-const graphqlRoutes = require('./routes/graphql');
-const schemaRoutes = require('./routes/schema');
-const adminRoutes = require('./routes/admin');
-const diagnosticRoutes = require('./routes/diagnostic');
-const hierarchyRoutes = require('./routes/hierarchy');
-const tenantRoutes = require('./routes/tenants');
-
 app.use('/api', graphqlRoutes);
 app.use('/api', schemaRoutes);
 app.use('/api', adminRoutes);

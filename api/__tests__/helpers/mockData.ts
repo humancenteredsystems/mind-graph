@@ -1,6 +1,6 @@
 // Standardized mock data for backend tests
 
-const mockNodes = [
+export const mockNodes = [
   {
     id: 'node1',
     label: 'Test Node 1',
@@ -29,7 +29,7 @@ const mockNodes = [
   }
 ];
 
-const mockEdges = [
+export const mockEdges = [
   {
     from: { id: 'node1' },
     fromId: 'node1',
@@ -39,7 +39,7 @@ const mockEdges = [
   }
 ];
 
-const mockHierarchies = [
+export const mockHierarchies = [
   {
     id: 'hierarchy1',
     name: 'Test Hierarchy',
@@ -66,7 +66,7 @@ const mockHierarchies = [
   }
 ];
 
-const mockGraphQLResponses = {
+export const mockGraphQLResponses = {
   queryNode: {
     data: {
       queryNode: mockNodes
@@ -86,7 +86,7 @@ const mockGraphQLResponses = {
   }
 };
 
-const mockTraversalResponse = {
+export const mockTraversalResponse = {
   data: {
     queryNode: [
       {
@@ -103,7 +103,7 @@ const mockTraversalResponse = {
 };
 
 // Helper functions to create mock data
-const createMockNode = (overrides = {}) => ({
+export const createMockNode = (overrides: any = {}) => ({
   id: 'mock-node',
   label: 'Mock Node',
   type: 'concept',
@@ -113,7 +113,7 @@ const createMockNode = (overrides = {}) => ({
   ...overrides
 });
 
-const createMockHierarchy = (overrides = {}) => ({
+export const createMockHierarchy = (overrides: any = {}) => ({
   id: 'mock-hierarchy',
   name: 'Mock Hierarchy',
   levels: [
@@ -127,7 +127,7 @@ const createMockHierarchy = (overrides = {}) => ({
   ...overrides
 });
 
-const createMockAddNodeInput = (overrides = {}) => ({
+export const createMockAddNodeInput = (overrides: any = {}) => ({
   id: 'new-node',
   label: 'New Node',
   type: 'concept',
@@ -139,14 +139,3 @@ const createMockAddNodeInput = (overrides = {}) => ({
   ],
   ...overrides
 });
-
-module.exports = {
-  mockNodes,
-  mockEdges,
-  mockHierarchies,
-  mockGraphQLResponses,
-  mockTraversalResponse,
-  createMockNode,
-  createMockHierarchy,
-  createMockAddNodeInput
-};

@@ -1,7 +1,7 @@
-const request = require('supertest');
-const app = require('../../server');
+import request from 'supertest';
+import app from '../../server';
 
-// Mock the adaptive tenant factory
+// Mock the adaptive tenant factory - declare mock function first
 jest.mock('../../services/adaptiveTenantFactory', () => {
   const mockExecuteGraphQL = jest.fn();
   return {
@@ -16,6 +16,7 @@ jest.mock('../../services/adaptiveTenantFactory', () => {
   };
 });
 
+// Import the mock after it's defined
 const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
 
 describe('API Endpoints', () => {
