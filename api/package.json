@@ -6,10 +6,7 @@
   "scripts": {
     "test": "jest",
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "codemod:batch1": "ts-migrate migrate . --project tsconfig.json --sources \"config/**/*\" --sources \"utils/**/*\"",
-    "codemod:batch2": "ts-migrate migrate . --project tsconfig.json --sources \"services/**/*\" --sources \"middleware/**/*\"",
-    "codemod:batch3": "ts-migrate migrate . --project tsconfig.json --sources \"controllers/**/*\" --sources \"routes/**/*\" --sources \"server.js\""
+    "dev": "nodemon server.js"
   },
   "keywords": [],
   "author": "Gordon Banks",
@@ -29,10 +26,8 @@
     "@types/ssh2": "^1.15.5",
     "@types/uuid": "^10.0.0",
     "jest": "^29.7.0",
-    "jscodeshift": "^17.3.0",
     "nodemon": "^3.1.9",
     "supertest": "^7.1.0",
-    "ts-migrate": "^0.1.35",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
