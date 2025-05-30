@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
 // require('dotenv').config();
 
 export default defineConfig({
-  testDir: './tests', // Directory where tests reside
+  testDir: './tests/e2e', // Directory where E2E tests reside
   fullyParallel: true, // Run tests in parallel
   forbidOnly: !!process.env.CI, // Fail build on CI if test.only is left in code
   retries: process.env.CI ? 2 : 0, // Retry on CI only

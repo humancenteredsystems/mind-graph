@@ -58,7 +58,8 @@ function AppInner() {
   setEditNode, // Get the new function from context
 } = useUIContext();
 
-return (
+  console.log('[AppInner RENDER] nodes prop length:', nodes.length, 'isLoading:', isLoading, 'error:', error);
+  return (
     <div className="App">
       <SettingsIcon />
       <SettingsModal />

@@ -4,16 +4,39 @@ import { mockHierarchies } from '../helpers/mockData';
 import { TestMockFactory, TestDataBuilder } from '../helpers/mockFactory';
 import { MockedIntegrationTestBase } from '../helpers/testBase';
 
-// Mock the adaptive tenant factory
-const tenantMock = TestMockFactory.createTenantFactoryMock();
-jest.mock('../../services/adaptiveTenantFactory', () => tenantMock);
+// Create a shared mock for executeGraphQL
+const mockExecuteGraphQL = jest.fn();
 
-const { mockExecuteGraphQL } = tenantMock;
+// Mock the adaptive tenant factory with proper client structure
+jest.mock('../../services/adaptiveTenantFactory', () => ({
+  adaptiveTenantFactory: {
+    createTenant: jest.fn(() => ({
+      executeGraphQL: mockExecuteGraphQL,
+      getNamespace: jest.fn(() => null),
+      isDefaultNamespace: jest.fn(() => true)
+    })),
+    createTenantFromContext: jest.fn(() => ({
+      executeGraphQL: mockExecuteGraphQL,
+      getNamespace: jest.fn(() => null),
+      isDefaultNamespace: jest.fn(() => true)
+    })),
+    createTestTenant: jest.fn(() => ({
+      executeGraphQL: mockExecuteGraphQL,
+      getNamespace: jest.fn(() => '0x1'),
+      isDefaultNamespace: jest.fn(() => false)
+    })),
+    createDefaultTenant: jest.fn(() => ({
+      executeGraphQL: mockExecuteGraphQL,
+      getNamespace: jest.fn(() => null),
+      isDefaultNamespace: jest.fn(() => true)
+    }))
+  }
+}));
 
 describe('Hierarchy API Integration', () => {
   beforeEach(() => {
     mockExecuteGraphQL.mockReset();
-    process.env.ADMIN_API_KEY = 'test-admin-key';
+    // ADMIN_API_KEY is already loaded from .env file via jest.setup.ts
   });
 
   describe('GET /api/hierarchy', () => {
@@ -57,7 +80,7 @@ describe('Hierarchy API Integration', () => {
 
       const response = await request(app)
         .post('/api/hierarchy')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(newHierarchy)
         .expect(201);
 
@@ -79,7 +102,7 @@ describe('Hierarchy API Integration', () => {
     it('should validate required fields', async () => {
       await request(app)
         .post('/api/hierarchy')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send({ name: 'Missing ID' })
         .expect(400);
     });
@@ -101,7 +124,7 @@ describe('Hierarchy API Integration', () => {
 
       const response = await request(app)
         .post('/api/hierarchy/level')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(newLevel)
         .expect(201);
 
@@ -123,7 +146,7 @@ describe('Hierarchy API Integration', () => {
       // Server returns 500 for GraphQL errors, not 400
       await request(app)
         .post('/api/hierarchy/level')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(duplicateLevel)
         .expect(500);
     });
@@ -145,7 +168,7 @@ describe('Hierarchy API Integration', () => {
 
       const response = await request(app)
         .post('/api/hierarchy/assignment')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(assignment)
         .expect(201);
 
@@ -167,7 +190,7 @@ describe('Hierarchy API Integration', () => {
       // Server returns 500 for GraphQL errors, not 400
       await request(app)
         .post('/api/hierarchy/assignment')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(invalidAssignment)
         .expect(500);
     });

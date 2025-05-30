@@ -45,7 +45,7 @@ export const useGraphState = (): UseGraphState => {
   const { hierarchyId } = useHierarchyContext();
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false); // Initialize to false
   const [isExpanding, setIsExpanding] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());

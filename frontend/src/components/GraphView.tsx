@@ -57,6 +57,8 @@ const GraphView: React.FC<GraphViewProps> = ({
   onHideNodes,
   onConnect,
 }) => {
+  console.log(`[GraphView RENDER] Nodes prop length: ${nodes.length}, Edges prop length: ${edges.length}`); // Forceful log
+
   const cyRef = useRef<Core | null>(null);
     const { openMenu } = useContextMenu();
     const { hierarchyId, levels, allowedTypesMap } = useHierarchyContext();
@@ -82,6 +84,7 @@ const GraphView: React.FC<GraphViewProps> = ({
 
   // Build elements: filter hidden nodes and edges
   const elements = useMemo<ElementDefinition[]>(() => {
+    log('GraphView:useMemo[elements]', `Input nodes count: ${nodes.length}, Input edges count: ${edges.length}, Hidden count: ${hiddenNodeIds.size}`);
     const visible = nodes.filter(n => !hiddenNodeIds.has(n.id));
     const levelCounters: Record<number, number> = {};
     
@@ -130,7 +133,9 @@ const GraphView: React.FC<GraphViewProps> = ({
       .map(({ id, source, target, type }) => ({
         data: { id: id ?? `${source}_${target}`, source, target, type },
       }));
-    return [...nodeEls, ...edgeEls];
+    const finalElements = [...nodeEls, ...edgeEls];
+    log('GraphView:useMemo[elements]', `Generated ${nodeEls.length} node elements, ${edgeEls.length} edge elements. Total: ${finalElements.length}`);
+    return finalElements;
   }, [nodes, edges, hiddenNodeIds, hierarchyId, isNodeExpanded]);
 
   // Stylesheet: disable selection and style nodes/edges
@@ -193,7 +198,8 @@ const GraphView: React.FC<GraphViewProps> = ({
   // Attach Cytoscape instance reference
   const attachCy = (cy: Core) => {
     cyRef.current = cy;
-    log('GraphView', 'Cytoscape instance attached');
+    (window as any).cyInstance = cy; // Expose for E2E testing
+    log('GraphView', 'Cytoscape instance attached and exposed to window.cyInstance');
   };
   
   // Set up all event handlers - SEPARATED from attachCy for clarity

@@ -25,7 +25,7 @@ describe('GraphQL Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockExecuteGraphQL.mockReset();
-    process.env.ADMIN_API_KEY = 'test-admin-key';
+    // ADMIN_API_KEY is already loaded from .env file via jest.setup.ts
   });
 
   describe('POST /api/query', () => {

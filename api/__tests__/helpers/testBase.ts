@@ -79,6 +79,6 @@ export abstract class MockedIntegrationTestBase extends IntegrationTestBase {
 
   async resetTest(): Promise<void> {
     this.mockExecuteGraphQL.mockReset();
-    process.env.ADMIN_API_KEY = 'test-admin-key';
+    // ADMIN_API_KEY is already loaded from .env file via jest.setup.ts
   }
 }

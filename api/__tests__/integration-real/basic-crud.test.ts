@@ -2,17 +2,27 @@ import request from 'supertest';
 import app from '../../server';
 import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
-describe('Real Integration: Basic CRUD Operations', () => {
+const conditionalDescribe = (global as any).DGRAPH_ENTERPRISE_AVAILABLE ? describe : describe.skip;
+
+conditionalDescribe('Real Integration: Basic CRUD Operations', () => {
   beforeAll(async () => {
+    if (!(global as any).DGRAPH_ENTERPRISE_AVAILABLE) {
+      console.warn('Skipping real integration tests - Dgraph Enterprise not available');
+      return;
+    }
     await global.testUtils.setupTestDatabase();
   });
 
   afterAll(async () => {
-    await global.testUtils.cleanupTestDatabase();
+    if ((global as any).DGRAPH_ENTERPRISE_AVAILABLE) {
+      await global.testUtils.cleanupTestDatabase();
+    }
   });
 
   beforeEach(async () => {
-    await global.testUtils.resetTestDatabase();
+    if ((global as any).DGRAPH_ENTERPRISE_AVAILABLE) {
+      await global.testUtils.resetTestDatabase();
+    }
   });
 
   describe('Node Creation', () => {

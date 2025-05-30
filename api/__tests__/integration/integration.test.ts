@@ -1,12 +1,34 @@
 import request from 'supertest';
 import app from '../../server';
-import { TestMockFactory } from '../helpers/mockFactory';
 
-// Mock the adaptive tenant factory
-const tenantMock = TestMockFactory.createTenantFactoryMock();
-jest.mock('../../services/adaptiveTenantFactory', () => tenantMock);
+// Create a shared mock for executeGraphQL
+const mockExecuteGraphQL = jest.fn();
 
-const { mockExecuteGraphQL } = tenantMock;
+// Mock the adaptive tenant factory with proper client structure
+jest.mock('../../services/adaptiveTenantFactory', () => ({
+  adaptiveTenantFactory: {
+    createTenant: jest.fn(() => ({
+      executeGraphQL: mockExecuteGraphQL,
+      getNamespace: jest.fn(() => null),
+      isDefaultNamespace: jest.fn(() => true)
+    })),
+    createTenantFromContext: jest.fn(() => ({
+      executeGraphQL: mockExecuteGraphQL,
+      getNamespace: jest.fn(() => null),
+      isDefaultNamespace: jest.fn(() => true)
+    })),
+    createTestTenant: jest.fn(() => ({
+      executeGraphQL: mockExecuteGraphQL,
+      getNamespace: jest.fn(() => '0x1'),
+      isDefaultNamespace: jest.fn(() => false)
+    })),
+    createDefaultTenant: jest.fn(() => ({
+      executeGraphQL: mockExecuteGraphQL,
+      getNamespace: jest.fn(() => null),
+      isDefaultNamespace: jest.fn(() => true)
+    }))
+  }
+}));
 
 describe('Integration /api/mutate', () => {
   beforeEach(() => {

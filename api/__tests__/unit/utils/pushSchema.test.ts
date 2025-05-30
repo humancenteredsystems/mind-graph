@@ -1,16 +1,18 @@
+// Mock config
+jest.mock('../../../config', () => ({
+  __esModule: true,
+  default: {
+    dgraphAdminUrl: 'http://localhost:8080/admin/schema',
+    dgraphBaseUrl: 'http://localhost:8080',
+    port: 3001
+  }
+}));
+
 import axios from 'axios';
-import { TestMockFactory } from '../../helpers/mockFactory';
-import { isAxiosError, getErrorMessage, getErrorData } from '../../helpers/graphqlTestUtils';
-
-// Mock axios first
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-
-// Mock config completely to avoid dotenv issues
-jest.mock('../../../config', () => TestMockFactory.createConfigMock());
-
-// Import after mocking
 import { pushSchemaViaHttp } from '../../../utils/pushSchema';
+
+// Get the mocked axios (manual mock will be used automatically)
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('pushSchema Utility', () => {
   beforeEach(() => {
@@ -93,14 +95,14 @@ describe('pushSchema Utility', () => {
     it('should handle successful response with different data format', async () => {
       const mockResponse = {
         status: 200,
-        data: { message: 'Schema updated successfully' }
+        data: { code: 'Success', message: 'Done' }
       };
       mockedAxios.post.mockResolvedValueOnce(mockResponse);
 
       const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(true);
-      expect(result.response).toEqual({ message: 'Schema updated successfully' });
+      expect(result.response).toEqual({ code: 'Success', message: 'Done' });
     });
 
     it('should handle errors without response data', async () => {

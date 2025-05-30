@@ -13,6 +13,12 @@ describe('Real Integration: Hierarchy Operations', () => {
 
   beforeEach(async () => {
     await global.testUtils.resetTestDatabase();
+    // Ensure specific test data, including 'test-hierarchy-1', is seeded after reset
+    await global.testUtils.seedTestData();
+    // Add a small delay to allow Dgraph to fully process writes/schema changes from seeding
+    console.log('[TEST_HIERARCHY_OPS] Waiting after seed for Dgraph processing...');
+    await global.testUtils.wait(1000); // Wait 1 second
+    console.log('[TEST_HIERARCHY_OPS] Proceeding with test.');
   });
 
   describe('Hierarchy Management', () => {
@@ -40,7 +46,7 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(newHierarchy)
         .expect(201);
 
@@ -85,7 +91,7 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy/level')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(newLevel)
         .expect(201);
 
@@ -132,7 +138,7 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy/level')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(duplicateLevel)
         .expect(500);
 
@@ -150,7 +156,7 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy/assignment')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(assignment)
         .expect(201);
 
@@ -201,7 +207,7 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy/assignment')
-        .set('X-Admin-API-Key', 'test-admin-key')
+        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(invalidAssignment)
         .expect(500);
 

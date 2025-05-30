@@ -4,8 +4,14 @@ test.describe('Hide Node functionality', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the application
     await page.goto('/');
-    // Wait for the graph to be visible
-    await page.waitForSelector('[data-testid="graph-container"]');
+    // Wait for the graph canvas to be visible
+    await page.waitForSelector('[data-testid="graph-container"] canvas', { timeout: 15000 });
+    // Wait for cyInstance and some elements to be present
+    await page.waitForFunction(
+      () => (window as any).cyInstance && (window as any).cyInstance.elements().length > 0,
+      null,
+      { timeout: 15000 }
+    );
   });
 
   test('should hide a node when using context menu', async ({ page }) => {
@@ -14,111 +20,115 @@ test.describe('Hide Node functionality', () => {
       // @ts-ignore - accessing the cytoscape instance from the global scope
       return window.cyInstance?.nodes().length || 0;
     });
+
+    // Get the first node's details for interaction
+    const nodeDetails = await page.evaluate(() => {
+      const cy = (window as any).cyInstance;
+      if (!cy || cy.nodes().length === 0) return null;
+      const node = cy.nodes().first();
+      const renderedPosition = node.renderedPosition();
+      const container = cy.container();
+      if (!container) return null;
+      const rect = container.getBoundingClientRect();
+      return {
+        id: node.id(),
+        x: rect.left + renderedPosition.x,
+        y: rect.top + renderedPosition.y,
+      };
+    });
+
+    expect(nodeDetails).toBeTruthy(); // Ensure nodeDetails is not null
+    if (!nodeDetails) {
+      console.log("Skipping test: No node details found for interaction.");
+      return; // Exit test if no node details
+    }
+    expect(initialNodeCount).toBeGreaterThan(0);
+
+    // Right-click on the node to open context menu
+    await page.mouse.click(nodeDetails.x, nodeDetails.y, { button: 'right' });
+
+    // Wait for the context menu to appear
+    await page.waitForSelector('[role="menu"]', { timeout: 5000 }); // Wait for menu container
     
-    // Get the first node
-    const node = await page.evaluate(() => {
-      // @ts-ignore - accessing the cytoscape instance from the global scope
-      const nodes = window.cyInstance?.nodes();
-      if (nodes && nodes.length > 0) {
-        const node = nodes[0];
-        return {
-          id: node.id(),
-          position: node.renderedPosition()
-        };
-      }
-      return null;
+    // Click on the "Hide Node" option
+    await page.getByRole('menuitem', { name: /👁️‍🗨️ Hide Node\s*H/ }).click();
+    
+    // Wait for the animation to complete
+    await page.waitForTimeout(500);
+    
+    // Check if node count decreased by 1
+    const finalNodeCount = await page.evaluate(() => {
+      return (window as any).cyInstance?.nodes().length || 0;
     });
     
-    // Make sure there's at least one node to hide
-    expect(node).toBeTruthy();
-    expect(initialNodeCount).toBeGreaterThan(0);
+    expect(finalNodeCount).toBe(initialNodeCount - 1);
     
-    if (node) {
-      // Right-click on the node to open context menu
-      await page.mouse.click(node.position.x, node.position.y, { button: 'right' });
-      
-      // Click on the "Hide Node" option
-      await page.getByRole('menuitem', { name: 'Hide Node' }).click();
-      
-      // Wait for the animation to complete
-      await page.waitForTimeout(500);
-      
-      // Check if node count decreased by 1
-      const finalNodeCount = await page.evaluate(() => {
-        // @ts-ignore - accessing the cytoscape instance from the global scope
-        return window.cyInstance?.nodes().length || 0;
-      });
-      
-      expect(finalNodeCount).toBe(initialNodeCount - 1);
-      
-      // Verify the specific node is not in the graph anymore
-      const nodeStillExists = await page.evaluate((nodeId) => {
-        // @ts-ignore - accessing the cytoscape instance from the global scope
-        return window.cyInstance?.getElementById(nodeId).length > 0;
-      }, node.id);
-      
-      expect(nodeStillExists).toBe(false);
-    }
+    // Verify the specific node is not in the graph anymore
+    const nodeStillExists = await page.evaluate((nodeId) => {
+      return (window as any).cyInstance?.getElementById(nodeId).length > 0;
+    }, nodeDetails.id); // Use nodeDetails.id here
+    
+    expect(nodeStillExists).toBe(false);
   });
 
   test('should hide multiple nodes when selected', async ({ page }) => {
-    // Count the initial number of nodes
-    const initialNodeCount = await page.evaluate(() => {
-      // @ts-ignore - accessing the cytoscape instance from the global scope
-      return window.cyInstance?.nodes().length || 0;
+    const initialNodeCountForMulti = await page.evaluate(() => {
+      return (window as any).cyInstance?.nodes().length || 0;
     });
-    
-    // Only proceed if we have at least 2 nodes
-    if (initialNodeCount < 2) {
-      test.skip();
-      console.log('Not enough nodes to test multi-selection');
+
+    if (initialNodeCountForMulti < 3) { // Check for at least 3 nodes
+      console.log('Not enough nodes to test multi-selection hide (need >=3), skipping this test.');
+      test.skip(true, 'Not enough nodes for multi-select hide test (need >=3)');
       return;
     }
-    
-    // Select multiple nodes
-    await page.evaluate(() => {
-      // @ts-ignore - accessing the cytoscape instance from the global scope
-      const cy = window.cyInstance;
-      if (cy) {
-        // Select the first two nodes
-        cy.nodes().slice(0, 2).select();
-        return true;
+
+    const selectedNodeIds = await page.evaluate(() => {
+      const cy = (window as any).cyInstance;
+      if (cy && cy.nodes().length >=3) { // Ensure we can select 3
+        const nodesToSelect = cy.nodes().slice(0, 3); // Select 3 nodes
+        nodesToSelect.select();
+        return nodesToSelect.map((n: any) => n.id());
       }
-      return false;
+      return [];
     });
-    
-    // Get position of the first selected node for right-click
-    const firstNodePosition = await page.evaluate(() => {
-      // @ts-ignore - accessing the cytoscape instance from the global scope
-      const cy = window.cyInstance;
-      if (cy) {
-        const selectedNodes = cy.nodes(':selected');
-        if (selectedNodes.length > 0) {
-          return selectedNodes[0].renderedPosition();
-        }
-      }
-      return null;
-    });
-    
-    expect(firstNodePosition).toBeTruthy();
-    
-    if (firstNodePosition) {
-      // Right-click on the first selected node
-      await page.mouse.click(firstNodePosition.x, firstNodePosition.y, { button: 'right' });
-      
-      // Click on the "Hide Nodes" option (multi-node context menu)
-      await page.getByRole('menuitem', { name: 'Hide Nodes' }).click();
-      
-      // Wait for the animation to complete
-      await page.waitForTimeout(500);
-      
-      // Check if node count decreased by 2
-      const finalNodeCount = await page.evaluate(() => {
-        // @ts-ignore - accessing the cytoscape instance from the global scope
-        return window.cyInstance?.nodes().length || 0;
-      });
-      
-      expect(finalNodeCount).toBe(initialNodeCount - 2);
+    expect(selectedNodeIds.length).toBe(3); // Expect 3 selected nodes
+
+    const firstSelectedNodeDetails = await page.evaluate((nodeId) => {
+      const cy = (window as any).cyInstance;
+      if (!cy) return null;
+      const node = cy.getElementById(nodeId);
+      if (!node || node.length === 0) return null; // Corrected: node.length
+      const renderedPosition = node.renderedPosition();
+      const container = cy.container();
+      if (!container) return null;
+      const rect = container.getBoundingClientRect();
+      return {
+        id: node.id(),
+        x: rect.left + renderedPosition.x,
+        y: rect.top + renderedPosition.y,
+      };
+    }, selectedNodeIds[0]);
+
+    expect(firstSelectedNodeDetails).toBeTruthy();
+    if (!firstSelectedNodeDetails) {
+      console.log("Skipping test: No details for first selected node.");
+      return; // Exit test if no details
     }
+
+    await page.mouse.click(firstSelectedNodeDetails.x, firstSelectedNodeDetails.y, { button: 'right' });
+
+    await page.waitForSelector('[role="menu"]', { timeout: 5000 });
+    
+    await page.locator('[role="menu"] >> role=menuitem')
+              .filter({ hasText: "Hide Nodes" })
+              .click();
+    
+    await page.waitForTimeout(500);
+    
+    const finalNodeCountForMulti = await page.evaluate(() => {
+      return (window as any).cyInstance?.nodes().length || 0;
+    });
+
+    expect(finalNodeCountForMulti).toBe(initialNodeCountForMulti - 3); // Expect 3 nodes to be hidden
   });
 });

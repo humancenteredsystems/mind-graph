@@ -24,18 +24,19 @@ const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 const originalConsoleLog = console.log;
 
-beforeAll(() => {
-  // Suppress console output during tests unless explicitly needed
-  console.error = jest.fn();
-  console.warn = jest.fn();
-  console.log = jest.fn();
-});
+// Temporarily disable console mocking for debugging real integration tests
+// beforeAll(() => {
+//   // Suppress console output during tests unless explicitly needed
+//   console.error = jest.fn();
+//   console.warn = jest.fn();
+//   console.log = jest.fn();
+// });
 
 afterAll(() => {
-  // Restore original console methods
-  console.error = originalConsoleError;
-  console.warn = originalConsoleWarn;
-  console.log = originalConsoleLog;
+  // Restore original console methods (if they were mocked)
+  // console.error = originalConsoleError;
+  // console.warn = originalConsoleWarn;
+  // console.log = originalConsoleLog;
 });
 
 // Import test utilities from consolidated setup
@@ -300,4 +301,24 @@ afterEach(async () => {
   levelNumber: 1,
   label: 'Test Level',
   ...overrides
+});
+
+// Dgraph Enterprise detection for conditional test execution
+(global as any).testUtils.checkDgraphEnterprise = async () => {
+  try {
+    const axios = require('axios');
+    const response = await axios.get('http://localhost:8080/state');
+    return response.data && response.data.enterprise === true;
+  } catch (error) {
+    console.warn('[TEST_SETUP] Dgraph Enterprise not available, skipping real integration tests');
+    return false;
+  }
+};
+
+// Global flag for enterprise availability
+(global as any).DGRAPH_ENTERPRISE_AVAILABLE = false;
+
+// Check enterprise availability during setup
+beforeAll(async () => {
+  (global as any).DGRAPH_ENTERPRISE_AVAILABLE = await (global as any).testUtils.checkDgraphEnterprise();
 });

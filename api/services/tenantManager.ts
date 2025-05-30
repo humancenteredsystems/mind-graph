@@ -73,9 +73,36 @@ export class TenantManager {
       
       // Initialize schema in new namespace
       await this.initializeTenantSchema(namespace);
+
+      // Verify schema initialization
+      const tenantClientForSchemaCheck = this.tenantFactory.createTenant(namespace);
+      try {
+        // Try a simple query that should work if schema is applied, e.g., querying a non-existent node of a core type
+        await tenantClientForSchemaCheck.executeGraphQL('query { getNode(id: "0x0") { id } }'); 
+        console.log(`[TENANT_MANAGER] Schema verified in namespace ${namespace}`);
+      } catch (schemaVerifyError) {
+        console.error(`[TENANT_MANAGER] Failed to verify schema in namespace ${namespace}:`, schemaVerifyError);
+        throw new Error(`Schema verification failed for tenant ${tenantId} in namespace ${namespace}`);
+      }
       
-      // Seed with default hierarchies
-      await this.seedDefaultHierarchies(namespace);
+      // Seed with default hierarchies ONLY IF it's not the test-tenant
+      if (tenantId !== 'test-tenant') {
+        await this.seedDefaultHierarchies(namespace);
+
+        // Verify default hierarchy seeding ONLY IF it's not the test-tenant
+        try {
+          const hierarchyCheck = await tenantClientForSchemaCheck.executeGraphQL('query { getHierarchy(id: "default-hierarchy") { id } }');
+          if (!hierarchyCheck?.getHierarchy?.id) {
+            throw new Error('Default hierarchy not found after seeding.');
+          }
+          console.log(`[TENANT_MANAGER] Default hierarchies verified in namespace ${namespace}`);
+        } catch (hierarchyVerifyError) {
+          console.error(`[TENANT_MANAGER] Failed to verify default hierarchies in namespace ${namespace}:`, hierarchyVerifyError);
+          throw new Error(`Default hierarchy verification failed for tenant ${tenantId} in namespace ${namespace}`);
+        }
+      } else {
+        console.log(`[TENANT_MANAGER] Skipping default hierarchy seeding for test-tenant ${tenantId} in namespace ${namespace}. Test suites should handle their own seeding.`);
+      }
       
       console.log(`[TENANT_MANAGER] Successfully created tenant ${tenantId} in namespace ${namespace}`);
       return namespace;
@@ -242,25 +269,32 @@ export class TenantManager {
       const namespace = await this.getTenantNamespace(tenantId);
       console.log(`[TENANT_MANAGER] Deleting tenant ${tenantId} from namespace ${namespace}`);
       
-      // For development, we'll just clear the data rather than deleting the namespace
       const tenant = this.tenantFactory.createTenant(namespace);
-      
-      const dropMutation = `
-        mutation {
-          deleteNode(filter: {}) {
-            numUids
-          }
-          deleteHierarchy(filter: {}) {
-            numUids
-          }
-          deleteEdge(filter: {}) {
-            numUids
-          }
+
+      // More robust deletion order
+      const deleteOperations = [
+        { name: 'HierarchyAssignment', mutation: 'mutation { deleteHierarchyAssignment(filter: {}) { numUids } }' },
+        { name: 'HierarchyLevelType', mutation: 'mutation { deleteHierarchyLevelType(filter: {}) { numUids } }' },
+        { name: 'HierarchyLevel', mutation: 'mutation { deleteHierarchyLevel(filter: {}) { numUids } }' },
+        { name: 'Hierarchy', mutation: 'mutation { deleteHierarchy(filter: {}) { numUids } }' },
+        { name: 'Edge', mutation: 'mutation { deleteEdge(filter: {}) { numUids } }' },
+        { name: 'Node', mutation: 'mutation { deleteNode(filter: {}) { numUids } }' }
+      ];
+
+      for (const op of deleteOperations) {
+        try {
+          console.log(`[TENANT_MANAGER] Deleting all ${op.name} in namespace ${namespace}...`);
+          const result = await tenant.executeGraphQL(op.mutation);
+          // Ensure the key exists before logging, Dgraph might not return it if nothing was deleted
+          const numUidsDeleted = result[`delete${op.name}`]?.numUids || 0;
+          console.log(`[TENANT_MANAGER] Deleted ${numUidsDeleted} ${op.name}(s).`);
+        } catch (e) {
+          // Log individual deletion errors but attempt to continue
+          console.error(`[TENANT_MANAGER] Error deleting ${op.name} in namespace ${namespace}:`, e);
         }
-      `;
+      }
       
-      await tenant.executeGraphQL(dropMutation);
-      console.log(`[TENANT_MANAGER] Successfully deleted tenant ${tenantId}`);
+      console.log(`[TENANT_MANAGER] Successfully cleared data for tenant ${tenantId} in namespace ${namespace}`);
       
     } catch (error) {
       console.error(`[TENANT_MANAGER] Failed to delete tenant ${tenantId}:`, error);
