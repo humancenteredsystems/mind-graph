@@ -1,6 +1,0 @@
-API prod JS: 3210
-API prod TS: 1156
-API tests JS: 21
-API tests TS: 0
-Tools JS: 3
-Tools TS: 0
