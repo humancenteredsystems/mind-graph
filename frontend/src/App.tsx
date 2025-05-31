@@ -65,6 +65,35 @@ function AppInner() {
       <SettingsModal />
       
       <h1>MakeItMakeSense.io Graph</h1>
+      
+      {/* Documentation Link */}
+      <div style={{ margin: '0.5rem 0', textAlign: 'center' }}>
+        <a 
+          href={import.meta.env.DEV ? 'http://localhost:3001' : 'https://mims-docs.onrender.com'}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: theme.colors.text.primary,
+            textDecoration: 'none',
+            fontSize: '0.9rem',
+            padding: '0.5rem 1rem',
+            border: `1px solid ${theme.colors.border.default}`,
+            borderRadius: '4px',
+            backgroundColor: theme.colors.background.secondary,
+            display: 'inline-block',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = theme.colors.background.overlay;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = theme.colors.background.secondary;
+          }}
+        >
+          📚 Documentation
+        </a>
+      </div>
+      
       <select
         value={hierarchyId}
         onChange={e => setHierarchyId(e.target.value)}

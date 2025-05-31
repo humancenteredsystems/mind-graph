@@ -56,70 +56,18 @@ curl -X POST http://localhost:3000/api/query \
     *   The `requests` library is needed for Python tools: `pip install requests` (preferably within your Python environment).
 *   **Dgraph Enterprise (Optional):** Required for multi-tenant features with namespace isolation.
 
-## Local Development Setup
+## Quick Start
 
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/heythisisgordon/mims-graph.git
-    cd mims-graph
-    ```
-2.  **Install Dependencies:**
-    *   Root: `npm install` (installs `concurrently`)
-    *   API: `cd api && npm install && cd ..`
-    *   Frontend: `cd frontend && npm install && cd ..`
+For complete setup instructions including local development, environment configuration, and production deployment, see the **[Complete Setup Guide](docs/setup-guide.md)**.
 
-3.  **Environment Variables (API):**
-    *   The API server (`api/server.ts`) requires certain environment variables. Copy `api/.env.example` to `api/.env` and fill in necessary values, especially `ADMIN_API_KEY` for using admin-protected tool scripts. `DGRAPH_BASE_URL` will default to `http://localhost:8080` if not set in `.env`, which is suitable for local development with the provided Docker Compose setup.
-    *   **Multi-Tenant Configuration (Optional):**
-        ```bash
-        ENABLE_MULTI_TENANT=true
-        DGRAPH_NAMESPACE_DEFAULT=0x0
-        DGRAPH_NAMESPACE_TEST=0x1
-        ```
+**Essential steps:**
+1. Clone the repository and install dependencies
+2. Configure environment variables (`api/.env`)
+3. Start development environment: `npm run start-dev-env`
+4. Initialize database schema: `python tools/api_push_schema.py --target local`
+5. Access frontend at `http://localhost:5173`
 
-4.  **Start Development Environment:**
-    From the project root directory:
-    ```bash
-    npm run start-dev-env
-    ```
-    This command concurrently:
-    *   Starts Dgraph services via `docker-compose up -d`.
-    *   Starts the backend API server with hot-reloading (`cd api && npm run dev`).
-    *   Starts the frontend development server with hot-reloading (`cd frontend && npm run dev`).
-
-5.  **Access Services:**
-    *   **Frontend Application:** `http://localhost:5173` (or as indicated by Vite)
-    *   **API Server:** `http://localhost:3000` (or as specified by `PORT` in `api/.env`)
-    *   **Dgraph Ratel UI:** `http://localhost:8000`
-
-6.  **Initial Schema Push (Required on first run or after schema changes):**
-    In a separate terminal (ensure Dgraph from `start-dev-env` is running):
-    ```bash
-    # Activate your Python environment if needed (e.g., conda activate myenv or source venv/bin/activate)
-    # Set your admin API key (must match ADMIN_API_KEY in api/.env if set)
-    export MIMS_ADMIN_API_KEY=your_secure_key_here 
-    
-    # Push schema to the local Dgraph instance via the API
-    python tools/api_push_schema.py --target local 
-    ```
-    *(The primary schema is located at `schemas/default.graphql`)*
-
-7.  **Seed Sample Data (Optional):**
-    In a separate terminal:
-    ```bash
-    # Ensure MIMS_ADMIN_API_KEY is set as above
-    export MIMS_API_URL="http://localhost:3000/api" # Or your API port if different
-    
-    # Single-tenant mode (default)
-    python tools/seed_data.py
-    
-    # Multi-tenant mode with test tenant
-    python tools/seed_data.py --tenant-id test-tenant
-    ```
-
-8.  **Stopping the Environment:**
-    *   Press `Ctrl+C` in the terminal running `npm run start-dev-env` to stop API and frontend servers.
-    *   To stop Dgraph containers: `npm run stop-dgraph` (or `docker-compose down`).
+For detailed instructions, troubleshooting, and production deployment, refer to the [Setup Guide](docs/setup-guide.md).
 
 ## Usage
 
@@ -267,9 +215,9 @@ Python scripts for database interaction and data management:
 Comprehensive project documentation can be found in the `/docs` directory:
 
 ### Core Documentation
+*   [Complete Setup Guide](docs/setup-guide.md) - Local development and production deployment
 *   [Architecture Overview](docs/architecture.md) - System design and components
 *   [API Endpoints](docs/api_endpoints.md) - Complete API reference with multi-tenant features
-*   [Deployment Guide](docs/deployment_guide.md) - Local and production deployment with multi-tenant configuration
 
 ### Implementation Guides  
 *   [Multi-Tenant Implementation](docs/multi-tenant-implementation.md) - Complete multi-tenant architecture details
@@ -280,9 +228,9 @@ Comprehensive project documentation can be found in the `/docs` directory:
 *   [Dgraph Operations Guide](docs/dgraph-operations.md) - Comprehensive Dgraph operations, troubleshooting, and critical multi-tenant safety information
 *   [UI Elements](docs/ui-elements.md) - Frontend component specifications and styling guide
 
-## Deployment
+## Setup and Deployment
 
-For instructions on deploying the services to a production-like environment (e.g., on Render), including multi-tenant configuration and monitoring, please see our [Deployment Guide](docs/deployment_guide.md).
+For complete instructions on local development setup and deploying services to production (e.g., on Render), including multi-tenant configuration and monitoring, please see our [Complete Setup Guide](docs/setup-guide.md).
 
 ## Future Work
 

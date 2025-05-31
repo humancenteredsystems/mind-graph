@@ -12,7 +12,8 @@
     "stop-dgraph": "docker-compose down",
     "dev:api": "cd api && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev": "concurrently \"npm:dev:api\" \"npm:dev:frontend\"",
+    "dev:docs": "cd docs-site && yarn start",
+    "dev": "concurrently \"npm:dev:api\" \"npm:dev:frontend\" \"npm:dev:docs\"",
     "start-dev-env": "npm run start-dgraph && npm run dev"
   },
   "devDependencies": {
