@@ -40,7 +40,7 @@ The main trade-off is a slightly more verbose data structure (an extra "hop" thr
     *   Refer to `docs/api_endpoints.md` for detailed endpoint specifications.
 
 *   **Automatic Assignment during Node Creation (`POST /api/mutate` with `addNode`):**
-    *   When new nodes are created via the `addNode` GraphQL mutation, the API server includes logic (implemented in `routes/graphql.js` and `services/nodeEnrichment.js`) to automatically create a `HierarchyAssignment`.
+    *   When new nodes are created via the `addNode` GraphQL mutation, the API server includes logic (implemented in `routes/graphql.ts` and `services/nodeEnrichment.ts`) to automatically create a `HierarchyAssignment`.
     *   **Processing Priority for Assignment (Current Implementation):**
         1.  **Client-Provided `hierarchyAssignments` Array (Primary):** The server first checks if the client provides a `hierarchyAssignments` array in the input. This is the standard structure sent by the frontend `NodeFormModal`. If present:
             *   Extracts `hierarchy.id` and `level.id` from the nested structure

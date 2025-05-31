@@ -4,7 +4,7 @@ This document describes each backend API endpoint, including paths, methods, req
 
 **Note on Admin Operations:** Endpoints marked as requiring admin authentication operate on the Dgraph instance configured by the API service's `DGRAPH_BASE_URL` environment variable. Parameters like `target` in some admin requests are validated by the API but do not change which Dgraph instance the API interacts with; they are primarily for the calling script's reference or future use.
 
-**Note on Architecture:** As of the recent refactoring, the API has been restructured into a modular architecture with separate route files for different functional domains (GraphQL operations, admin functions, schema management, diagnostics, and hierarchy management), improving maintainability while preserving full backward compatibility.
+**Note on Architecture:** As of the recent refactoring, the API has been restructured into a modular TypeScript architecture with separate route files for different functional domains (GraphQL operations, admin functions, schema management, diagnostics, and hierarchy management), improving maintainability while preserving full backward compatibility.
 
 ---
 
@@ -567,5 +567,5 @@ curl -X POST http://localhost:3000/api/mutate \
 
 ---
 
-*For troubleshooting Dgraph connectivity issues, see the [Dgraph Troubleshooting Guide](dgraph_troubleshooting.md).*  
+*For troubleshooting Dgraph connectivity issues, see the [Dgraph Operations Guide](dgraph-operations.md).*  
 *For detailed multi-tenant implementation information, see the [Multi-Tenant Implementation Guide](multi-tenant-implementation.md).*

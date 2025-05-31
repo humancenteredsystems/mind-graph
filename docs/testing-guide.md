@@ -19,12 +19,12 @@ The application uses a multi-layered testing strategy:
 **Location:** `api/__tests__/unit/`
 
 **Key Test Files:**
-- `services/tenantManager.test.js` - TenantManager functionality
-- `services/nodeEnrichment.test.js` - Node enrichment logic
-- `services/schemaRegistry.test.js` - Schema registry operations
-- `services/validation.test.js` - Input validation
-- `utils/dgraphAdmin.test.js` - Dgraph admin utilities
-- `middleware/auth.test.js` - Authentication middleware
+- `services/tenantManager.test.ts` - TenantManager functionality
+- `services/nodeEnrichment.test.ts` - Node enrichment logic
+- `services/schemaRegistry.test.ts` - Schema registry operations
+- `services/validation.test.ts` - Input validation
+- `utils/dgraphAdmin.test.ts` - Dgraph admin utilities
+- `middleware/auth.test.ts` - Authentication middleware
 
 **Running Unit Tests:**
 ```bash
@@ -45,10 +45,10 @@ npm test -- --testPathPattern="unit"
 **Location:** `api/__tests__/integration/`
 
 **Key Test Files:**
-- `endpoints.test.js` - Basic API endpoint testing
-- `hierarchy.test.js` - Hierarchy CRUD operations
-- `graphql.test.js` - GraphQL query and mutation testing
-- `integration.test.js` - Cross-feature integration scenarios
+- `endpoints.test.ts` - Basic API endpoint testing
+- `hierarchy.test.ts` - Hierarchy CRUD operations
+- `graphql.test.ts` - GraphQL query and mutation testing
+- `integration.test.ts` - Cross-feature integration scenarios
 
 **Running Mocked Integration Tests:**
 ```bash
@@ -64,7 +64,7 @@ npm test -- --testPathPattern="integration" --testPathIgnorePatterns="integratio
 - Suitable for CI/CD pipelines
 
 **Mock Pattern:**
-```javascript
+```typescript
 // Standard mocking pattern used in integration tests
 jest.mock('../../services/adaptiveTenantFactory', () => ({
   adaptiveTenantFactory: {
@@ -82,11 +82,11 @@ jest.mock('../../services/adaptiveTenantFactory', () => ({
 **Location:** `api/__tests__/integration-real/`
 
 **Key Test Files:**
-- `basic-crud.test.js` - Complete CRUD operations in real test tenant
-- `namespace-isolation.test.js` - Tenant isolation verification
-- `hierarchy-operations.test.js` - Real hierarchy management
-- `graphql-operations.test.js` - Advanced GraphQL operations and performance
-- `diagnostic.test.js` - System connectivity and capability detection
+- `basic-crud.test.ts` - Complete CRUD operations in real test tenant
+- `namespace-isolation.test.ts` - Tenant isolation verification
+- `hierarchy-operations.test.ts` - Real hierarchy management
+- `graphql-operations.test.ts` - Advanced GraphQL operations and performance
+- `diagnostic.test.ts` - System connectivity and capability detection
 
 **Prerequisites:**
 1. **Dgraph Enterprise** running at `http://localhost:8080` with namespace support
@@ -120,9 +120,9 @@ docker-compose up dgraph
 - Provides highest confidence in system behavior
 
 **Test Helper Pattern:**
-```javascript
+```typescript
 // Real integration tests use actual tenant infrastructure
-const { testRequest, verifyInTestTenant } = require('../helpers/realTestHelpers');
+import { testRequest, verifyInTestTenant } from '../helpers/realTestHelpers';
 
 // testRequest automatically adds X-Tenant-Id: test-tenant header
 const response = await testRequest(app)
@@ -159,12 +159,12 @@ npm run test:e2e
 ## Test Data Management
 
 ### Mocked Tests
-- Use `api/__tests__/helpers/mockData.js` for consistent test data
+- Use `api/__tests__/helpers/mockData.ts` for consistent test data
 - All data is in-memory and automatically cleaned up
 - No database interaction required
 
 ### Real Integration Tests
-- Use `api/__tests__/helpers/realTestHelpers.js` utilities
+- Use `api/__tests__/helpers/realTestHelpers.ts` utilities
 - Operate in dedicated test tenant namespace (0x1)
 - Automatic cleanup via `beforeEach` and `afterAll` hooks
 - Isolated from production data
@@ -341,7 +341,7 @@ jobs:
    curl http://localhost:8080/state
    
    # Run diagnostic test
-   cd api && npm test -- --testPathPattern="diagnostic.test.js"
+   cd api && npm test -- --testPathPattern="diagnostic.test.ts"
    ```
 
 2. **Timeout Issues:**
@@ -369,7 +369,7 @@ npm test -- --verbose
 npm test -- --coverage
 
 # Run specific test file
-npm test -- basic-crud.test.js
+npm test -- basic-crud.test.ts
 
 # Run tests matching pattern
 npm test -- --testNamePattern="should create node"

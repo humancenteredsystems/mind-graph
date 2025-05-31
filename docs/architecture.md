@@ -6,6 +6,8 @@
 
 ## 🧭 Overview
 
+MakeItMakeSense.io is maintained by [Human-Centered Systems, LLC](https://humancenteredsystems.io) as an open-source demonstration of real-world systems architecture and collaborative knowledge management tools.
+
 MakeItMakeSense.io is an interactive knowledge map designed to help users explore, contribute to, and curate structured knowledge through a hybrid **hierarchical + non-hierarchical** graph structure. This document outlines the full system architecture: frontend, backend, database, and hosting.
 
 ---
@@ -66,10 +68,18 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 
 ### Tech Stack (Current Implementation)
 - Node.js (with Express.js)
+- **TypeScript** for complete type safety and enhanced developer experience
 - `dotenv` for environment variables
 - `axios` for some Dgraph admin communications
 - **Target Hosting:** Web service (e.g., Render)
-- Communicates with Dgraph primarily via GraphQL through `api/dgraphClient.js`.
+- Communicates with Dgraph primarily via GraphQL through `api/dgraphClient.ts`.
+
+### TypeScript Architecture Benefits
+- **Complete Type Safety:** All API routes, services, and utilities are fully typed
+- **Enhanced Developer Experience:** Full IntelliSense, autocomplete, and compile-time error detection
+- **Self-Documenting Code:** Type definitions serve as inline documentation
+- **Refactoring Safety:** Type system prevents breaking changes during code modifications
+- **Centralized Type System:** Comprehensive type definitions in `api/src/types/` for domain models, configurations, and API contracts
 
 ### Responsibilities (Current Implementation)
 - Provide GraphQL interaction endpoints (`/api/query`, `/api/mutate`) proxying requests to Dgraph.

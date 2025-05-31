@@ -4,6 +4,8 @@
 
 ## Overview
 
+MakeItMakeSense.io is developed and maintained by [Human-Centered Systems, LLC](https://humancenteredsystems.io).
+
 MakeItMakeSense.io is an interactive platform designed for exploring, contributing to, and curating structured knowledge. It utilizes a hybrid hierarchical and non-hierarchical graph structure powered by Dgraph, allowing for flexible and rich data representation.
 
 The core components include:
@@ -39,7 +41,7 @@ curl -X POST http://localhost:3000/api/query \
 ## Tech Stack
 
 *   **Database:** Dgraph (via Docker) - OSS for single-tenant, Enterprise for multi-tenant
-*   **Backend API:** Node.js, Express.js with tenant context middleware
+*   **Backend API:** Node.js, Express.js with **TypeScript**, tenant context middleware
 *   **Frontend:** React 19, Vite, TypeScript, Cytoscape.js, Axios with centralized theme system and CSS-in-JS styling
 *   **Utility Tools:** Python, requests with tenant-aware operations
 *   **Development Environment:** Docker Compose, Nodemon, Concurrently
@@ -67,7 +69,7 @@ curl -X POST http://localhost:3000/api/query \
     *   Frontend: `cd frontend && npm install && cd ..`
 
 3.  **Environment Variables (API):**
-    *   The API server (`api/server.js`) requires certain environment variables. Copy `api/.env.example` to `api/.env` and fill in necessary values, especially `ADMIN_API_KEY` for using admin-protected tool scripts. `DGRAPH_BASE_URL` will default to `http://localhost:8080` if not set in `.env`, which is suitable for local development with the provided Docker Compose setup.
+    *   The API server (`api/server.ts`) requires certain environment variables. Copy `api/.env.example` to `api/.env` and fill in necessary values, especially `ADMIN_API_KEY` for using admin-protected tool scripts. `DGRAPH_BASE_URL` will default to `http://localhost:8080` if not set in `.env`, which is suitable for local development with the provided Docker Compose setup.
     *   **Multi-Tenant Configuration (Optional):**
         ```bash
         ENABLE_MULTI_TENANT=true
@@ -275,8 +277,7 @@ Comprehensive project documentation can be found in the `/docs` directory:
 *   [Dgraph Schema Notes](docs/schema_notes.md) - Schema design patterns and considerations
 
 ### Reference Documentation
-*   [Dgraph dropAll Limitation](docs/dgraph-dropall-limitation.md) - Critical multi-tenant safety information
-*   [Dgraph Troubleshooting](docs/dgraph_troubleshooting.md) - Common issues and solutions
+*   [Dgraph Operations Guide](docs/dgraph-operations.md) - Comprehensive Dgraph operations, troubleshooting, and critical multi-tenant safety information
 *   [UI Elements](docs/ui-elements.md) - Frontend component specifications and styling guide
 
 ## Deployment

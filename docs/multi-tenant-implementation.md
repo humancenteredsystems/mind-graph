@@ -11,7 +11,7 @@ We have successfully implemented the core multi-tenant architecture using Dgraph
 
 ### 1. Core Tenant Infrastructure
 
-#### **DgraphTenant & DgraphTenantFactory** (`api/services/dgraphTenant.js`)
+#### **DgraphTenant & DgraphTenantFactory** (`api/services/dgraphTenant.ts`)
 - **DgraphTenant Class**: Namespace-aware Dgraph client
   - Handles GraphQL operations within specific namespaces
   - Builds namespace-specific endpoints (`/graphql?namespace=0x1`)
@@ -23,7 +23,7 @@ We have successfully implemented the core multi-tenant architecture using Dgraph
   - `createDefaultTenant()` - Create default namespace client
   - `createTestTenant()` - Create test namespace client
 
-#### **TenantManager** (`api/services/tenantManager.js`)
+#### **TenantManager** (`api/services/tenantManager.ts`)
 - **Tenant Lifecycle Management**:
   - `createTenant(tenantId)` - Initialize new tenant with schema and default hierarchies
   - `deleteTenant(tenantId)` - Clean up tenant data
@@ -35,7 +35,7 @@ We have successfully implemented the core multi-tenant architecture using Dgraph
   - `getTenantNamespace(tenantId)` - Resolve tenant to namespace
   - Special handling for `test-tenant` (0x1) and `default` (0x0)
 
-#### **Tenant Context Middleware** (`api/middleware/tenantContext.js`)
+#### **Tenant Context Middleware** (`api/middleware/tenantContext.ts`)
 - **setTenantContext**: Resolves tenant ID to namespace for each request
 - **ensureTenant**: Creates tenant if it doesn't exist
 - **validateTenantAccess**: Placeholder for future authentication
@@ -43,16 +43,16 @@ We have successfully implemented the core multi-tenant architecture using Dgraph
 
 ### 2. Updated API Routes
 
-#### **GraphQL Routes** (`api/routes/graphql.js`)
+#### **GraphQL Routes** (`api/routes/graphql.ts`)
 - All endpoints now use `getTenantClient(req)` for tenant-aware operations
 - Schema endpoint supports namespace-specific schema retrieval
 - Maintains backward compatibility
 
-#### **Hierarchy Routes** (`api/routes/hierarchy.js`)
+#### **Hierarchy Routes** (`api/routes/hierarchy.ts`)
 - All CRUD operations now tenant-aware
 - Hierarchies isolated per tenant namespace
 
-#### **New Tenant Management Routes** (`api/routes/tenants.js`)
+#### **New Tenant Management Routes** (`api/routes/tenants.ts`)
 - `GET /api/tenant/info` - Get current tenant information
 - `POST /api/tenant` - Create new tenant (admin)
 - `GET /api/tenant` - List all tenants (admin)
@@ -73,21 +73,21 @@ DGRAPH_NAMESPACE_PREFIX=0x
 DEFAULT_TENANT_ID=default
 ```
 
-#### **Server Integration** (`api/server.js`)
+#### **Server Integration** (`api/server.ts`)
 - Added tenant context middleware to all `/api` routes
 - Added `X-Tenant-Id` to CORS allowed headers
 - Integrated tenant routes
 
 ### 4. Enhanced Schema Management
 
-#### **Namespace-Aware Schema Push** (`api/utils/pushSchema.js`)
+#### **Namespace-Aware Schema Push** (`api/utils/pushSchema.ts`)
 - `pushSchemaViaHttp(schema, namespace, customAdminUrl)` - Push schema to specific namespace
 - Backward compatibility with legacy function
 - Automatic namespace parameter handling
 
 ### 5. Test Infrastructure
 
-#### **Enhanced Test Setup** (`api/__tests__/helpers/testSetup.js`)
+#### **Enhanced Test Setup** (`api/__tests__/helpers/testSetup.ts`)
 - Tenant-aware test utilities
 - `setupTestDatabase()` - Initialize test tenant
 - `cleanupTestDatabase()` - Clean test tenant
@@ -95,7 +95,7 @@ DEFAULT_TENANT_ID=default
 - `getTestTenantClient()` - Get test tenant client
 - Mock request objects with tenant context
 
-#### **Unit Tests** (`api/__tests__/unit/services/tenantManager.test.js`)
+#### **Unit Tests** (`api/__tests__/unit/services/tenantManager.test.ts`)
 - TenantManager functionality tests
 - DgraphTenantFactory tests
 - Namespace generation validation
@@ -151,13 +151,13 @@ DEFAULT_TENANT_ID=default
 **New Feature**: Comprehensive real database integration tests that use actual tenant infrastructure without mocking.
 
 #### **Test Suite Structure** (`api/__tests__/integration-real/`)
-- **`basic-crud.test.js`** - Complete CRUD operations testing in real test tenant
-- **`namespace-isolation.test.js`** - Comprehensive tenant isolation verification
-- **`hierarchy-operations.test.js`** - Hierarchy management and level operations
-- **`graphql-operations.test.js`** - Advanced GraphQL queries, mutations, and performance tests
-- **`diagnostic.test.js`** - System diagnostics and connectivity verification
+- **`basic-crud.test.ts`** - Complete CRUD operations testing in real test tenant
+- **`namespace-isolation.test.ts`** - Comprehensive tenant isolation verification
+- **`hierarchy-operations.test.ts`** - Hierarchy management and level operations
+- **`graphql-operations.test.ts`** - Advanced GraphQL queries, mutations, and performance tests
+- **`diagnostic.test.ts`** - System diagnostics and connectivity verification
 
-#### **Test Helper Utilities** (`api/__tests__/helpers/realTestHelpers.js`)
+#### **Test Helper Utilities** (`api/__tests__/helpers/realTestHelpers.ts`)
 - `testRequest()` - Automatic `X-Tenant-Id: test-tenant` header injection
 - `verifyInTestTenant()` - Direct database verification using real adaptiveTenantFactory
 - `createTestNodeData()` - Consistent test data generation utilities
@@ -181,7 +181,7 @@ DEFAULT_TENANT_ID=default
 cd api && npm test -- --testPathPattern="integration-real"
 
 # Run specific test suite
-cd api && npm test -- --testPathPattern="basic-crud.test.js"
+cd api && npm test -- --testPathPattern="basic-crud.test.ts"
 ```
 
 ## ⚠️ Important Limitations

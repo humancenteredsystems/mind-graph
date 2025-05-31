@@ -4,7 +4,7 @@ This guide explains how to properly manage configuration and environment variabl
 
 ## Centralized Configuration System
 
-The backend API uses a centralized configuration system located at `api/config/index.js` to manage all environment variables and configuration settings.
+The backend API uses a centralized configuration system located at `api/config/index.ts` to manage all environment variables and configuration settings.
 
 ### Why Use Centralized Configuration?
 
@@ -16,28 +16,29 @@ The backend API uses a centralized configuration system located at `api/config/i
 
 ### Configuration Module Structure
 
-```javascript
-// api/config/index.js
-require('dotenv').config(); // Load environment variables ONCE
+```typescript
+// api/config/index.ts
+import dotenv from 'dotenv';
+dotenv.config(); // Load environment variables ONCE
 
 const config = {
-  port: parseInt(process.env.PORT) || 3000,
+  port: parseInt(process.env.PORT || '3000'),
   dgraphBaseUrl: process.env.DGRAPH_BASE_URL || 'http://localhost:8080',
   adminApiKey: process.env.ADMIN_API_KEY || null,
   enableMultiTenant: process.env.ENABLE_MULTI_TENANT === 'true',
   // ... other configuration values
 };
 
-module.exports = Object.freeze(config); // Prevent runtime modifications
+export default Object.freeze(config); // Prevent runtime modifications
 ```
 
 ## How to Use Configuration
 
 ### ✅ Correct Way - Use the Config Module
 
-```javascript
+```typescript
 // In any backend file
-const config = require('../config'); // or appropriate path
+import config from '../config'; // or appropriate path
 
 // Use configuration values
 const port = config.port;
@@ -47,9 +48,10 @@ const isMultiTenant = config.enableMultiTenant;
 
 ### ❌ Wrong Way - Direct Environment Access
 
-```javascript
+```typescript
 // DON'T do this (creates the anti-pattern we fixed)
-require('dotenv').config(); // Multiple dotenv calls
+import dotenv from 'dotenv';
+dotenv.config(); // Multiple dotenv calls
 const port = process.env.PORT || 3000; // Inconsistent defaults
 const url = process.env.DGRAPH_BASE_URL; // No fallback
 ```
@@ -72,8 +74,8 @@ const url = process.env.DGRAPH_BASE_URL; // No fallback
 
 When adding new configuration options:
 
-1. **Add to config module** (`api/config/index.js`):
-```javascript
+1. **Add to config module** (`api/config/index.ts`):
+```typescript
 const config = {
   // ... existing config
   newOption: process.env.NEW_OPTION || 'default-value',
@@ -89,8 +91,8 @@ NEW_OPTION=example-value
 3. **Update this documentation** with the new option in the table above.
 
 4. **Use in your code**:
-```javascript
-const config = require('../config');
+```typescript
+import config from '../config';
 const value = config.newOption;
 ```
 
@@ -98,10 +100,10 @@ const value = config.newOption;
 
 ### Authentication Middleware Exception
 
-The authentication middleware (`api/middleware/auth.js`) is the **only** file that still uses `process.env.ADMIN_API_KEY` directly. This is intentional to maintain compatibility with existing tests that dynamically set environment variables.
+The authentication middleware (`api/middleware/auth.ts`) is the **only** file that still uses `process.env.ADMIN_API_KEY` directly. This is intentional to maintain compatibility with existing tests that dynamically set environment variables.
 
-```javascript
-// api/middleware/auth.js - Exception to the rule
+```typescript
+// api/middleware/auth.ts - Exception to the rule
 const authenticateAdmin = (req, res, next) => {
   const apiKey = req.headers['x-admin-api-key'];
   // Use process.env directly for test compatibility
@@ -123,7 +125,7 @@ const authenticateAdmin = (req, res, next) => {
 If you find code that directly accesses `process.env`:
 
 1. **Identify the environment variable** being accessed
-2. **Check if it exists** in `api/config/index.js`
+2. **Check if it exists** in `api/config/index.ts`
 3. **If it doesn't exist**, add it to the config module
 4. **Replace direct access** with config module usage
 5. **Remove any extra** `require('dotenv').config()` calls
