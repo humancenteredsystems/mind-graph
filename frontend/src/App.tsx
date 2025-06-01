@@ -69,7 +69,7 @@ function AppInner() {
       {/* Documentation Link */}
       <div style={{ margin: '0.5rem 0', textAlign: 'center' }}>
         <a 
-          href={import.meta.env.DEV ? 'http://localhost:3001' : 'https://mims-docs.onrender.com'}
+          href={import.meta.env.DEV ? 'http://localhost:3001' : 'https://docs.makeitmakesense.io'}
           target="_blank"
           rel="noopener noreferrer"
           style={{
