@@ -12,26 +12,156 @@ import { normalizeHierarchyId } from '../utils/graphUtils';
 // Register Cytoscape plugins ONCE at module load
 cytoscape.use(klay);
 
+/**
+ * Props interface for the GraphView component.
+ * 
+ * GraphView is the primary visualization component handling complex user interactions
+ * including manual double-click detection, multi-selection, context menus, and
+ * hierarchical graph operations. Many callbacks have specific behavioral contracts.
+ * 
+ * @interface GraphViewProps
+ */
 interface GraphViewProps {
+  /** Core graph data to render */
   nodes: NodeData[];
   edges: EdgeData[];
+  
+  /** Visual customization */
   style?: React.CSSProperties;
+  
+  /** Set of node IDs to hide from visualization (used for expand/collapse) */
   hiddenNodeIds?: Set<string>;
+  
+  /**
+   * Callback fired when user requests to expand a single node.
+   * Should reveal immediate children of the specified node.
+   */
   onNodeExpand?: (nodeId: string) => void;
+  
+  /**
+   * Callback fired when user requests to expand all children of a node.
+   * Should reveal all descendants recursively, not just immediate children.
+   */
   onExpandChildren?: (nodeId: string) => void;
+  
+  /**
+   * Callback fired when user requests to expand entire graph.
+   * Should reveal all nodes in the complete graph structure.
+   */
   onExpandAll?: (nodeId: string) => void;
+  
+  /**
+   * Callback fired when user requests to collapse a node.
+   * Should hide all children/descendants of the specified node.
+   */
   onCollapseNode?: (nodeId: string) => void;
+  
+  /**
+   * Function to check if a specific node is currently expanded.
+   * Used for visual indicators (border styling) and context menu options.
+   * 
+   * @param nodeId - The node to check
+   * @returns true if node is expanded, false otherwise
+   */
   isNodeExpanded?: (nodeId: string) => boolean;
+  
+  /**
+   * Callback fired when user requests to add a new node.
+   * 
+   * **Behavioral Contract:**
+   * - When parentId provided: Create child node connected to parent
+   * - When position provided: Create node at specific coordinates
+   * - When both provided: Create connected child at specified position
+   * - When neither provided: Create standalone node at default position
+   * 
+   * @param parentId - Optional parent node for creating connected children
+   * @param position - Optional specific coordinates for node placement
+   */
   onAddNode?: (parentId?: string, position?: { x: number; y: number }) => void;
-  onEditNode?: (node: NodeData) => void; // Changed to pass full NodeData
-  onNodeSelect?: (node: NodeData) => void; // Prop for single-click selection
+  
+  /**
+   * Callback fired on double-click/double-tap for node editing.
+   * 
+   * **Behavioral Contract:**
+   * - Triggered by manual double-click detection algorithm (300ms window)
+   * - Receives complete NodeData object including all properties
+   * - Should open edit modal/form with current node data pre-populated
+   * 
+   * @param node - Complete node data object for editing
+   */
+  onEditNode?: (node: NodeData) => void;
+  
+  /**
+   * Callback fired on single-click for node selection.
+   * 
+   * **Behavioral Contract:**
+   * - Triggered after 50ms debounce to confirm not part of double-click
+   * - Used for selection highlighting and displaying node details
+   * - Does not interfere with multi-selection behavior
+   * 
+   * @param node - Selected node data object
+   */
+  onNodeSelect?: (node: NodeData) => void;
+  
+  /**
+   * Callback fired when user requests to load complete graph.
+   * Should fetch and display all available nodes/edges without filtering.
+   */
   onLoadCompleteGraph?: () => void;
+  
+  /**
+   * Callback fired when user requests to delete a single node.
+   * Should remove node and handle edge cleanup appropriately.
+   */
   onDeleteNode?: (nodeId: string) => void;
+  
+  /**
+   * Callback fired when user requests to delete multiple selected nodes.
+   * Should handle batch deletion with proper edge cleanup.
+   * 
+   * @param nodeIds - Array of node IDs in selection order
+   */
   onDeleteNodes?: (nodeIds: string[]) => void;
+  
+  /**
+   * Callback fired when user requests to delete a single edge.
+   * Should remove the specific connection between nodes.
+   */
   onDeleteEdge?: (edgeId: string) => void;
+  
+  /**
+   * Callback fired when user requests to delete multiple selected edges.
+   * Should handle batch edge deletion.
+   * 
+   * @param edgeIds - Array of edge IDs in selection order
+   */
   onDeleteEdges?: (edgeIds: string[]) => void;
+  
+  /**
+   * Callback fired when user requests to hide a single node.
+   * Different from delete - should preserve node data but hide from view.
+   */
   onHideNode?: (nodeId: string) => void;
+  
+  /**
+   * Callback fired when user requests to hide multiple selected nodes.
+   * Should handle batch hiding while preserving underlying data.
+   * 
+   * @param nodeIds - Array of node IDs in selection order
+   */
   onHideNodes?: (nodeIds: string[]) => void;
+  
+  /**
+   * Callback fired when user requests to create connection between two nodes.
+   * 
+   * **Behavioral Contract:**
+   * - Only available when exactly 2 nodes selected
+   * - Should check for existing edge to prevent duplicates
+   * - Connection direction: from → to based on selection order
+   * 
+   * @param from - Source node ID (first selected)
+   * @param to - Target node ID (second selected)
+   */
   onConnect?: (from: string, to: string) => void;
 }
 
@@ -66,7 +196,15 @@ const GraphView: React.FC<GraphViewProps> = ({
   const selectedOrderRef = useRef<string[]>([]);
   const [selectedEdgesCount, setSelectedEdgesCount] = useState(0);
   const selectedEdgesOrderRef = useRef<string[]>([]);
-  // Refs for refined manual double-click detection
+  /**
+   * Refs for refined manual double-click detection algorithm.
+   * 
+   * Manual double-click detection is required because Cytoscape.js event system
+   * can fire duplicate tap events, making the built-in doubleTap unreliable.
+   * This implementation uses a three-ref system with timing-based detection.
+   * 
+   * @see handleTap for the complete algorithm implementation
+   */
   const lastConfirmedClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 }); 
   const shortTermTapTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
   const potentialClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 });
@@ -223,6 +361,28 @@ const GraphView: React.FC<GraphViewProps> = ({
     const DOUBLE_CLICK_DELAY = config.doubleClickDelay; // Max time between clicks for double-click (ms)
     const SHORT_TERM_DEBOUNCE = config.shortTermDebounce; // Time to wait to confirm a single tap isn't a duplicate firing (ms)
 
+    /**
+     * Manual double-click detection algorithm for Cytoscape.js nodes.
+     * 
+     * Required because Cytoscape.js can fire duplicate tap events, making built-in
+     * doubleTap unreliable. This algorithm uses three-ref timing system:
+     * 
+     * 1. **potentialClickRef**: Stores immediate tap for short-term duplicate detection
+     * 2. **shortTermTapTimeoutRef**: 50ms timeout to confirm single clicks aren't duplicates  
+     * 3. **lastConfirmedClickRef**: Stores confirmed clicks for double-click comparison
+     * 
+     * **Algorithm Flow:**
+     * - Clear any pending timeout (handles duplicate firing)
+     * - If same nodeId within DOUBLE_CLICK_DELAY: trigger double-click action
+     * - Else: store as potential click with 50ms confirmation timeout
+     * - After timeout: confirm as single click and store for future double-click detection
+     * 
+     * **Timing Constants:**
+     * - DOUBLE_CLICK_DELAY (300ms): Max time between clicks for double-click
+     * - SHORT_TERM_DEBOUNCE (50ms): Duplicate event detection window
+     * 
+     * @param e - Cytoscape tap event object
+     */
     const handleTap = (e: any) => {
       const targetNode = e.target;
       const nodeId = targetNode.id ? targetNode.id() : null;

@@ -13,17 +13,16 @@ This comprehensive guide covers everything needed to set up MakeItMakeSense.io f
 
 ## Local Development Setup
 
-### 1. Clone and Install Dependencies
+**Quick Setup:** For a 5-minute setup to get started immediately, see [Quick Start Guide](./quick-start).
+
+**Comprehensive Setup:** This section covers detailed configuration, environment variables, and advanced setup options.
+
+### 1. Repository Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/heythisisgordon/mims-graph.git
 cd mims-graph
-
-# Install dependencies
-npm install                    # Root (installs concurrently)
-cd api && npm install && cd .. # API dependencies
-cd frontend && npm install && cd .. # Frontend dependencies
+npm install  # Installs all dependencies concurrently
 ```
 
 ### 2. Environment Configuration
@@ -80,59 +79,30 @@ const dgraphUrl = config.dgraphBaseUrl;
 const port = process.env.PORT || 3000;
 ```
 
-### 3. Start Development Environment
+### 3. Advanced Development Configuration
 
-From the project root directory:
+**Basic Startup:** Use `npm run start-dev-env` to start all services.
 
-```bash
-npm run start-dev-env
-```
-
-This command concurrently:
-*   Starts Dgraph services via `docker-compose up -d`
-*   Starts the backend API server with hot-reloading (`cd api && npm run dev`)
-*   Starts the frontend development server with hot-reloading (`cd frontend && npm run dev`)
-
-### 4. Access Development Services
-
-*   **Frontend Application:** `http://localhost:5173` (or as indicated by Vite)
-*   **API Server:** `http://localhost:3000` (or as specified by `PORT` in `api/.env`)
+**Development Services:**
+*   **Frontend:** `http://localhost:5173` 
+*   **API Server:** `http://localhost:3000` 
 *   **Dgraph Ratel UI:** `http://localhost:8000`
 
-### 5. Initialize Database Schema
-
-**Required on first run or after schema changes:**
-
+**Schema and Data Management:**
 ```bash
-# Activate your Python environment if needed
-# conda activate pointcloud  # or your environment name
+# Initialize schema (required on first run)
+python tools/api_push_schema.py --target local
 
-# Set your admin API key (must match ADMIN_API_KEY in api/.env)
-export MIMS_ADMIN_API_KEY=your_secure_key_here 
-
-# Push schema to the local Dgraph instance via the API
-python tools/api_push_schema.py --target local 
-```
-
-The primary schema is located at `schemas/default.graphql`.
-
-### 6. Seed Sample Data (Optional)
-
-```bash
-# Ensure MIMS_ADMIN_API_KEY is set as above
-export MIMS_API_URL="http://localhost:3000/api"
-
-# Single-tenant mode (default)
+# Optional: Add sample data
 python tools/seed_data.py
-
-# Multi-tenant mode with test tenant
-python tools/seed_data.py --tenant-id test-tenant
 ```
 
-### 7. Stopping the Development Environment
-
-*   Press `Ctrl+C` in the terminal running `npm run start-dev-env` to stop API and frontend servers
-*   To stop Dgraph containers: `npm run stop-dgraph` (or `docker-compose down`)
+**Environment Management:**
+```bash
+# Stop services
+# Ctrl+C for start-dev-env, then:
+npm run stop-dgraph
+```
 
 ## Production Deployment
 
@@ -385,8 +355,10 @@ curl https://your-api-url.onrender.com/api/tenant/info \
 ## Additional Resources
 
 - [API Endpoints Documentation](api-endpoints.md) - Complete API reference
-- [Multi-Tenant Implementation Guide](multi-tenant-implementation.md) - Detailed multi-tenant architecture
+- [Multi-Tenant Guide](multi-tenant-guide.md) - Complete multi-tenant implementation guide
 - [Testing Guide](testing-guide.md) - Comprehensive testing strategy
 - [Dgraph Operations Guide](dgraph-operations.md) - Database operations and troubleshooting
+- [System Architecture](system-architecture.md) - Complete system design and technical details
+- [Infrastructure](infrastructure.md) - Deployment and operational architecture
 
 For additional support, refer to the comprehensive documentation in the `/docs` directory or open an issue on GitHub.

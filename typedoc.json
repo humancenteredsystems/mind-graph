@@ -1,0 +1,55 @@
+{
+  "entryPoints": [
+    "api/services/index.ts",
+    "api/utils/index.ts",
+    "frontend/src/components/index.ts",
+    "frontend/src/hooks/index.ts",
+    "frontend/src/types/index.ts"
+  ],
+  "out": "docs-site/static/api-docs",
+  "theme": "default",
+  "name": "MakeItMakeSense.io API Documentation",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "readme": "none",
+  "categorizeByGroup": true,
+  "groupOrder": [
+    "Services",
+    "Components", 
+    "Hooks",
+    "Types",
+    "Utilities"
+  ],
+  "sort": ["source-order"],
+  "kindSortOrder": [
+    "Class",
+    "Interface",
+    "TypeAlias",
+    "Function",
+    "Variable"
+  ],
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": false
+  },
+  "treatWarningsAsErrors": false,
+  "githubPages": false,
+  "gitRevision": "main",
+  "tsconfig": "tsconfig.json",
+  "exclude": [
+    "**/node_modules/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/__tests__/**",
+    "**/dist/**",
+    "**/build/**"
+  ],
+  "plugin": ["typedoc-plugin-markdown"],
+  "navigationLinks": {
+    "Documentation Site": "https://docs.makeitmakesense.io",
+    "GitHub": "https://github.com/heythisisgordon/mims-graph"
+  }
+}

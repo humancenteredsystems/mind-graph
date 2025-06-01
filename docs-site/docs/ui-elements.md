@@ -97,6 +97,8 @@ Component: `<NodeFormModal>` (in `/frontend/src/components/NodeFormModal.tsx`); 
 - Form fields use `theme.components.form` configurations
 - Buttons styled using `theme.components.button` definitions
 
+*For complete theme system documentation, see [Frontend Development - Theme System](./frontend-development.md#theme-system--styling-architecture)*
+
 ### Accessibility/UI
 
 - Centered overlay with semi-opaque backdrop  
@@ -130,6 +132,8 @@ Component: `<NodeDrawer>` (in `/frontend/src/components/NodeDrawer.tsx`); contro
 - Tab styles use `theme.components.drawer.tab` configurations
 - Form elements follow `theme.components.form` patterns
 
+*For complete theme system documentation, see [Frontend Development - Theme System](./frontend-development.md#theme-system--styling-architecture)*
+
 ### Future Tabs
 
 - **Links** and **History** placeholders for future development.
@@ -149,134 +153,17 @@ Context consumers: `ContextMenuContext`, `App.tsx`, and components that trigger 
 
 ---
 
-## 5. Theme System & Styling Architecture
+## 5. Theme System Reference
 
-The frontend uses a centralized theme system to ensure consistent styling across all UI components.
+UI components use the centralized theme system for consistent styling across the application.
 
-### 5.1 Architecture Overview
+**For complete theme system documentation, including:**
+- Architecture overview and file structure
+- Design tokens and theme configuration
+- Dynamic level colors and style utilities
+- Usage guidelines and best practices
 
-**File Structure:**
-- `frontend/src/config/tokens.ts` - Base design tokens (colors, spacing, typography)
-- `frontend/src/config/theme.ts` - Semantic theme configuration built from tokens
-- `frontend/src/utils/styleUtils.ts` - Helper functions for component styling
-
-### 5.2 Design Tokens
-
-Base design values that define the visual foundation:
-
-```typescript
-// Color palettes
-colors: {
-  primary: { 50: '#eff6ff', 500: '#3b82f6', 900: '#1e3a8a' },
-  gray: { 50: '#f9fafb', 300: '#d1d5db', 600: '#4b5563' },
-  // ... additional color scales
-}
-
-// Spacing scale (4px base unit)
-spacing: {
-  scale: (multiplier: number) => multiplier * 4,
-  xs: 2, sm: 4, base: 8, lg: 16, xl: 24
-}
-
-// Typography
-fontSize: { xs: '12px', sm: '14px', base: '16px', lg: '18px' }
-```
-
-### 5.3 Theme Configuration
-
-Semantic values built from tokens for specific use cases:
-
-```typescript
-// Semantic colors
-colors: {
-  background: { primary: 'white', overlay: 'rgba(0,0,0,0.3)' },
-  text: { primary: '#374151', error: '#dc2626' },
-  levels: { 1: 'hsl(40,60%,60%)', 2: 'red', 3: 'hsl(120,60%,60%)' }
-}
-
-// Component-specific configurations
-components: {
-  modal: { background: 'white', shadow: '0 25px 50px rgba(0,0,0,0.25)' },
-  form: { field: { padding: '4px', border: '1px solid #d1d5db' } },
-  button: { base: { borderRadius: '4px', padding: '4px 8px' } }
-}
-```
-
-### 5.4 Dynamic Level Colors
-
-Hierarchy level colors are automatically generated using HSL color space:
-
-```typescript
-// Generates consistent colors for 8+ levels
-export const getLevelColor = (level?: number): string => {
-  if (level === undefined || level < 1) return colors.legacy.nodeDefault;
-  if (level === 2) return 'red'; // Special case preserved
-  
-  const baseHue = 40;
-  const hueStep = 40;
-  const hue = (level * hueStep) % 360;
-  return `hsl(${hue}, 60%, 60%)`;
-};
-```
-
-### 5.5 Style Utilities
-
-Helper functions for consistent component styling:
-
-```typescript
-// Modal styling
-export const buildModalStyle = (options = {}) => css({
-  background: theme.components.modal.background,
-  borderRadius: theme.components.modal.borderRadius,
-  boxShadow: theme.components.modal.shadow,
-  // ...
-});
-
-// Button variants
-export const buildButtonStyle = (variant = 'primary') => css({
-  ...theme.components.button.base,
-  background: variant === 'primary' ? theme.colors.border.active : theme.colors.background.secondary,
-  // ...
-});
-```
-
-### 5.6 Usage Guidelines
-
-**For Component Development:**
-
-1. **Import theme values:**
-   ```typescript
-   import { theme } from '../config';
-   ```
-
-2. **Use style utilities:**
-   ```typescript
-   import { buildModalStyle, buildButtonStyle } from '../utils/styleUtils';
-   ```
-
-3. **Apply styles via CSS-in-JS:**
-   ```typescript
-   <div style={buildModalStyle({ maxWidth: '600px' })}>
-     <button style={buildButtonStyle('primary')}>Save</button>
-   </div>
-   ```
-
-4. **Avoid inline styles and hardcoded values:**
-   ```typescript
-   // ❌ Don't do this
-   <div style={{ color: 'red', padding: '8px' }}>
-   
-   // ✅ Do this instead
-   <div style={{ color: theme.colors.text.error, padding: theme.spacing.base }}>
-   ```
-
-### 5.7 Benefits
-
-- **Consistency:** Single source of truth for all styling values
-- **Maintainability:** Easy to update colors, spacing, and other design tokens
-- **Type Safety:** TypeScript integration prevents styling errors
-- **Themeable:** Foundation for future dark mode and custom themes
-- **Performance:** No inline style recalculations
+**See:** [Frontend Development - Theme System & Styling Architecture](./frontend-development.md#theme-system--styling-architecture)
 
 ---
 

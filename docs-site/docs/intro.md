@@ -50,7 +50,7 @@ New to MakeItMakeSense.io? Start here for a rapid setup and overview.
 ### 🏗️ System Architecture
 Understand the technical architecture and design decisions.
 
-[Learn Architecture →](./architecture)
+[Learn Architecture →](./system-architecture)
 
 ### 📚 API Reference
 Comprehensive API documentation for developers.
@@ -60,7 +60,7 @@ Comprehensive API documentation for developers.
 ### 🛠️ Developer Guide
 Deep-dive into development patterns, testing, and contribution guidelines.
 
-[Developer Resources →](./hierarchy)
+[Developer Resources →](./frontend-development)
 
 ## Tech Stack
 

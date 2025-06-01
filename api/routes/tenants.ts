@@ -8,7 +8,31 @@ const tenantManager = new TenantManager();
 
 // --- Public Tenant Operations ---
 
-// Get current tenant information
+/**
+ * Get current tenant information
+ * 
+ * **Route:** GET /api/tenant/info
+ * **Authentication:** None required
+ * **Headers:** X-Tenant-Id (optional, defaults to 'default')
+ * 
+ * **Response Contract:**
+ * ```json
+ * {
+ *   "tenantId": "string",
+ *   "namespace": "string",
+ *   "exists": boolean,
+ *   "isTestTenant": boolean,
+ *   "isDefaultTenant": boolean,
+ *   "context": {
+ *     "tenantId": "string",
+ *     "namespace": "string"
+ *   }
+ * }
+ * ```
+ * 
+ * **Error Responses:**
+ * - 500: Internal server error if tenant information retrieval fails
+ */
 router.get('/tenant/info', async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId } = req.tenantContext!;
@@ -28,7 +52,40 @@ router.get('/tenant/info', async (req: Request, res: Response): Promise<void> =>
 // --- Admin-Protected Tenant Operations ---
 router.use(authenticateAdmin);
 
-// Create a new tenant
+/**
+ * Create a new tenant
+ * 
+ * **Route:** POST /api/tenant
+ * **Authentication:** Admin API key required (X-Admin-API-Key header)
+ * **Headers:** X-Tenant-Id (optional for creation)
+ * 
+ * **Request Body Contract:**
+ * ```json
+ * {
+ *   "tenantId": "string" // 3-50 alphanumeric characters, unique across system
+ * }
+ * ```
+ * 
+ * **Success Response (201):**
+ * ```json
+ * {
+ *   "message": "Tenant created successfully",
+ *   "tenant": {
+ *     "tenantId": "string",
+ *     "namespace": "string",
+ *     "exists": true,
+ *     "isTestTenant": boolean,
+ *     "isDefaultTenant": boolean
+ *   },
+ *   "namespace": "string"
+ * }
+ * ```
+ * 
+ * **Error Responses:**
+ * - 400: Missing tenantId field
+ * - 409: Tenant already exists
+ * - 500: Schema initialization or hierarchy seeding failure
+ */
 router.post('/tenant', ensureTenant, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId }: { tenantId: string } = req.body;

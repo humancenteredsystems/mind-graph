@@ -89,10 +89,9 @@ jest.mock('../../services/adaptiveTenantFactory', () => ({
 - `diagnostic.test.ts` - System connectivity and capability detection
 
 **Prerequisites:**
-1. **Dgraph Enterprise** running at `http://localhost:8080` with namespace support
-2. **Test tenant namespace** (0x1) configured and accessible
-3. **Schema loaded** with Node, Hierarchy, and related types
-4. **Environment variables** properly configured
+- Complete development environment setup (see [Complete Setup Guide](./setup-guide))
+- Dgraph Enterprise with multi-tenant configuration enabled
+- Test tenant namespace properly configured
 
 **Running Real Integration Tests:**
 ```bash
@@ -100,16 +99,7 @@ cd api
 npm test -- --testPathPattern="integration-real"
 ```
 
-**Environment Setup:**
-```bash
-# Required environment variables
-export ENABLE_MULTI_TENANT=true
-export DGRAPH_NAMESPACE_TEST=0x1
-export MIMS_ADMIN_API_KEY=your-admin-key
-
-# Start Dgraph Enterprise (if using Docker)
-docker-compose up dgraph
-```
+*For detailed environment setup and troubleshooting, see [Complete Setup Guide](./setup-guide)*
 
 **Characteristics:**
 - **No mocking** - uses real `adaptiveTenantFactory` and database

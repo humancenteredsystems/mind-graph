@@ -30,9 +30,20 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'System Architecture',
       items: [
-        'architecture',
-        'multi-tenant-implementation',
-        'dgraph-operations',
+        'system-architecture',
+        'infrastructure',
+      ],
+    },
+  ],
+
+  // Multi-Tenant sidebar
+  multiTenantSidebar: [
+    {
+      type: 'category',
+      label: 'Multi-Tenant System',
+      items: [
+        'multi-tenant-guide',
+        'multi-tenant-testing',
       ],
     },
   ],
@@ -45,6 +56,8 @@ const sidebars: SidebarsConfig = {
       items: [
         'api-endpoints',
         'schema-notes',
+        'hierarchy',
+        'dgraph-operations',
       ],
     },
   ],
@@ -58,7 +71,6 @@ const sidebars: SidebarsConfig = {
         'frontend-development',
         'tools-overview',
         'tools-library',
-        'hierarchy',
         'testing-guide',
         'ui-elements',
       ],

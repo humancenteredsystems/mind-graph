@@ -11,34 +11,26 @@ Get MakeItMakeSense.io up and running in minutes.
 
 ## Prerequisites
 
-- **Docker & Docker Compose** (Essential for Dgraph database)
-- **Node.js & npm** (Version 18+ recommended)
-- **Python** (Version 3.7+ recommended)
-- **Git** (For cloning the repository)
+- **Docker & Docker Compose**, **Node.js 18+**, **Python 3.7+**, **Git**
+
+*For detailed requirements and Python environment setup, see [Complete Setup Guide](./setup-guide)*
 
 ## 5-Minute Setup
 
 ### 1. Clone and Install
 
 ```bash
-# Clone the repository
+# Clone and install dependencies
 git clone https://github.com/heythisisgordon/mims-graph.git
 cd mims-graph
-
-# Install dependencies
-npm install                    # Root dependencies
-cd api && npm install && cd .. # API dependencies
-cd frontend && npm install && cd .. # Frontend dependencies
+npm install  # Installs all dependencies concurrently
 ```
 
 ### 2. Configure Environment
 
 ```bash
-# Copy environment template
 cp api/.env.example api/.env
-
-# Edit the API key (optional for local development)
-# ADMIN_API_KEY=your_secure_key_here
+# Edit api/.env if needed (optional for basic local development)
 ```
 
 ### 3. Start Everything
@@ -58,12 +50,6 @@ This single command:
 In a separate terminal:
 
 ```bash
-# Activate your conda environment if needed
-conda activate pointcloud
-
-# Set admin API key (match your .env file)
-export MIMS_ADMIN_API_KEY=your_secure_key_here
-
 # Initialize the database schema
 python tools/api_push_schema.py --target local
 ```
@@ -91,61 +77,44 @@ npm run stop-dgraph
 
 ## Troubleshooting
 
-### Common Issues
+### Quick Fixes
 
-**Docker not starting?**
-```bash
-# Check Docker status
-docker ps
+- **Docker issues**: `docker ps` to check status
+- **Port conflicts**: Check if ports 3000, 5173, 8080 are available
+- **Schema push fails**: Ensure Dgraph is running with `docker ps | grep dgraph`
 
-# Restart Docker service if needed
-sudo systemctl restart docker
-```
-
-**Port conflicts?**
-- Frontend (5173), API (3000), or Dgraph (8080, 8000) ports may be in use
-- Check `.env` file to change default ports
-
-**Schema push failing?**
-- Ensure Dgraph is running: `docker ps | grep dgraph`
-- Check API key matches between `.env` and export command
+*For comprehensive troubleshooting, see [Complete Setup Guide](./setup-guide)*
 
 ### Getting Help
 
-- **Full Setup Guide**: [Complete Setup Guide](./setup-guide)
-- **Architecture Details**: [System Architecture](./architecture)
-- **GitHub Issues**: [Report Problems](https://github.com/heythisisgordon/mims-graph/issues)
+- **Detailed Setup**: [Complete Setup Guide](./setup-guide)
+- **System Overview**: [System Overview](./system-overview)
+- **Issues**: [GitHub Issues](https://github.com/heythisisgordon/mims-graph/issues)
 
 ## What's Next?
 
 Once you have the system running:
 
 1. **Explore the Graph**: Interact with nodes and relationships in the frontend
-2. **Learn the Architecture**: Understand the [system design](./architecture)
-3. **Try Multi-Tenant Features**: Set up [multiple tenants](./multi-tenant-implementation)
+2. **Learn the Architecture**: Understand the [system design](./system-overview)
+3. **Try Multi-Tenant Features**: Set up [multiple tenants](./multi-tenant-overview)
 4. **Review the API**: Explore [available endpoints](./api-endpoints)
 5. **Set Up Testing**: Run the [comprehensive test suite](./testing-guide)
 
-## Multi-Tenant Quick Start
-
-To quickly test multi-tenant capabilities:
+## Multi-Tenant Quick Test
 
 ```bash
-# Enable multi-tenant mode
+# Enable multi-tenant mode and restart
 echo "ENABLE_MULTI_TENANT=true" >> api/.env
+# Restart with: Ctrl+C then npm run start-dev-env
 
-# Restart the API server
-# (Ctrl+C and run npm run start-dev-env again)
-
-# Create a test tenant via API
+# Create test tenant and seed data
 curl -X POST http://localhost:3000/api/tenant \
-  -H "X-Admin-API-Key: your-key" \
-  -H "Content-Type: application/json" \
-  -d '{"tenantId": "test-company"}'
-
-# Seed data for the new tenant
+  -H "X-Admin-API-Key: your-key" -d '{"tenantId": "test-company"}'
 python tools/seed_data.py --tenant-id test-company
 ```
+
+*For complete multi-tenant setup, see [Multi-Tenant Overview](./multi-tenant-overview)*
 
 ---
 

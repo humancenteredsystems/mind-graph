@@ -155,16 +155,140 @@ The frontend uses multiple testing approaches:
 
 See the [Testing Guide](./testing-guide.md) for detailed testing information.
 
-## Theme System
+## Theme System & Styling Architecture
 
-The application includes a comprehensive theme system:
+The frontend uses a centralized theme system to ensure consistent styling across all UI components.
 
-- **Design Tokens** (`frontend/src/config/tokens.ts`) - Base design values (colors, spacing, typography)
-- **Dynamic Level Colors** - Automatically generated colors for 8 hierarchy levels using HSL color space
-- **Responsive Design** - Mobile-first responsive layouts
+### Architecture Overview
+
+**File Structure:**
+- `frontend/src/config/tokens.ts` - Base design tokens (colors, spacing, typography)
+- `frontend/src/config/theme.ts` - Semantic theme configuration built from tokens
+- `frontend/src/utils/styleUtils.ts` - Helper functions for component styling
+
+### Design Tokens
+
+Base design values that define the visual foundation:
+
+```typescript
+// Color palettes
+colors: {
+  primary: { 50: '#eff6ff', 500: '#3b82f6', 900: '#1e3a8a' },
+  gray: { 50: '#f9fafb', 300: '#d1d5db', 600: '#4b5563' },
+  // ... additional color scales
+}
+
+// Spacing scale (4px base unit)
+spacing: {
+  scale: (multiplier: number) => multiplier * 4,
+  xs: 2, sm: 4, base: 8, lg: 16, xl: 24
+}
+
+// Typography
+fontSize: { xs: '12px', sm: '14px', base: '16px', lg: '18px' }
+```
+
+### Theme Configuration
+
+Semantic values built from tokens for specific use cases:
+
+```typescript
+// Semantic colors
+colors: {
+  background: { primary: 'white', overlay: 'rgba(0,0,0,0.3)' },
+  text: { primary: '#374151', error: '#dc2626' },
+  levels: { 1: 'hsl(40,60%,60%)', 2: 'red', 3: 'hsl(120,60%,60%)' }
+}
+
+// Component-specific configurations
+components: {
+  modal: { background: 'white', shadow: '0 25px 50px rgba(0,0,0,0.25)' },
+  form: { field: { padding: '4px', border: '1px solid #d1d5db' } },
+  button: { base: { borderRadius: '4px', padding: '4px 8px' } }
+}
+```
+
+### Dynamic Level Colors
+
+Hierarchy level colors are automatically generated using HSL color space:
+
+```typescript
+// Generates consistent colors for 8+ levels
+export const getLevelColor = (level?: number): string => {
+  if (level === undefined || level < 1) return colors.legacy.nodeDefault;
+  if (level === 2) return 'red'; // Special case preserved
+  
+  const baseHue = 40;
+  const hueStep = 40;
+  const hue = (level * hueStep) % 360;
+  return `hsl(${hue}, 60%, 60%)`;
+};
+```
+
+### Style Utilities
+
+Helper functions for consistent component styling:
+
+```typescript
+// Modal styling
+export const buildModalStyle = (options = {}) => css({
+  background: theme.components.modal.background,
+  borderRadius: theme.components.modal.borderRadius,
+  boxShadow: theme.components.modal.shadow,
+  // ...
+});
+
+// Button variants
+export const buildButtonStyle = (variant = 'primary') => css({
+  ...theme.components.button.base,
+  background: variant === 'primary' ? theme.colors.border.active : theme.colors.background.secondary,
+  // ...
+});
+```
+
+### Usage Guidelines
+
+**For Component Development:**
+
+1. **Import theme values:**
+   ```typescript
+   import { theme } from '../config';
+   ```
+
+2. **Use style utilities:**
+   ```typescript
+   import { buildModalStyle, buildButtonStyle } from '../utils/styleUtils';
+   ```
+
+3. **Apply styles via CSS-in-JS:**
+   ```typescript
+   <div style={buildModalStyle({ maxWidth: '600px' })}>
+     <button style={buildButtonStyle('primary')}>Save</button>
+   </div>
+   ```
+
+4. **Avoid inline styles and hardcoded values:**
+   ```typescript
+   // ❌ Don't do this
+   <div style={{ color: 'red', padding: '8px' }}>
+   
+   // ✅ Do this instead
+   <div style={{ color: theme.colors.text.error, padding: theme.spacing.base }}>
+   ```
+
+### Benefits
+
+- **Consistency:** Single source of truth for all styling values
+- **Maintainability:** Easy to update colors, spacing, and other design tokens
+- **Type Safety:** TypeScript integration prevents styling errors
+- **Themeable:** Foundation for future dark mode and custom themes
+- **Performance:** No inline style recalculations
+- **Responsive Design:** Mobile-first responsive layouts
 
 ## Next Steps
 
-- Review the [Architecture Overview](./architecture.md) to understand the overall system design
+- Review the [System Overview](./system-overview.md) to understand the overall system design
 - Check the [API Reference](./api-endpoints.md) for available backend endpoints
 - See [Testing Guide](./testing-guide.md) for running and writing tests
+- Explore [Frontend Architecture](./frontend-architecture.md) for detailed React implementation patterns
+- Learn about [Multi-Tenant Overview](./multi-tenant-overview.md) for tenant-aware frontend development

@@ -568,4 +568,4 @@ curl -X POST http://localhost:3000/api/mutate \
 ---
 
 *For troubleshooting Dgraph connectivity issues, see the [Dgraph Operations Guide](dgraph-operations.md).*  
-*For detailed multi-tenant implementation information, see the [Multi-Tenant Implementation Guide](multi-tenant-implementation.md).*
+*For detailed multi-tenant implementation information, see the [Multi-Tenant Overview](multi-tenant-overview.md).*

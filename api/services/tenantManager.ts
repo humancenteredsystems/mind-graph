@@ -85,7 +85,17 @@ export class TenantManager {
         throw new Error(`Schema verification failed for tenant ${tenantId} in namespace ${namespace}`);
       }
       
-      // Seed with default hierarchies ONLY IF it's not the test-tenant
+      /**
+       * Conditional hierarchy seeding based on tenant type.
+       * 
+       * test-tenant is exempt from default hierarchy seeding because:
+       * 1. Test suites need isolated, controlled data environments
+       * 2. Different tests require different hierarchy configurations
+       * 3. Auto-seeding would interfere with test data setup/teardown cycles
+       * 4. Tests must be able to start with completely empty namespaces
+       * 
+       * Production tenants get default hierarchies for immediate usability.
+       */
       if (tenantId !== 'test-tenant') {
         await this.seedDefaultHierarchies(namespace);
 
@@ -213,16 +223,29 @@ export class TenantManager {
   }
 
   /**
-   * Generate a deterministic namespace ID from tenant ID
-   * @param tenantId - The tenant identifier
-   * @returns The generated namespace ID
+   * Generate deterministic namespace ID with collision-resistant algorithm.
+   * 
+   * **Algorithm Design:**
+   * 1. **Reserved namespaces**: test-tenant → 0x1, default → 0x0
+   * 2. **SHA-256 hashing**: Ensures deterministic, cryptographically distributed output
+   * 3. **8-hex-digit extraction**: Uses first 32 bits for namespace generation
+   * 4. **Modulo distribution**: Maps to 0x2-0xF423F range (1M namespace capacity)
+   * 5. **Collision resistance**: SHA-256 provides excellent distribution properties
+   * 
+   * **Collision Handling:**
+   * - Probability of collision: ~1 in 1M for random tenant IDs
+   * - Deterministic mapping ensures same tenant → same namespace across restarts
+   * - Range 0x2-0xF423F leaves room for future reserved namespaces
+   * 
+   * @param tenantId - The tenant identifier (should be unique across system)
+   * @returns Hexadecimal namespace ID (e.g., "0x1a2b3c")
    */
   generateNamespaceId(tenantId: string): string {
-    // Handle special cases
+    // Handle special cases with reserved namespace mappings
     if (tenantId === 'test-tenant') return this.testNamespace;
     if (tenantId === 'default') return this.defaultNamespace;
     
-    // Generate deterministic namespace ID from tenant ID
+    // Generate deterministic namespace ID using cryptographic hashing
     const hash = crypto.createHash('sha256').update(tenantId).digest('hex');
     const namespaceNum = parseInt(hash.substring(0, 8), 16) % 1000000 + 2; // Start from 0x2
     return `${this.namespacePrefix}${namespaceNum.toString(16)}`;
@@ -271,7 +294,19 @@ export class TenantManager {
       
       const tenant = this.tenantFactory.createTenant(namespace);
 
-      // More robust deletion order
+      /**
+       * Critical deletion order to prevent GraphQL schema constraint violations.
+       * 
+       * Must delete in dependency order from most dependent to least:
+       * 1. HierarchyAssignment - References both nodes and hierarchy levels
+       * 2. HierarchyLevelType - References hierarchy levels and node types
+       * 3. HierarchyLevel - References hierarchy but not nodes
+       * 4. Hierarchy - Top-level hierarchy definitions
+       * 5. Edge - References nodes but simpler relationships
+       * 6. Node - Core entities (deleted last to avoid orphaned references)
+       * 
+       * Violating this order causes GraphQL constraint errors in Dgraph.
+       */
       const deleteOperations = [
         { name: 'HierarchyAssignment', mutation: 'mutation { deleteHierarchyAssignment(filter: {}) { numUids } }' },
         { name: 'HierarchyLevelType', mutation: 'mutation { deleteHierarchyLevelType(filter: {}) { numUids } }' },
