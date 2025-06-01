@@ -11,32 +11,57 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Easy to Use',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    title: 'Multi-Tenant Architecture',
+    Svg: () => (
+      <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
+        <rect x="20" y="40" width="40" height="40" fill="#2e8555" rx="4"/>
+        <rect x="80" y="40" width="40" height="40" fill="#2e8555" rx="4"/>
+        <rect x="140" y="40" width="40" height="40" fill="#2e8555" rx="4"/>
+        <rect x="50" y="120" width="100" height="40" fill="#1c4532" rx="4"/>
+        <text x="100" y="145" textAnchor="middle" fill="white" fontSize="12">Dgraph</text>
+      </svg>
+    ),
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Enterprise-grade multi-tenant support with complete data isolation.
+        Each tenant operates in a dedicated namespace with shared infrastructure efficiency.
       </>
     ),
   },
   {
-    title: 'Focus on What Matters',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    title: 'Living Knowledge Graph',
+    Svg: () => (
+      <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
+        <circle cx="100" cy="60" r="20" fill="#2e8555"/>
+        <circle cx="60" cy="140" r="15" fill="#25c2a0"/>
+        <circle cx="140" cy="140" r="15" fill="#25c2a0"/>
+        <line x1="85" y1="75" x2="70" y2="125" stroke="#2e8555" strokeWidth="2"/>
+        <line x1="115" y1="75" x2="130" y2="125" stroke="#2e8555" strokeWidth="2"/>
+        <line x1="75" y1="140" x2="125" y2="140" stroke="#25c2a0" strokeWidth="2"/>
+      </svg>
+    ),
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Interactive platform for exploring and curating structured knowledge.
+        Hybrid hierarchical and non-hierarchical graph structure powered by Dgraph.
       </>
     ),
   },
   {
-    title: 'Powered by React',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    title: 'Modern Tech Stack',
+    Svg: () => (
+      <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
+        <rect x="40" y="60" width="120" height="80" fill="#2e8555" rx="8"/>
+        <rect x="50" y="70" width="100" height="15" fill="#25c2a0" rx="2"/>
+        <rect x="50" y="90" width="100" height="15" fill="#25c2a0" rx="2"/>
+        <rect x="50" y="110" width="100" height="15" fill="#25c2a0" rx="2"/>
+        <text x="100" y="160" textAnchor="middle" fill="#2e8555" fontSize="12">React + TypeScript + Vite</text>
+      </svg>
+    ),
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Built with React, TypeScript, and Vite for fast development.
+        Comprehensive testing with Jest, Vitest, and Playwright for reliability.
       </>
     ),
   },

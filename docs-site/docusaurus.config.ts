@@ -53,8 +53,8 @@ const config: Config = {
   ],
 
   themeConfig: {
-    // Replace with your project's social card
-    image: 'img/mims-social-card.jpg',
+    // Social card image - can be added later
+    // image: 'img/mims-social-card.jpg',
     navbar: {
       title: 'MakeItMakeSense.io',
       logo: {
@@ -160,13 +160,12 @@ const config: Config = {
       darkTheme: prismThemes.dracula,
       additionalLanguages: ['bash', 'json', 'graphql', 'typescript'],
     },
-    // Add search functionality
-    algolia: {
-      // This is a read-only, search-only key served directly by the frontend
-      apiKey: 'search-only-api-key-placeholder',
-      indexName: 'makeitmakesense',
-      appId: 'BH4D9OD16A', // Optional
-    },
+    // Search functionality - can be configured later when needed
+    // algolia: {
+    //   apiKey: 'your-search-api-key',
+    //   indexName: 'makeitmakesense',
+    //   appId: 'your-app-id',
+    // },
   } satisfies Preset.ThemeConfig,
 };
 
