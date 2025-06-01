@@ -88,7 +88,7 @@ npm run stop-dgraph
 ### Getting Help
 
 - **Detailed Setup**: [Complete Setup Guide](./setup-guide)
-- **System Overview**: [System Overview](./system-overview)
+- **System Architecture**: [System Architecture](./system-architecture)
 - **Issues**: [GitHub Issues](https://github.com/heythisisgordon/mims-graph/issues)
 
 ## What's Next?
@@ -96,8 +96,8 @@ npm run stop-dgraph
 Once you have the system running:
 
 1. **Explore the Graph**: Interact with nodes and relationships in the frontend
-2. **Learn the Architecture**: Understand the [system design](./system-overview)
-3. **Try Multi-Tenant Features**: Set up [multiple tenants](./multi-tenant-overview)
+2. **Learn the Architecture**: Understand the [system design](./system-architecture)
+3. **Try Multi-Tenant Features**: Set up [multiple tenants](./multi-tenant-guide)
 4. **Review the API**: Explore [available endpoints](./api-endpoints)
 5. **Set Up Testing**: Run the [comprehensive test suite](./testing-guide)
 
@@ -114,7 +114,7 @@ curl -X POST http://localhost:3000/api/tenant \
 python tools/seed_data.py --tenant-id test-company
 ```
 
-*For complete multi-tenant setup, see [Multi-Tenant Overview](./multi-tenant-overview)*
+*For complete multi-tenant setup, see [Multi-Tenant Guide](./multi-tenant-guide)*
 
 ---
 

@@ -372,8 +372,7 @@ app.use((req, res, next) => {
 
 ## See Also
 
-- **[Multi-Tenant Overview](./multi-tenant-overview)** - High-level system overview
-- **[Multi-Tenant Architecture](./multi-tenant-architecture)** - Technical implementation details
-- **[Multi-Tenant Usage](./multi-tenant-usage)** - Usage examples and API operations
+- **[Multi-Tenant Guide](./multi-tenant-guide)** - Complete multi-tenant implementation guide
+- **[System Architecture](./system-architecture)** - Technical implementation details
 - **[Testing Guide](./testing-guide)** - General testing strategies for the entire system
 - **[Setup Guide](./setup-guide)** - Environment configuration for development
