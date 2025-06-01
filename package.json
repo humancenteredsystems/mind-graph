@@ -14,7 +14,8 @@
     "dev:frontend": "cd frontend && npm run dev",
     "dev:docs": "cd docs-site && yarn start",
     "dev": "concurrently \"npm:dev:api\" \"npm:dev:frontend\" \"npm:dev:docs\"",
-    "start-dev-env": "npm run start-dgraph && npm run dev"
+    "start-dev-env": "node scripts/start-dev.js",
+    "stop-dev-env": "docker-compose down"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
