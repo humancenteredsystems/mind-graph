@@ -63,30 +63,6 @@ const config: Config = {
       },
       items: [
         {
-          type: 'docSidebar',
-          sidebarId: 'gettingStartedSidebar',
-          position: 'left',
-          label: 'Getting Started',
-        },
-        {
-          type: 'docSidebar',
-          sidebarId: 'architectureSidebar',
-          position: 'left',
-          label: 'Architecture',
-        },
-        {
-          type: 'docSidebar',
-          sidebarId: 'apiSidebar',
-          position: 'left',
-          label: 'API Reference',
-        },
-        {
-          type: 'docSidebar',
-          sidebarId: 'developerSidebar',
-          position: 'left',
-          label: 'Developer Guide',
-        },
-        {
           href: 'https://github.com/heythisisgordon/mims-graph',
           label: 'GitHub',
           position: 'right',
@@ -106,11 +82,11 @@ const config: Config = {
           items: [
             {
               label: 'Quick Start',
-              to: '/setup-guide',
+              to: '/quick-start',
             },
             {
-              label: 'Architecture Overview',
-              to: '/architecture',
+              label: 'System Architecture',
+              to: '/system-architecture',
             },
             {
               label: 'API Reference',
@@ -122,8 +98,8 @@ const config: Config = {
           title: 'Features',
           items: [
             {
-              label: 'Multi-Tenant Architecture',
-              to: '/multi-tenant-implementation',
+              label: 'Multi-Tenant Features',
+              to: '/multi-tenant-guide',
             },
             {
               label: 'Hierarchy Management',

@@ -11,67 +11,64 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
  Create as many sidebars as you want.
  */
 const sidebars: SidebarsConfig = {
-  // Getting Started sidebar
-  gettingStartedSidebar: [
+  // Single main sidebar with all content in a tree structure
+  mainSidebar: [
     {
       type: 'category',
-      label: 'Getting Started',
+      label: '🚀 Getting Started',
+      collapsed: false, // Keep open by default
       items: [
         'intro',
-        'setup-guide',
         'quick-start',
+        'setup-guide',
       ],
     },
-  ],
-
-  // Architecture sidebar
-  architectureSidebar: [
     {
       type: 'category',
-      label: 'System Architecture',
-      items: [
-        'system-architecture',
-        'infrastructure',
-      ],
-    },
-  ],
-
-  // Multi-Tenant sidebar
-  multiTenantSidebar: [
-    {
-      type: 'category',
-      label: 'Multi-Tenant System',
+      label: '👥 Multi-Tenant Features',
       items: [
         'multi-tenant-guide',
         'multi-tenant-testing',
       ],
     },
-  ],
-
-  // API Reference sidebar
-  apiSidebar: [
     {
       type: 'category',
-      label: 'API Reference',
+      label: '🏗️ System Architecture',
       items: [
-        'api-endpoints',
-        'schema-notes',
-        'hierarchy',
+        'system-architecture',
+        'infrastructure',
         'dgraph-operations',
       ],
     },
-  ],
-
-  // Developer Guide sidebar
-  developerSidebar: [
     {
       type: 'category',
-      label: 'Developer Guide',
+      label: '📡 API Reference',
+      items: [
+        'api-endpoints',
+        'schema-notes',
+      ],
+    },
+    {
+      type: 'category',
+      label: '💻 Development',
       items: [
         'frontend-development',
         'tools-overview',
         'tools-library',
         'testing-guide',
+      ],
+    },
+    {
+      type: 'category',
+      label: '📊 Hierarchy Management',
+      items: [
+        'hierarchy',
+      ],
+    },
+    {
+      type: 'category',
+      label: '🎨 UI Components',
+      items: [
         'ui-elements',
       ],
     },
