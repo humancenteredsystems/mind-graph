@@ -1,18 +1,31 @@
 # Dockerfile for mims-graph-api service
-FROM node:20-alpine
+# Two-stage build for production TypeScript best practices
 
-# Set working directory
+# Build stage - includes dev dependencies for TypeScript compilation
+FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy package manifests and install production dependencies
+# Copy package manifests and install all dependencies (including dev)
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci
 
-# Copy source code
+# Copy source code and compile TypeScript
 COPY . .
+RUN npm run build
+
+# Production stage - lean runtime image
+FROM node:20-alpine AS production
+WORKDIR /app
+
+# Copy package manifests and install only production dependencies
+COPY package*.json ./
+RUN npm ci --production && npm cache clean --force
+
+# Copy compiled JavaScript from build stage
+COPY --from=builder /app/dist ./dist
 
 # Expose the port the API listens on (default 3000)
 EXPOSE 3000
 
-# Start the API
-CMD ["node", "server.js"]
+# Start the API with compiled JavaScript
+CMD ["node", "dist/server.js"]

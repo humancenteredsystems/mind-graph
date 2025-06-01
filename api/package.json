@@ -4,9 +4,10 @@
   "description": "Backend API for MakeItMakeSense.io graph platform",
   "main": "server.js",
   "scripts": {
-    "test": "jest",
-    "start": "node server.ts",
-    "dev": "nodemon server.ts"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "nodemon server.ts",
+    "test": "jest"
   },
   "keywords": [],
   "author": "Human-Centered Systems, LLC",
