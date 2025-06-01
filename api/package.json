@@ -7,7 +7,15 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "nodemon server.ts",
-    "test": "jest"
+    "test": "jest",
+    "test:verbose": "VERBOSE_TESTS=true jest",
+    "test:watch": "jest --watch",
+    "test:watch:verbose": "VERBOSE_TESTS=true jest --watch",
+    "test:failed": "jest --onlyFailures",
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:integration-real": "jest --testPathPattern=integration-real"
   },
   "keywords": [],
   "author": "Human-Centered Systems, LLC",

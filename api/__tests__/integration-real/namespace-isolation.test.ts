@@ -3,7 +3,10 @@ import app from '../../server';
 import { adaptiveTenantFactory } from '../../services/adaptiveTenantFactory';
 import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
-describe('Real Integration: Namespace Isolation', () => {
+// Conditionally skip this test suite if Dgraph Enterprise is not available
+const describeIfEnterprise = (global as any).DGRAPH_ENTERPRISE_AVAILABLE ? describe : describe.skip;
+
+describeIfEnterprise('Real Integration: Namespace Isolation', () => {
   beforeAll(async () => {
     await global.testUtils.setupTestDatabase();
   });

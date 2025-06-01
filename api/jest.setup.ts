@@ -24,22 +24,47 @@ const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 const originalConsoleLog = console.log;
 
-// Temporarily disable console mocking for debugging real integration tests
-// beforeAll(() => {
-//   // Suppress console output during tests unless explicitly needed
-//   console.error = jest.fn();
-//   console.warn = jest.fn();
-//   console.log = jest.fn();
-// });
+// Store console outputs for failed tests
+let consoleOutputs: string[] = [];
 
-afterAll(() => {
-  // Restore original console methods (if they were mocked)
-  // console.error = originalConsoleError;
-  // console.warn = originalConsoleWarn;
-  // console.log = originalConsoleLog;
-});
+// Suppress console output unless in verbose mode or test fails
+if (process.env.VERBOSE_TESTS !== 'true') {
+  beforeAll(() => {
+    console.error = (...args: any[]) => {
+      consoleOutputs.push(`ERROR: ${args.join(' ')}`);
+    };
+    console.warn = (...args: any[]) => {
+      consoleOutputs.push(`WARN: ${args.join(' ')}`);
+    };
+    console.log = (...args: any[]) => {
+      consoleOutputs.push(`LOG: ${args.join(' ')}`);
+    };
+  });
 
-// Import test utilities from consolidated setup
+  afterAll(() => {
+    // Restore original console methods
+    console.error = originalConsoleError;
+    console.warn = originalConsoleWarn;
+    console.log = originalConsoleLog;
+  });
+
+  // Show console output for failed tests
+  afterEach(() => {
+    if (expect.getState().currentTestName && expect.getState().assertionCalls === 0) {
+      // Test failed, show console output
+      if (consoleOutputs.length > 0) {
+        originalConsoleLog('\n--- Console output for failed test ---');
+        consoleOutputs.forEach(output => originalConsoleLog(output));
+        originalConsoleLog('--- End console output ---\n');
+      }
+    }
+    // Clear console outputs for next test
+    consoleOutputs = [];
+  });
+}
+
+// Import necessary modules
+import axios from 'axios'; // Import axios using ES module syntax
 import { TestDataSeeder } from './__tests__/helpers/testDataSeeder';
 import { DgraphTenantFactory } from './services/dgraphTenant';
 import { TenantManager } from './services/tenantManager';
@@ -303,14 +328,30 @@ afterEach(async () => {
   ...overrides
 });
 
-// Dgraph Enterprise detection for conditional test execution
+// Dgraph Enterprise detection for conditional test execution (checks for active license)
 (global as any).testUtils.checkDgraphEnterprise = async () => {
   try {
-    const axios = require('axios');
+    // Use the top-level imported axios
     const response = await axios.get('http://localhost:8080/state');
-    return response.data && response.data.enterprise === true;
-  } catch (error) {
-    console.warn('[TEST_SETUP] Dgraph Enterprise not available, skipping real integration tests');
+    // Check for the presence of a license object, if it's enabled, and if it hasn't expired
+    const isEnterprise = response.data && response.data.license &&
+                         response.data.license.enabled === true &&
+                         response.data.license.expiryTs > Date.now() / 1000;
+
+    if (!isEnterprise) {
+       console.warn('[TEST_SETUP] Dgraph Enterprise trial/license not detected or expired, skipping real integration tests');
+    } else {
+       console.log('[TEST_SETUP] Dgraph Enterprise trial/license detected.');
+    }
+
+    return isEnterprise;
+
+  } catch (error: unknown) { // Explicitly type as unknown
+    let errorMessage = 'Unknown error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    console.warn('[TEST_SETUP] Error checking Dgraph state for Enterprise features, skipping real integration tests:', errorMessage);
     return false;
   }
 };

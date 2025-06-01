@@ -55,10 +55,10 @@ router.post('/query', async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: 'Missing required field: query' });
     return;
   }
-  try {
-    const tenantClient = await getTenantClient(req);
-    const result = await tenantClient.executeGraphQL(query, variables || {});
-    res.json(result);
+    try {
+      const tenantClient = await getTenantClient(req);
+      const result = await tenantClient.executeGraphQL(query, variables || {});
+      res.json(result);
   } catch (error) {
     // Log the detailed error
     console.error(`Error in /api/query endpoint:`, error);
