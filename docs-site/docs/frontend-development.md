@@ -287,8 +287,8 @@ export const buildButtonStyle = (variant = 'primary') => css({
 
 ## Next Steps
 
-- Review the [System Overview](./system-overview.md) to understand the overall system design
+- Review the [System Architecture](./system-architecture.md) to understand the overall system design
 - Check the [API Reference](./api-endpoints.md) for available backend endpoints
 - See [Testing Guide](./testing-guide.md) for running and writing tests
-- Explore [Frontend Architecture](./frontend-architecture.md) for detailed React implementation patterns
-- Learn about [Multi-Tenant Overview](./multi-tenant-overview.md) for tenant-aware frontend development
+- Explore [System Architecture](./system-architecture.md) for detailed React implementation patterns
+- Learn about [Multi-Tenant Guide](./multi-tenant-guide.md) for tenant-aware frontend development

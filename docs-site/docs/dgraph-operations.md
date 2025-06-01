@@ -267,4 +267,4 @@ While Dgraph's `drop_all` operation has a significant limitation in multi-tenant
 
 **Key Takeaway**: Always use the implemented safety measures and avoid direct `drop_all` operations in multi-tenant environments unless absolutely necessary and with full understanding of the cluster-wide impact.
 
-For additional troubleshooting and multi-tenant implementation details, see the [Multi-Tenant Overview](multi-tenant-overview.md) and [Testing Guide](testing-guide.md).
+For additional troubleshooting and multi-tenant implementation details, see the [Multi-Tenant Guide](multi-tenant-guide.md) and [Testing Guide](testing-guide.md).
