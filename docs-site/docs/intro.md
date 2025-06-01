@@ -1,5 +1,4 @@
 ---
-slug: /
 id: intro
 title: Welcome to MakeItMakeSense.io
 sidebar_label: Introduction

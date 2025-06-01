@@ -384,7 +384,7 @@ curl https://your-api-url.onrender.com/api/tenant/info \
 
 ## Additional Resources
 
-- [API Endpoints Documentation](api_endpoints.md) - Complete API reference
+- [API Endpoints Documentation](api-endpoints.md) - Complete API reference
 - [Multi-Tenant Implementation Guide](multi-tenant-implementation.md) - Detailed multi-tenant architecture
 - [Testing Guide](testing-guide.md) - Comprehensive testing strategy
 - [Dgraph Operations Guide](dgraph-operations.md) - Database operations and troubleshooting

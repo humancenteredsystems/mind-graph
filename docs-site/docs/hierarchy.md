@@ -13,7 +13,7 @@ The hierarchy system is built upon several key Dgraph schema types that define i
 *
 *   **`HierarchyAssignment`**: This is the central linking type. An instance of `HierarchyAssignment` explicitly connects a `Node` to a specific `HierarchyLevel` within a particular `Hierarchy`. This record is what places a node into the hierarchical structure.
 
-For detailed Dgraph schema definitions and GraphQL interaction patterns related to these types, please refer to the [Dgraph Schema Notes](schema_notes.md).
+For detailed Dgraph schema definitions and GraphQL interaction patterns related to these types, please refer to the [Dgraph Schema Notes](schema-notes.md).
 
 *(Note: The `HierarchyLevelType` feature for restricting node types at specific levels is now actively enforced by the backend API during node assignment.)*
 
@@ -37,7 +37,7 @@ The main trade-off is a slightly more verbose data structure (an extra "hop" thr
 
 *   **Direct Management (CRUD Operations):**
     *   The API provides RESTful endpoints (primarily under `/api/hierarchy/...`) for creating, reading, updating, and deleting `Hierarchy`, `HierarchyLevel`, and `HierarchyAssignment` entities. These are mostly admin-protected.
-    *   Refer to `docs/api_endpoints.md` for detailed endpoint specifications.
+    *   Refer to `docs/api-endpoints.md` for detailed endpoint specifications.
 
 *   **Automatic Assignment during Node Creation (`POST /api/mutate` with `addNode`):**
     *   When new nodes are created via the `addNode` GraphQL mutation, the API server includes logic (implemented in `routes/graphql.ts` and `services/nodeEnrichment.ts`) to automatically create a `HierarchyAssignment`.

@@ -107,7 +107,7 @@ MakeItMakeSense.io is an interactive knowledge map designed to help users explor
 - `GET /api/search`: Node search by label.
 - *Note: Additional administrative, schema management, and hierarchy CRUD endpoints exist.*
 
-*(See `docs/api_endpoints.md` for a comprehensive list and details).*
+*(See `docs/api-endpoints.md` for a comprehensive list and details).*
 
 ### Key Endpoints (Future Goals)
 - Endpoints for submitting, fetching, diffing, and merging branches.
@@ -178,7 +178,7 @@ type HierarchyAssignment {
 }
 ```
 
-*(See `docs/schema_notes.md` regarding `@id` type requirements and other schema details).*
+*(See `docs/schema-notes.md` regarding `@id` type requirements and other schema details).*
 
 ### Capabilities
 - High-speed traversal of hierarchy and cross-links

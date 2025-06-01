@@ -43,8 +43,8 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'API Reference',
       items: [
-        'api_endpoints',
-        'schema_notes',
+        'api-endpoints',
+        'schema-notes',
       ],
     },
   ],
