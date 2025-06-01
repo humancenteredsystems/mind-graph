@@ -55,6 +55,9 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Developer Guide',
       items: [
+        'frontend-development',
+        'tools-overview',
+        'tools-library',
         'hierarchy',
         'testing-guide',
         'ui-elements',

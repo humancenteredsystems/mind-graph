@@ -58,7 +58,7 @@ curl -X POST http://localhost:3000/api/query \
 
 ## Quick Start
 
-For complete setup instructions including local development, environment configuration, and production deployment, see the **[Complete Setup Guide](docs/setup-guide.md)**.
+📚 **Complete Documentation:** [docs.makeitmakesense.io](https://docs.makeitmakesense.io)
 
 **Essential steps:**
 1. Clone the repository and install dependencies
@@ -67,7 +67,7 @@ For complete setup instructions including local development, environment configu
 4. Initialize database schema: `python tools/api_push_schema.py --target local`
 5. Access frontend at `http://localhost:5173`
 
-For detailed instructions, troubleshooting, and production deployment, refer to the [Setup Guide](docs/setup-guide.md).
+For detailed instructions, troubleshooting, and production deployment, refer to our [Complete Documentation](https://docs.makeitmakesense.io).
 
 ## Usage
 
@@ -191,7 +191,7 @@ The backend API features a modular architecture with separate route modules for 
 *   Hierarchy management endpoints for creating and managing hierarchies, levels, and assignments (e.g., `GET /api/hierarchy`, `POST /api/hierarchy/level`).
 *   **Multi-tenant endpoints** for tenant management and operations (e.g., `POST /api/tenant`, `GET /api/tenant/info`).
 
-For detailed descriptions, see [API Endpoints Documentation](docs/api_endpoints.md).
+For detailed descriptions, see our [Complete Documentation](https://docs.makeitmakesense.io).
 
 ## Utility Tools (`tools/`)
 
@@ -208,29 +208,39 @@ Python scripts for database interaction and data management:
 - Namespace-scoped operations for safety
 - Enterprise capability detection and adaptation
 
-**Note:** Tools marked "via the API" use the backend API server, while others connect directly to Dgraph. Refer to `tools/README.md` for detailed usage and configuration requirements.
+**Note:** Tools marked "via the API" use the backend API server, while others connect directly to Dgraph. For detailed usage and configuration requirements, see our [Complete Documentation](https://docs.makeitmakesense.io).
 
 ## Documentation
 
-Comprehensive project documentation can be found in the `/docs` directory:
+📚 **Complete Documentation:** [docs.makeitmakesense.io](https://docs.makeitmakesense.io)
 
-### Core Documentation
-*   [Complete Setup Guide](docs/setup-guide.md) - Local development and production deployment
-*   [Architecture Overview](docs/architecture.md) - System design and components
-*   [API Endpoints](docs/api_endpoints.md) - Complete API reference with multi-tenant features
+Our comprehensive documentation includes:
 
-### Implementation Guides  
-*   [Multi-Tenant Implementation](docs/multi-tenant-implementation.md) - Complete multi-tenant architecture details
-*   [Testing Guide](docs/testing-guide.md) - Comprehensive testing strategy and best practices
-*   [Dgraph Schema Notes](docs/schema_notes.md) - Schema design patterns and considerations
+### Getting Started
+*   Quick Start Guide - Get up and running quickly
+*   Complete Setup Guide - Local development and production deployment
+*   Installation & Configuration
 
-### Reference Documentation
-*   [Dgraph Operations Guide](docs/dgraph-operations.md) - Comprehensive Dgraph operations, troubleshooting, and critical multi-tenant safety information
-*   [UI Elements](docs/ui-elements.md) - Frontend component specifications and styling guide
+### System Architecture
+*   Architecture Overview - System design and components
+*   Multi-Tenant Implementation - Complete multi-tenant architecture details
+*   Dgraph Operations - Database operations and troubleshooting
+
+### API Reference
+*   API Endpoints - Complete API reference with multi-tenant features
+*   Schema Documentation - GraphQL schema and design patterns
+
+### Developer Guide
+*   Frontend Development - React, TypeScript, and Vite setup
+*   Tools & Utilities - Python tools for database management
+*   Tools Library Reference - Shared utilities and best practices
+*   Testing Guide - Comprehensive testing strategy
+*   Hierarchy Management - Node relationships and structures
+*   UI Elements - Frontend component specifications
 
 ## Setup and Deployment
 
-For complete instructions on local development setup and deploying services to production (e.g., on Render), including multi-tenant configuration and monitoring, please see our [Complete Setup Guide](docs/setup-guide.md).
+For complete instructions on local development setup and deploying services to production (e.g., on Render), including multi-tenant configuration and monitoring, please see our [Complete Documentation](https://docs.makeitmakesense.io).
 
 ## Future Work
 

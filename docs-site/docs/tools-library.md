@@ -1,4 +1,8 @@
-# MIMS-Graph Tools Library
+---
+sidebar_position: 3
+---
+
+# Tools Library Reference
 
 Shared utilities for all MIMS-Graph tools to reduce duplication and improve maintainability.
 
@@ -273,13 +277,30 @@ The library automatically detects configuration from environment variables:
 - `MIMS_API_URL` or `MIMS_ADMIN_API_KEY` - API configuration
 - `DGRAPH_BASE_URL` - Fallback for API base URL derivation
 
-## Next Steps
+## Development Phases
 
-After Phase 1 completion, the next phases will:
+### Current State: Phase 1 (Complete)
+The shared library provides core functionality with consistent interfaces.
 
-1. **Phase 2**: Migrate existing tools to use the shared library
-2. **Phase 3**: Add progress bars, better logging, and enhanced features
-3. **Phase 4**: Create comprehensive documentation and examples
+### Future Development
+- **Phase 2**: Migrate existing tools to use the shared library
+- **Phase 3**: Add progress bars, better logging, and enhanced features
+- **Phase 4**: Create comprehensive documentation and examples
+
+## Safety Features
+
+:::warning Production Safety
+
+The library includes built-in safety features:
+
+- Namespace confirmation for destructive operations
+- Tenant validation before operations
+- Production environment detection
+- Confirmation prompts for dangerous operations
+
+Always verify your target environment before running destructive operations.
+
+:::
 
 ## Support
 
@@ -289,3 +310,9 @@ For issues with the shared library:
 2. Check environment variables are set correctly  
 3. Ensure API server is running and accessible
 4. Review error messages for specific guidance
+
+## Next Steps
+
+- Review the [Tools Overview](./tools-overview.md) for individual tool usage
+- Check the [API Reference](./api-endpoints.md) for available backend endpoints
+- See the [Setup Guide](./setup-guide.md) for environment configuration
