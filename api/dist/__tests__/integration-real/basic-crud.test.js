@@ -49,6 +49,16 @@ conditionalDescribe('Real Integration: Basic CRUD Operations', () => {
                 variables: { input: [nodeData] }
             })
                 .expect(200);
+            // Debug logging
+            console.log('=== DEBUG RESPONSE ===');
+            console.log('Status:', response.status);
+            console.log('Headers:', response.headers);
+            console.log('Body:', JSON.stringify(response.body, null, 2));
+            console.log('Body type:', typeof response.body);
+            console.log('Body keys:', Object.keys(response.body || {}));
+            console.log('Body.addNode:', response.body?.addNode);
+            console.log('Raw text:', response.text);
+            console.log('=== END DEBUG ===');
             expect(response.body.addNode).toBeDefined();
             expect(response.body.addNode.node[0].id).toBe(nodeData.id);
             expect(response.body.addNode.node[0].label).toBe(nodeData.label);

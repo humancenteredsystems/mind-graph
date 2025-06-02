@@ -2,32 +2,54 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
 import * as ApiService from '../../../src/services/ApiService';
 
-vi.mock('axios');
-const mockedAxios = axios as any;
+// Mock axios.create to return a mocked apiClient instance
+vi.mock('axios', () => {
+  const mockApiClient = {
+    post: vi.fn(),
+    get: vi.fn(),
+    interceptors: {
+      request: {
+        use: vi.fn()
+      }
+    }
+  };
+  
+  return {
+    default: {
+      create: vi.fn(() => mockApiClient),
+      isAxiosError: vi.fn()
+    }
+  };
+});
+
+// Get the mocked axios for test assertions
+const mockedAxios = vi.mocked(axios);
+const mockApiClient = (mockedAxios.create as any)();
 
 describe('ApiService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedAxios.post.mockResolvedValue({ data: {} });
-    mockedAxios.get.mockResolvedValue({ data: {} });
+    // Reset the mock implementations
+    mockApiClient.post.mockResolvedValue({ data: {} });
+    mockApiClient.get.mockResolvedValue({ data: {} });
   });
 
   describe('executeQuery', () => {
-    it('makes POST request to /api/query', async () => {
+    it('makes POST request to /query', async () => {
       const query = 'query { test }';
       await ApiService.executeQuery(query);
       
-      expect(mockedAxios.post).toHaveBeenCalledWith('/api/query', { query });
+      expect(mockApiClient.post).toHaveBeenCalledWith('/query', { query, variables: undefined });
     });
   });
 
   describe('executeMutation', () => {
-    it('makes POST request to /api/mutate', async () => {
+    it('makes POST request to /mutate', async () => {
       const mutation = 'mutation { test }';
       
       await ApiService.executeMutation(mutation);
 
-      expect(mockedAxios.post).toHaveBeenCalledWith('/api/mutate', { 
+      expect(mockApiClient.post).toHaveBeenCalledWith('/mutate', { 
         mutation,
         variables: undefined 
       }, undefined);
@@ -35,13 +57,13 @@ describe('ApiService', () => {
   });
 
   describe('fetchTraversalData', () => {
-    it('makes POST request to /api/traverse', async () => {
+    it('makes POST request to /traverse', async () => {
       const nodeId = 'test-node';
       const hierarchyId = 'test-hierarchy';
       
       await ApiService.fetchTraversalData(nodeId, hierarchyId);
       
-      expect(mockedAxios.post).toHaveBeenCalledWith('/api/traverse', {
+      expect(mockApiClient.post).toHaveBeenCalledWith('/traverse', {
         rootId: nodeId,
         hierarchyId
       });
@@ -50,7 +72,7 @@ describe('ApiService', () => {
 
   describe('fetchAllNodeIds', () => {
     it('executes query to get all node IDs', async () => {
-      mockedAxios.post.mockResolvedValue({
+      mockApiClient.post.mockResolvedValue({
         data: { queryNode: [{ id: 'node1' }, { id: 'node2' }] }
       });
       

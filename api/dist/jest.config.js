@@ -35,7 +35,14 @@ module.exports = {
         }
     },
     testTimeout: 10000,
-    verbose: true,
+    verbose: false,
+    silent: process.env.VERBOSE_TESTS !== 'true',
     clearMocks: true,
-    restoreMocks: true
+    restoreMocks: true,
+    reporters: [
+        ['default', {
+                summaryOnly: process.env.VERBOSE_TESTS !== 'true',
+                silent: process.env.VERBOSE_TESTS !== 'true'
+            }]
+    ]
 };

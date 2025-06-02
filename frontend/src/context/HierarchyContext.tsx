@@ -59,7 +59,9 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
           if (saved && list.some(h => h.id === saved)) {
             updateHierarchyId(saved);
           } else {
-            updateHierarchyId(list[0].id);
+            // Default to 'h1' (Primary Knowledge Graph) if available, otherwise use first hierarchy
+            const defaultHierarchy = list.find(h => h.id === 'h1') || list[0];
+            updateHierarchyId(defaultHierarchy.id);
           }
         }
       })

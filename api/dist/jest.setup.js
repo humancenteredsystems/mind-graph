@@ -2,6 +2,9 @@
 // Consolidated Jest setup file for global test configuration
 // This file is executed before each test file
 // Environment variables are loaded in jest.config.js via dotenv
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 // Set test environment variables
 process.env.NODE_ENV = 'test';
@@ -21,20 +24,43 @@ jest.setTimeout(30000);
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 const originalConsoleLog = console.log;
-// Temporarily disable console mocking for debugging real integration tests
-// beforeAll(() => {
-//   // Suppress console output during tests unless explicitly needed
-//   console.error = jest.fn();
-//   console.warn = jest.fn();
-//   console.log = jest.fn();
-// });
-afterAll(() => {
-    // Restore original console methods (if they were mocked)
-    // console.error = originalConsoleError;
-    // console.warn = originalConsoleWarn;
-    // console.log = originalConsoleLog;
-});
-// Import test utilities from consolidated setup
+// Store console outputs for failed tests
+let consoleOutputs = [];
+// Suppress console output unless in verbose mode or test fails
+if (process.env.VERBOSE_TESTS !== 'true') {
+    beforeAll(() => {
+        console.error = (...args) => {
+            consoleOutputs.push(`ERROR: ${args.join(' ')}`);
+        };
+        console.warn = (...args) => {
+            consoleOutputs.push(`WARN: ${args.join(' ')}`);
+        };
+        console.log = (...args) => {
+            consoleOutputs.push(`LOG: ${args.join(' ')}`);
+        };
+    });
+    afterAll(() => {
+        // Restore original console methods
+        console.error = originalConsoleError;
+        console.warn = originalConsoleWarn;
+        console.log = originalConsoleLog;
+    });
+    // Show console output for failed tests
+    afterEach(() => {
+        if (expect.getState().currentTestName && expect.getState().assertionCalls === 0) {
+            // Test failed, show console output
+            if (consoleOutputs.length > 0) {
+                originalConsoleLog('\n--- Console output for failed test ---');
+                consoleOutputs.forEach(output => originalConsoleLog(output));
+                originalConsoleLog('--- End console output ---\n');
+            }
+        }
+        // Clear console outputs for next test
+        consoleOutputs = [];
+    });
+}
+// Import necessary modules
+const axios_1 = __importDefault(require("axios")); // Import axios using ES module syntax
 const testDataSeeder_1 = require("./__tests__/helpers/testDataSeeder");
 const dgraphTenant_1 = require("./services/dgraphTenant");
 const tenantManager_1 = require("./services/tenantManager");
@@ -268,21 +294,61 @@ global.createTestLevel = (overrides = {}) => ({
     label: 'Test Level',
     ...overrides
 });
-// Dgraph Enterprise detection for conditional test execution
+// Dgraph Enterprise detection for conditional test execution (checks for active license)
 global.testUtils.checkDgraphEnterprise = async () => {
     try {
-        const axios = require('axios');
-        const response = await axios.get('http://localhost:8080/state');
-        return response.data && response.data.enterprise === true;
+        // Use the top-level imported axios
+        const response = await axios_1.default.get('http://localhost:8080/state');
+        // Check for the presence of a license object, if it's enabled, and if it hasn't expired
+        const isEnterprise = response.data && response.data.license &&
+            response.data.license.enabled === true &&
+            response.data.license.expiryTs > Date.now() / 1000;
+        if (!isEnterprise) {
+            console.warn('[TEST_SETUP] Dgraph Enterprise trial/license not detected or expired, skipping real integration tests');
+        }
+        else {
+            console.log('[TEST_SETUP] Dgraph Enterprise trial/license detected.');
+        }
+        return isEnterprise;
     }
-    catch (error) {
-        console.warn('[TEST_SETUP] Dgraph Enterprise not available, skipping real integration tests');
+    catch (error) { // Explicitly type as unknown
+        let errorMessage = 'Unknown error';
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        }
+        console.warn('[TEST_SETUP] Error checking Dgraph state for Enterprise features, skipping real integration tests:', errorMessage);
         return false;
     }
 };
-// Global flag for enterprise availability
-global.DGRAPH_ENTERPRISE_AVAILABLE = false;
-// Check enterprise availability during setup
+// Synchronous enterprise detection at module load time
+// This ensures DGRAPH_ENTERPRISE_AVAILABLE is set before conditionalDescribe evaluates
+let enterpriseAvailable = false;
+try {
+    // Synchronous check using require to avoid async issues at module load
+    const { execSync } = require('child_process');
+    const result = execSync('curl -s http://localhost:8080/state', { encoding: 'utf8', timeout: 5000 });
+    const state = JSON.parse(result);
+    enterpriseAvailable = state && state.license &&
+        state.license.enabled === true &&
+        state.license.expiryTs > Date.now() / 1000;
+    if (enterpriseAvailable) {
+        console.log('[TEST_SETUP] Dgraph Enterprise detected at module load time');
+    }
+    else {
+        console.warn('[TEST_SETUP] Dgraph Enterprise not available at module load time');
+    }
+}
+catch (error) {
+    console.warn('[TEST_SETUP] Failed to check Dgraph Enterprise at module load time:', error instanceof Error ? error.message : error);
+    enterpriseAvailable = false;
+}
+// Global flag for enterprise availability - set synchronously
+global.DGRAPH_ENTERPRISE_AVAILABLE = enterpriseAvailable;
+// Keep the async version for runtime checks
 beforeAll(async () => {
-    global.DGRAPH_ENTERPRISE_AVAILABLE = await global.testUtils.checkDgraphEnterprise();
+    const runtimeCheck = await global.testUtils.checkDgraphEnterprise();
+    if (runtimeCheck !== global.DGRAPH_ENTERPRISE_AVAILABLE) {
+        console.warn('[TEST_SETUP] Enterprise availability changed between module load and runtime');
+        global.DGRAPH_ENTERPRISE_AVAILABLE = runtimeCheck;
+    }
 });

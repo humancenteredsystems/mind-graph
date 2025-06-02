@@ -8,14 +8,21 @@ const supertest_1 = __importDefault(require("supertest"));
 const adaptiveTenantFactory_1 = require("../../services/adaptiveTenantFactory");
 /**
  * Simple helper to make test requests with tenant header
- * Reuses existing request pattern but adds test-tenant header
+ * Returns a supertest agent with test-tenant header pre-set
  */
-const testRequest = (app) => ({
-    get: (url) => (0, supertest_1.default)(app).get(url).set('X-Tenant-Id', 'test-tenant'),
-    post: (url) => (0, supertest_1.default)(app).post(url).set('X-Tenant-Id', 'test-tenant'),
-    put: (url) => (0, supertest_1.default)(app).put(url).set('X-Tenant-Id', 'test-tenant'),
-    delete: (url) => (0, supertest_1.default)(app).delete(url).set('X-Tenant-Id', 'test-tenant')
-});
+const testRequest = (app) => {
+    const agent = (0, supertest_1.default)(app);
+    // Override the original methods to automatically add the tenant header
+    const originalPost = agent.post.bind(agent);
+    const originalGet = agent.get.bind(agent);
+    const originalPut = agent.put.bind(agent);
+    const originalDelete = agent.delete.bind(agent);
+    agent.post = (url) => originalPost(url).set('X-Tenant-Id', 'test-tenant');
+    agent.get = (url) => originalGet(url).set('X-Tenant-Id', 'test-tenant');
+    agent.put = (url) => originalPut(url).set('X-Tenant-Id', 'test-tenant');
+    agent.delete = (url) => originalDelete(url).set('X-Tenant-Id', 'test-tenant');
+    return agent;
+};
 exports.testRequest = testRequest;
 /**
  * Direct query helper for verification in test namespace

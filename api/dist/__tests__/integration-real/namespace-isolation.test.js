@@ -6,7 +6,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const supertest_1 = __importDefault(require("supertest"));
 const server_1 = __importDefault(require("../../server"));
 const realTestHelpers_1 = require("../helpers/realTestHelpers");
-describe('Real Integration: Namespace Isolation', () => {
+// Conditionally skip this test suite if Dgraph Enterprise is not available
+const describeIfEnterprise = global.DGRAPH_ENTERPRISE_AVAILABLE ? describe : describe.skip;
+describeIfEnterprise('Real Integration: Namespace Isolation', () => {
     beforeAll(async () => {
         await global.testUtils.setupTestDatabase();
     });

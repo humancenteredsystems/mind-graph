@@ -1,31 +1,44 @@
-import axios from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios'; // Added AxiosInstance and AxiosError
 
-// Axios interceptor to inject hierarchy and tenant headers for all requests
-axios.interceptors.request.use(config => {
+// Base URL for API endpoint loaded from Vite environment or fallback
+const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
+export const API_BASE_URL = envUrl && envUrl.length > 0 ? envUrl.replace(/\/$/, '') : '/api';
+
+// Create a dedicated Axios instance
+const apiClient: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true, // Added: Assuming cookie-based sessions are used
+});
+
+// Axios interceptor to inject hierarchy and tenant headers for all requests made by apiClient
+apiClient.interceptors.request.use(config => {
   config.headers = config.headers || {};
-  
-  // Add hierarchy header for mutations
-  if (config.data && config.data.mutation) {
-    const hierarchyId = localStorage.getItem('hierarchyId');
-    if (hierarchyId) {
-      config.headers['X-Hierarchy-Id'] = hierarchyId;
-    }
-  }
-  
+
   // Always add tenant header (including 'default' for OSS mode)
   const tenantId = localStorage.getItem('tenantId') || 'default';
   config.headers['X-Tenant-Id'] = tenantId;
-  
+
+  // Add hierarchy header for mutations (if this logic is still needed here)
+  // Ensure this doesn't conflict with headers passed directly to post/get calls
+  // The interceptor runs for *all* requests made by this instance.
+  // For mutations, the original code checked config.data.mutation.
+  // This check needs to be adapted if you want it specific to certain calls.
+  // A common pattern is to have specific functions add specific headers if they aren't universally needed.
+  if (config.method === 'post' && config.data && typeof config.data === 'object' && 'mutation' in config.data) {
+     const hierarchyId = localStorage.getItem('hierarchyId');
+     if (hierarchyId) {
+       config.headers['X-Hierarchy-Id'] = hierarchyId;
+     }
+  }
+
   return config;
 }, error => Promise.reject(error));
+
 
 import { NodeData, ApiMutationResponse, TraversalQueryResponse, RawNodeResponse } from '../types/graph';
 import { GET_ALL_NODE_IDS_QUERY } from '../graphql/queries';
 import { log } from '../utils/logger';
 
-// Base URL for API endpoint loaded from Vite environment or fallback
-const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
-export const API_BASE_URL = envUrl && envUrl.length > 0 ? envUrl.replace(/\/$/, '') : '/api';
 
 interface QueryResponse {
   queryNode?: NodeData[];
@@ -69,13 +82,20 @@ export const fetchTraversalData = async (
     return { queryNode: [] };
   }
   try {
-    const response = await axios.post<{ data: TraversalQueryResponse }>(
-      `${API_BASE_URL}/traverse`,
+    const response = await apiClient.post<{ data: TraversalQueryResponse }>( // Changed axios to apiClient
+      `/traverse`, // Removed API_BASE_URL as it's in the instance config
       { rootId, hierarchyId }  // hierarchyId is now a string
     );
     return response.data.data;
   } catch (error) {
-    log('ApiService', 'Error fetching traversal data:', error);
+    if (axios.isAxiosError(error)) { // Enhanced error logging
+      log('ApiService', 'Axios error fetching traversal data:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error fetching traversal data:', error);
+    }
     throw error;
   }
 };
@@ -89,13 +109,20 @@ export const executeQuery = async (
   variables?: Record<string, unknown>
 ): Promise<QueryResponse> => {
   try {
-    const response = await axios.post<QueryResponse>(`${API_BASE_URL}/query`, {
+    const response = await apiClient.post<QueryResponse>(`/query`, { // Changed axios to apiClient, removed API_BASE_URL
       query,
       variables
     });
     return response.data;
   } catch (error) {
-    log('ApiService', 'Error executing query:', error);
+    if (axios.isAxiosError(error)) { // Enhanced error logging
+      log('ApiService', 'Axios error executing query:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error executing query:', error);
+    }
     throw error;
   }
 };
@@ -112,45 +139,38 @@ export const executeMutation = async (
     // Log the mutation and variables for debugging
     log('ApiService', 'Executing mutation:', mutation);
     log('ApiService', 'Mutation variables:', JSON.stringify(variables, null, 2));
-    
+
     // Use let instead of const for config so we can modify it
     let config = headers ? { headers } : undefined;
     if (config) {
       log('ApiService', 'Using custom headers:', config.headers);
     }
-    
-    // Ensure hierarchyId header is set from localStorage if not provided
-    if (!headers?.['X-Hierarchy-Id']) {
-      const hierarchyId = localStorage.getItem('hierarchyId');
-      if (hierarchyId) {
-        log('ApiService', 'Adding X-Hierarchy-Id header from localStorage:', hierarchyId);
-        if (!config) {
-          config = { headers: { 'X-Hierarchy-Id': hierarchyId } };
-        } else {
-          config.headers = { ...config.headers, 'X-Hierarchy-Id': hierarchyId };
-        }
-      }
-    }
-    
-    const response = await axios.post<ApiMutationResponse>(
-      `${API_BASE_URL}/mutate`,
+
+    // Removed redundant X-Hierarchy-Id logic - handled by interceptor
+
+    const response = await apiClient.post<ApiMutationResponse>( // Changed axios to apiClient, removed API_BASE_URL
+      `/mutate`,
       { mutation, variables },
       config
     );
-    
+
     log('ApiService', 'Mutation response:', response.data);
     return response.data;
   } catch (error: unknown) {
-    const axiosError = error as { response?: { data?: unknown } };
-    if (axiosError.response && axiosError.response.data) {
-      log('ApiService', 'Mutation error response data:', axiosError.response.data);
+    // const axiosError = error as { response?: { data?: unknown } }; // Removed redundant type assertion
+    if (axios.isAxiosError(error)) { // Enhanced error logging
+      log('ApiService', 'Axios error executing mutation:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Mutation error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error executing mutation:', error);
     }
-    log('ApiService', 'Error executing mutation:', error);
-    
+
     // Log additional details about the request that failed
     log('ApiService', 'Failed mutation:', mutation);
     log('ApiService', 'Failed variables:', JSON.stringify(variables, null, 2));
-    
+
     throw error;
   }
 };
@@ -160,12 +180,19 @@ export const executeMutation = async (
  */
 export const fetchSchema = async (): Promise<string> => {
   try {
-    const response = await axios.get<string>(`${API_BASE_URL}/schema`, {
+    const response = await apiClient.get<string>(`/schema`, { // Changed axios to apiClient, removed API_BASE_URL
       responseType: 'text'
     });
     return response.data;
   } catch (error) {
-    log('ApiService', 'Error fetching schema:', error);
+    if (axios.isAxiosError(error)) { // Enhanced error logging
+      log('ApiService', 'Axios error fetching schema:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error fetching schema:', error);
+    }
     throw error;
   }
 };
@@ -175,10 +202,17 @@ export const fetchSchema = async (): Promise<string> => {
  */
 export const fetchHealth = async (): Promise<HealthStatus> => {
   try {
-    const response = await axios.get<HealthStatus>(`${API_BASE_URL}/health`);
+    const response = await apiClient.get<HealthStatus>(`/health`); // Changed axios to apiClient, removed API_BASE_URL
     return response.data;
   } catch (error) {
-    log('ApiService', 'Error fetching health status:', error);
+    if (axios.isAxiosError(error)) { // Enhanced error logging
+      log('ApiService', 'Axios error fetching health status:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error fetching health status:', error);
+    }
     throw error;
   }
 };
@@ -188,20 +222,34 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
  */
 export const fetchSystemStatus = async (): Promise<SystemStatus> => {
   try {
-    const response = await axios.get<SystemStatus>(`${API_BASE_URL}/system/status`);
+    const response = await apiClient.get<SystemStatus>(`/system/status`); // Changed axios to apiClient, removed API_BASE_URL
     return response.data;
   } catch (error) {
-    log('ApiService', 'Error fetching system status:', error);
+    if (axios.isAxiosError(error)) { // Enhanced error logging
+      log('ApiService', 'Axios error fetching system status:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error fetching system status:', error);
+    }
     throw error;
   }
 };
 
 export const fetchHierarchies = async (): Promise<{ id: string; name: string }[]> => {
   try {
-    const response = await axios.get<{ id: string; name: string }[]>(`${API_BASE_URL}/hierarchy`);
+    const response = await apiClient.get<{ id: string; name: string }[]>(`/hierarchy`); // Changed axios to apiClient, removed API_BASE_URL
     return response.data;
   } catch (error) {
-    log('ApiService', 'Error fetching hierarchies:', error);
+    if (axios.isAxiosError(error)) { // Enhanced error logging
+      log('ApiService', 'Axios error fetching hierarchies:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error fetching hierarchies:', error);
+    }
     throw error;
   }
 };
@@ -213,14 +261,22 @@ export async function deleteNodeCascade(
   nodeId: string
 ): Promise<{ deletedEdgesCount: number; deletedNodesCount: number; deletedNodeId: string }> {
   try {
-    const response = await axios.post(`${API_BASE_URL}/deleteNodeCascade`, { nodeId }, {
+    const response = await apiClient.post(`/deleteNodeCascade`, { nodeId }, { // Changed axios to apiClient, removed API_BASE_URL
       headers: { 'Content-Type': 'application/json' }
     });
     return response.data;
   } catch (error: unknown) {
-    const axiosError = error as { response?: { data?: { error?: string } } };
-    log('ApiService', 'Error deleting node cascade:', error);
-    throw new Error(axiosError?.response?.data?.error || 'Failed to delete node.');
+    // const axiosError = error as { response?: { data?: { error?: string } } }; // Removed redundant type assertion
+    if (axios.isAxiosError(error)) { // Enhanced error logging
+      log('ApiService', 'Axios error deleting node cascade:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error deleting node cascade:', error);
+    }
+    // log('ApiService', 'Error deleting node cascade:', error); // Removed redundant log
+    throw new Error((error as AxiosError<{ error?: string }>).response?.data?.error || 'Failed to delete node.'); // Adjusted error handling
   }
 }
 

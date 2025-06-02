@@ -270,8 +270,8 @@ class TenantManager {
                 try {
                     console.log(`[TENANT_MANAGER] Deleting all ${op.name} in namespace ${namespace}...`);
                     const result = await tenant.executeGraphQL(op.mutation);
-                    // Ensure the key exists before logging, Dgraph might not return it if nothing was deleted
-                    const numUidsDeleted = result[`delete${op.name}`]?.numUids || 0;
+                    // Safely access numUids, handling cases where the key or numUids might be missing
+                    const numUidsDeleted = result?.[`delete${op.name}`]?.numUids || 0;
                     console.log(`[TENANT_MANAGER] Deleted ${numUidsDeleted} ${op.name}(s).`);
                 }
                 catch (e) {

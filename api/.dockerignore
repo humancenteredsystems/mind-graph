@@ -14,3 +14,10 @@ dist
 # Ignore environment files if present
 .env
 .env.local
+
+# Exclude debug and utility scripts
+debug-*.js
+clean-*.js
+seed-*.js
+verify-*.js
+test-*.js
