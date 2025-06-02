@@ -35,14 +35,21 @@ export class DgraphTenant {
   async executeGraphQL<T = any>(query: string, variables: Record<string, any> = {}): Promise<T> {
     const queryPreview = query.substring(0, 100).replace(/\s+/g, ' ');
     console.log(`[DGRAPH_TENANT] Executing query in namespace ${this.namespace || 'default'}: ${queryPreview}...`);
+    console.log(`[DGRAPH_TENANT] Using endpoint: ${this.endpoint}`);
+    console.log(`[DGRAPH_TENANT] Request payload:`, JSON.stringify({ query, variables }, null, 2));
     
     try {
       const response: AxiosResponse<DgraphQueryResponse<T>> = await axios.post(this.endpoint, {
         query,
         variables,
       }, {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000,
+        validateStatus: (status) => status < 500
       });
+      
+      console.log(`[DGRAPH_TENANT] Response status: ${response.status}`);
+      console.log(`[DGRAPH_TENANT] Response headers:`, response.headers);
 
       // Check for GraphQL errors in the response body
       if (response.data.errors) {
@@ -51,7 +58,9 @@ export class DgraphTenant {
         throw new Error(`GraphQL query failed: ${response.data.errors.map((e: any) => e.message).join(', ')}`);
       }
 
-      console.log(`[DGRAPH_TENANT] Query executed successfully in namespace ${this.namespace || 'default'}`);
+      console.log(`[DGRAPH_TENANT] Query executed successfully in namespace ${this.namespace || 'default'}`);      
+      console.log(`[DGRAPH_TENANT] Raw response:`, JSON.stringify(response.data, null, 2));
+      console.log(`[DGRAPH_TENANT] Returning data:`, JSON.stringify(response.data.data, null, 2));
       return response.data.data;
 
     } catch (error: any) {

@@ -356,10 +356,36 @@ afterEach(async () => {
   }
 };
 
-// Global flag for enterprise availability
-(global as any).DGRAPH_ENTERPRISE_AVAILABLE = false;
+// Synchronous enterprise detection at module load time
+// This ensures DGRAPH_ENTERPRISE_AVAILABLE is set before conditionalDescribe evaluates
+let enterpriseAvailable = false;
+try {
+  // Synchronous check using require to avoid async issues at module load
+  const { execSync } = require('child_process');
+  const result = execSync('curl -s http://localhost:8080/state', { encoding: 'utf8', timeout: 5000 });
+  const state = JSON.parse(result);
+  enterpriseAvailable = state && state.license &&
+                       state.license.enabled === true &&
+                       state.license.expiryTs > Date.now() / 1000;
+  
+  if (enterpriseAvailable) {
+    console.log('[TEST_SETUP] Dgraph Enterprise detected at module load time');
+  } else {
+    console.warn('[TEST_SETUP] Dgraph Enterprise not available at module load time');
+  }
+} catch (error) {
+  console.warn('[TEST_SETUP] Failed to check Dgraph Enterprise at module load time:', error instanceof Error ? error.message : error);
+  enterpriseAvailable = false;
+}
 
-// Check enterprise availability during setup
+// Global flag for enterprise availability - set synchronously
+(global as any).DGRAPH_ENTERPRISE_AVAILABLE = enterpriseAvailable;
+
+// Keep the async version for runtime checks
 beforeAll(async () => {
-  (global as any).DGRAPH_ENTERPRISE_AVAILABLE = await (global as any).testUtils.checkDgraphEnterprise();
+  const runtimeCheck = await (global as any).testUtils.checkDgraphEnterprise();
+  if (runtimeCheck !== (global as any).DGRAPH_ENTERPRISE_AVAILABLE) {
+    console.warn('[TEST_SETUP] Enterprise availability changed between module load and runtime');
+    (global as any).DGRAPH_ENTERPRISE_AVAILABLE = runtimeCheck;
+  }
 });

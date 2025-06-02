@@ -4,14 +4,23 @@ import { Express } from 'express';
 
 /**
  * Simple helper to make test requests with tenant header
- * Reuses existing request pattern but adds test-tenant header
+ * Returns a supertest agent with test-tenant header pre-set
  */
-export const testRequest = (app: Express) => ({
-  get: (url: string) => request(app).get(url).set('X-Tenant-Id', 'test-tenant'),
-  post: (url: string) => request(app).post(url).set('X-Tenant-Id', 'test-tenant'),
-  put: (url: string) => request(app).put(url).set('X-Tenant-Id', 'test-tenant'),
-  delete: (url: string) => request(app).delete(url).set('X-Tenant-Id', 'test-tenant')
-});
+export const testRequest = (app: Express) => {
+  const agent = request(app);
+  // Override the original methods to automatically add the tenant header
+  const originalPost = agent.post.bind(agent);
+  const originalGet = agent.get.bind(agent);
+  const originalPut = agent.put.bind(agent);
+  const originalDelete = agent.delete.bind(agent);
+  
+  agent.post = (url: string) => originalPost(url).set('X-Tenant-Id', 'test-tenant');
+  agent.get = (url: string) => originalGet(url).set('X-Tenant-Id', 'test-tenant');
+  agent.put = (url: string) => originalPut(url).set('X-Tenant-Id', 'test-tenant');
+  agent.delete = (url: string) => originalDelete(url).set('X-Tenant-Id', 'test-tenant');
+  
+  return agent;
+};
 
 /**
  * Direct query helper for verification in test namespace
