@@ -30,7 +30,7 @@ describe('CORS Middleware', () => {
     beforeEach(() => {
       app = express();
       app.use(createCorsMiddleware('https://makeitmakesense.io'));
-      app.get('/test', (req, res) => res.json({ status: 'ok' }));
+      app.get('/test', (req: any, res: any) => res.json({ status: 'ok' }));
     });
 
     it('should include Access-Control-Allow-Credentials header for OPTIONS requests', async () => {
@@ -63,7 +63,7 @@ describe('CORS Middleware', () => {
     beforeEach(() => {
       app = express();
       app.use(createCorsMiddleware('*'));
-      app.get('/test', (req, res) => res.json({ status: 'ok' }));
+      app.get('/test', (req: any, res: any) => res.json({ status: 'ok' }));
     });
 
     it('should NOT include Access-Control-Allow-Credentials header', async () => {
