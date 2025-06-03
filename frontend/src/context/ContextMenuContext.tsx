@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useUIContext } from './UIContext';
-import { MenuType, MenuItem, ContextMenuPayload } from '../types/contextMenu';
+import { MenuType, MenuItem } from '../types/contextMenu';
 import { NodeData } from '../types/graph';
 import { showComingSoonAlert } from '../utils/uiUtils';
 

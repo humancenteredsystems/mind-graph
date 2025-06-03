@@ -1,5 +1,4 @@
 import React, { useRef, useEffect } from 'react';
-import type { MenuItem } from '../types/contextMenu';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { theme } from '../config';
 

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import klay from 'cytoscape-klay';
@@ -235,7 +235,11 @@ const GraphView: React.FC<GraphViewProps> = ({
     
     const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => {
       // Find all matching assignments for this hierarchy using centralized utility
-      let matchingAssignments: any[] = [];
+      let matchingAssignments: Array<{
+        hierarchyId: string;
+        levelNumber: number;
+        levelLabel?: string;
+      }> = [];
       
       if (Array.isArray(assignments)) {
         matchingAssignments = assignments.filter(a => normalizeHierarchyId(hierarchyId, a.hierarchyId));

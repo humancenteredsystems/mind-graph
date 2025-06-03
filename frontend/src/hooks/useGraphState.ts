@@ -46,7 +46,7 @@ export const useGraphState = (): UseGraphState => {
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true); // Initialize to true for loading state
-  const [isExpanding, setIsExpanding] = useState<boolean>(false);
+  const [isExpanding] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
   
@@ -56,18 +56,6 @@ export const useGraphState = (): UseGraphState => {
   // Create graph operations
   const operations = createGraphOperations(setNodes, setEdges, setError, edges);
 
-  // Helper function to get current hierarchy expansion state
-  const getHierarchyState = useCallback((): HierarchyExpansionState => {
-    const existing = expansionStates.get(hierarchyId);
-    if (existing) return existing;
-    
-    const newState: HierarchyExpansionState = {
-      expandedNodeIds: new Set(),
-      expansionDetails: new Map()
-    };
-    setExpansionStates(prev => new Map(prev).set(hierarchyId, newState));
-    return newState;
-  }, [hierarchyId, expansionStates]);
 
   // Check if a node is expanded in the current hierarchy
   const isNodeExpanded = useCallback((nodeId: string): boolean => {

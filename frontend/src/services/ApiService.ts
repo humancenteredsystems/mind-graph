@@ -35,7 +35,7 @@ apiClient.interceptors.request.use(config => {
 }, error => Promise.reject(error));
 
 
-import { NodeData, ApiMutationResponse, TraversalQueryResponse, RawNodeResponse } from '../types/graph';
+import { NodeData, ApiMutationResponse, TraversalQueryResponse } from '../types/graph';
 import { GET_ALL_NODE_IDS_QUERY } from '../graphql/queries';
 import { log } from '../utils/logger';
 
@@ -55,13 +55,6 @@ interface QueryResponse {
   }>;
 }
 
-interface RawEdgeResponse {
-  from?: { id: string };
-  fromId?: string;
-  to?: { id: string };
-  toId?: string;
-  type?: string;
-}
 
 interface HealthStatus {
   apiStatus: string;

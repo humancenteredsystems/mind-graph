@@ -26,7 +26,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsMultiTenantMode(systemStatus.namespacesSupported || false);
         
         console.log(`[TENANT_CONTEXT] Multi-tenant mode: ${systemStatus.namespacesSupported ? 'enabled' : 'disabled'}`);
-      } catch (error) {
+      } catch {
         console.warn('Could not detect multi-tenant capabilities, assuming OSS mode');
         setIsMultiTenantMode(false);
       }
