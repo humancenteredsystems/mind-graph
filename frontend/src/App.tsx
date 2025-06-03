@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import './App.css';
 import GraphView from './components/GraphView';
 import { useGraphState } from './hooks/useGraphState';
@@ -44,7 +44,7 @@ function AppInner() {
       log('App', `Hierarchy set to ${hierarchyId}: loading full graph`);
       loadCompleteGraph();
     }
-  }, [hierarchyId]);
+  }, [hierarchyId, loadCompleteGraph]);
 
   const {
   addModalOpen,

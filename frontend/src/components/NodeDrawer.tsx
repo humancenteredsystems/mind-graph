@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { NodeData } from '../types/graph';
 import { resolveNodeHierarchyAssignment } from '../utils/graphUtils';
@@ -22,18 +22,16 @@ type Tab = typeof TABS[number];
 const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<Tab>('Info');
   const { hierarchyId } = useHierarchyContext();
-  const { assignment: assignmentForCurrent } = node ? 
-    resolveNodeHierarchyAssignment(node.id, [node], hierarchyId) : 
-    { assignment: undefined };
 
   const [formValues, setFormValues] = useState<NodeEditValues>({
-    label: node?.label || '',
-    type: node?.type || 'concept',
-    level: assignmentForCurrent?.levelNumber ?? 1,
+    label: '',
+    type: 'concept',
+    level: 1,
   });
 
   React.useEffect(() => {
     if (open && node) {
+      const { assignment: assignmentForCurrent } = resolveNodeHierarchyAssignment(node.id, [node], hierarchyId);
       setFormValues({
         label: node.label || '',
         type: node.type || 'concept',
@@ -42,6 +40,11 @@ const NodeDrawer: React.FC<NodeDrawerProps> = ({ open, node, onSave, onClose }) 
       setActiveTab('Info');
     }
   }, [open, node, hierarchyId]);
+
+  // Calculate assignment for current display
+  const { assignment: assignmentForCurrent } = node ? 
+    resolveNodeHierarchyAssignment(node.id, [node], hierarchyId) : 
+    { assignment: undefined };
 
   if (!open || !node) return null;
 

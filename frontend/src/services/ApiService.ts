@@ -141,7 +141,7 @@ export const executeMutation = async (
     log('ApiService', 'Mutation variables:', JSON.stringify(variables, null, 2));
 
     // Use let instead of const for config so we can modify it
-    let config = headers ? { headers } : undefined;
+    const config = headers ? { headers } : undefined;
     if (config) {
       log('ApiService', 'Using custom headers:', config.headers);
     }

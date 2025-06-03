@@ -13,7 +13,7 @@ const mockUIContext = {
   closeEditDrawer: vi.fn(),
 };
 
-let mockContextMenuState = {
+const mockContextMenuState = {
   open: true,
   position: { x: 100, y: 100 },
   items: [] as any[],

@@ -3,10 +3,11 @@ import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import klay from 'cytoscape-klay';
 import { NodeData, EdgeData } from '../types/graph';
+import { CytoscapeTapEvent, CytoscapeContextTapEvent, CytoscapeSelectEvent, CytoscapeRemoveEvent } from '../types/cytoscape';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { log } from '../utils/logger';
-import { theme, INTERACTIONS, config } from '../config';
+import { theme, config } from '../config';
 import { normalizeHierarchyId } from '../utils/graphUtils';
 
 // Register Cytoscape plugins ONCE at module load
@@ -191,7 +192,7 @@ const GraphView: React.FC<GraphViewProps> = ({
 
   const cyRef = useRef<Core | null>(null);
     const { openMenu } = useContextMenu();
-    const { hierarchyId, levels, allowedTypesMap } = useHierarchyContext();
+    const { hierarchyId, levels } = useHierarchyContext();
   const [selectedCount, setSelectedCount] = useState(0);
   const selectedOrderRef = useRef<string[]>([]);
   const [selectedEdgesCount, setSelectedEdgesCount] = useState(0);
@@ -383,7 +384,7 @@ const GraphView: React.FC<GraphViewProps> = ({
      * 
      * @param e - Cytoscape tap event object
      */
-    const handleTap = (e: any) => {
+    const handleTap = (e: CytoscapeTapEvent) => {
       const targetNode = e.target;
       const nodeId = targetNode.id ? targetNode.id() : null;
       const now = Date.now();
@@ -461,7 +462,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     cy.on('tap', handleTap); // Also listen on background to reset
 
     // Listen for doubleTap event for direct double-click support
-    const handleDoubleTap = (e: any) => {
+    const handleDoubleTap = (e: CytoscapeTapEvent) => {
       const nodeId = e.target.id();
       if (onEditNode && nodeId) {
         const nodeData = nodes.find(n => n.id === nodeId);
@@ -520,7 +521,6 @@ const GraphView: React.FC<GraphViewProps> = ({
         assignments.sort((a, b) => b.levelNumber - a.levelNumber);
         const parentLevelNum = assignments[0]?.levelNumber ?? 0;
         const nextLevelNum = parentLevelNum + 1;
-        const levelKeyNode = `${hierarchyId}l${nextLevelNum}`;
         // Allow child addition for any defined level (empty allowedTypes ⇒ no restriction)
         const canAddChild = levels.some(l => l.levelNumber === nextLevelNum);
         let canConnect = false;
@@ -563,7 +563,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     return () => {
       cy.off('cxttap', handler);
     };
-  }, [openMenu, onAddNode, onNodeExpand, onExpandChildren, onExpandAll, onCollapseNode, isNodeExpanded, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, edges]);
+  }, [openMenu, onAddNode, onNodeExpand, onExpandChildren, onExpandAll, onCollapseNode, isNodeExpanded, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, onDeleteEdge, onDeleteEdges, edges, hierarchyId, levels]);
 
   // Layout on elements update: use preset positions based on level
   useEffect(() => {
