@@ -43,9 +43,13 @@ const corsMiddleware = (req, res, next) => {
     // Allow common methods and headers needed for GraphQL/API requests
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Hierarchy-Id, X-Tenant-Id');
+    // Allow credentials for specific origins (required by browser if frontend sends cookies/auth)
+    if (allowedOrigin !== '*') {
+        res.set('Access-Control-Allow-Credentials', 'true');
+    }
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
-        res.sendStatus(204);
+        res.status(204).end();
         return;
     }
     next();
