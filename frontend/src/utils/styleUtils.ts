@@ -7,7 +7,7 @@ import { theme } from '../config';
 /**
  * CSS-in-JS helper for creating style objects
  */
-export const css = (styles: Record<string, any>) => styles;
+export const css = (styles: React.CSSProperties) => styles;
 
 /**
  * Common shadow styles

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useUIContext } from './UIContext';
-import { MenuType, MenuItem } from '../types/contextMenu';
+import { MenuType, MenuItem, ContextMenuPayload } from '../types/contextMenu';
 import { NodeData } from '../types/graph';
 import { showComingSoonAlert } from '../utils/uiUtils';
 
@@ -12,7 +12,7 @@ interface ContextMenuContextValue {
   openMenu: (
     menuType: MenuType,
     position: { x: number; y: number },
-    payload?: Record<string, any>
+    payload?: any
   ) => void;
   closeMenu: () => void;
 }
@@ -31,7 +31,7 @@ export const ContextMenuProvider: React.FC<{ children: ReactNode }> = ({ childre
   const openMenu = (
     menuType: MenuType,
     pos: { x: number; y: number },
-    payload: Record<string, any> = {}
+    payload: any = {}
   ) => {
     setType(menuType);
     setPosition(pos);

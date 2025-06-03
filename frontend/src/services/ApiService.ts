@@ -42,6 +42,17 @@ import { log } from '../utils/logger';
 
 interface QueryResponse {
   queryNode?: NodeData[];
+  queryHierarchy?: Array<{
+    levels: Array<{
+      id: string;
+      levelNumber: number;
+      label?: string;
+      allowedTypes: Array<{
+        id: string;
+        typeName: string;
+      }>;
+    }>;
+  }>;
 }
 
 interface RawEdgeResponse {

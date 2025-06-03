@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { fetchHierarchies, executeQuery } from '../services/ApiService';
 import { GET_LEVELS_FOR_HIERARCHY } from '../graphql/queries';
+import { HierarchyLevel, AllowedType, GraphQLError } from '../types/hierarchy';
 
 interface HierarchyContextType {
   hierarchies: { id: string; name: string }[];
@@ -74,26 +75,26 @@ export const HierarchyProvider = ({ children }: ProviderProps) => {
   useEffect(() => {
     if (!_hierarchyId) return;
     executeQuery(GET_LEVELS_FOR_HIERARCHY, { h: _hierarchyId })
-      .then((res: any) => {
-        const lvl = res.queryHierarchy?.[0]?.levels || [];
+      .then((res) => {
+        const lvl: HierarchyLevel[] = res.queryHierarchy?.[0]?.levels || [];
         setLevels(lvl);
         // Build allowedTypesMap
         const map: Record<string, string[]> = {};
-        lvl.forEach((level: any) => {
+        lvl.forEach((level: HierarchyLevel) => {
           const key = `${_hierarchyId}l${level.levelNumber}`;
-          const types = (level.allowedTypes || []).map((at: any) => at.typeName);
+          const types = (level.allowedTypes || []).map((at: AllowedType) => at.typeName);
           map[key] = types;
         });
         setAllowedTypesMap(map);
         
         // Derive allNodeTypes from hierarchy levels data
-        const allTypes: string[] = lvl.flatMap((level: any) => 
-          (level.allowedTypes || []).map((at: any) => at.typeName as string)
+        const allTypes: string[] = lvl.flatMap((level: HierarchyLevel) => 
+          (level.allowedTypes || []).map((at: AllowedType) => at.typeName)
         );
         const uniqueTypes = Array.from(new Set(allTypes));
         setAllNodeTypes(uniqueTypes);
       })
-      .catch((err: any) => {
+      .catch((err: GraphQLError | Error) => {
         console.error('[HierarchyContext] Error fetching levels:', err);
       });
   }, [_hierarchyId]); // Dependency on _hierarchyId
