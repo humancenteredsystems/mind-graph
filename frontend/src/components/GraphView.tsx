@@ -3,7 +3,15 @@ import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import klay from 'cytoscape-klay';
 import { NodeData, EdgeData } from '../types/graph';
-import { CytoscapeTapEvent, CytoscapeContextTapEvent, CytoscapeSelectEvent, CytoscapeRemoveEvent } from '../types/cytoscape';
+import { 
+  CytoscapeTapEvent, 
+  CytoscapeSelectEvent, 
+  CytoscapeRemoveEvent,
+  CytoscapeContextEvent,
+  CytoscapeSelectHandler,
+  CytoscapeUnselectHandler,
+  CytoscapeRemoveHandler
+} from '../types/cytoscape';
 import { useContextMenu } from '../context/ContextMenuContext';
 import { useHierarchyContext } from '../context/HierarchyContext';
 import { log } from '../utils/logger';
@@ -193,9 +201,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   const cyRef = useRef<Core | null>(null);
     const { openMenu } = useContextMenu();
     const { hierarchyId, levels } = useHierarchyContext();
-  const [selectedCount, setSelectedCount] = useState(0);
   const selectedOrderRef = useRef<string[]>([]);
-  const [selectedEdgesCount, setSelectedEdgesCount] = useState(0);
   const selectedEdgesOrderRef = useRef<string[]>([]);
   /**
    * Refs for refined manual double-click detection algorithm.
@@ -337,7 +343,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   // Attach Cytoscape instance reference
   const attachCy = (cy: Core) => {
     cyRef.current = cy;
-    (window as any).cyInstance = cy; // Expose for E2E testing
+    (window as unknown as { cyInstance: Core }).cyInstance = cy; // Expose for E2E testing
     log('GraphView', 'Cytoscape instance attached and exposed to window.cyInstance');
   };
   
@@ -353,8 +359,8 @@ const GraphView: React.FC<GraphViewProps> = ({
     
     // Completely disable selection
     cy.autounselectify(false);
-    if (typeof (cy as any).boxSelectionEnabled === 'function') {
-      (cy as any).boxSelectionEnabled(true);
+    if (typeof (cy as unknown as { boxSelectionEnabled?: (enabled: boolean) => void }).boxSelectionEnabled === 'function') {
+      (cy as unknown as { boxSelectionEnabled: (enabled: boolean) => void }).boxSelectionEnabled(true);
     }
     log('GraphView', 'Multi-select enabled: autounselectify(false) and boxSelectionEnabled(true)');
     
@@ -490,7 +496,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     const cy = cyRef.current;
     if (!cy) return;
     
-    const handler = (e: any) => {
+    const handler = (e: CytoscapeContextEvent) => {
       const orig = e.originalEvent as MouseEvent;
       if (orig.button !== 2) return;
       
@@ -576,15 +582,13 @@ const GraphView: React.FC<GraphViewProps> = ({
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const onSelect = (e: any) => {
+    const onSelect: CytoscapeSelectHandler = (e: CytoscapeSelectEvent) => {
       const id = e.target.id();
       selectedOrderRef.current.push(id);
-      setSelectedCount(selectedOrderRef.current.length);
     };
-    const onUnselect = (e: any) => {
+    const onUnselect: CytoscapeUnselectHandler = (e: CytoscapeSelectEvent) => {
       const id = e.target.id();
       selectedOrderRef.current = selectedOrderRef.current.filter(x => x !== id);
-      setSelectedCount(selectedOrderRef.current.length);
     };
     cy.on('select', 'node', onSelect);
     cy.on('unselect', 'node', onUnselect);
@@ -598,15 +602,13 @@ const GraphView: React.FC<GraphViewProps> = ({
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const handleNodeRemove = (e: any) => {
+    const handleNodeRemove: CytoscapeRemoveHandler = (e: CytoscapeRemoveEvent) => {
       const removedId = e.target.id();
       selectedOrderRef.current = selectedOrderRef.current.filter(id => id !== removedId);
-      setSelectedCount(selectedOrderRef.current.length);
     };
-    const handleEdgeRemove = (e: any) => {
+    const handleEdgeRemove: CytoscapeRemoveHandler = (e: CytoscapeRemoveEvent) => {
       const removedId = e.target.id();
       selectedEdgesOrderRef.current = selectedEdgesOrderRef.current.filter(id => id !== removedId);
-      setSelectedEdgesCount(selectedEdgesOrderRef.current.length);
     };
     cy.on('remove', 'node', handleNodeRemove);
     cy.on('remove', 'edge', handleEdgeRemove);
@@ -620,15 +622,13 @@ const GraphView: React.FC<GraphViewProps> = ({
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const onEdgeSelect = (e: any) => {
+    const onEdgeSelect: CytoscapeSelectHandler = (e: CytoscapeSelectEvent) => {
       const id = e.target.id();
       selectedEdgesOrderRef.current.push(id);
-      setSelectedEdgesCount(selectedEdgesOrderRef.current.length);
     };
-    const onEdgeUnselect = (e: any) => {
+    const onEdgeUnselect: CytoscapeUnselectHandler = (e: CytoscapeSelectEvent) => {
       const id = e.target.id();
       selectedEdgesOrderRef.current = selectedEdgesOrderRef.current.filter(x => x !== id);
-      setSelectedEdgesCount(selectedEdgesOrderRef.current.length);
     };
     cy.on('select', 'edge', onEdgeSelect);
     cy.on('unselect', 'edge', onEdgeUnselect);
