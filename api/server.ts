@@ -56,7 +56,7 @@ const corsMiddleware: RequestHandler = (req: Request, res: Response, next: NextF
 
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    res.sendStatus(204);
+    res.status(204).end();
     return;
   }
   next();

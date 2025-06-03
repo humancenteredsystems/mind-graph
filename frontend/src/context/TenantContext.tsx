@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { fetchSystemStatus } from '../services/ApiService';
 
 interface TenantContextType {
   tenantId: string | null;
@@ -21,8 +22,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const detectCapabilities = async () => {
       try {
-        const response = await fetch('/api/system/status');
-        const systemStatus = await response.json();
+        const systemStatus = await fetchSystemStatus();
         setIsMultiTenantMode(systemStatus.namespacesSupported || false);
         
         console.log(`[TENANT_CONTEXT] Multi-tenant mode: ${systemStatus.namespacesSupported ? 'enabled' : 'disabled'}`);
