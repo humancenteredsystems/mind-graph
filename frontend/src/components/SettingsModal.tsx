@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useUIContext } from '../context/UIContext';
+import { useUIContext } from '../hooks/useUI';
 import { SystemStatus } from '../types/system';
 
 interface StatusIconProps {

@@ -12,8 +12,8 @@ import {
   CytoscapeUnselectHandler,
   CytoscapeRemoveHandler
 } from '../types/cytoscape';
-import { useContextMenu } from '../context/ContextMenuContext';
-import { useHierarchyContext } from '../context/HierarchyContext';
+import { useContextMenu } from '../hooks/useContextMenu';
+import { useHierarchyContext } from '../hooks/useHierarchy';
 import { log } from '../utils/logger';
 import { theme, config } from '../config';
 import { normalizeHierarchyId } from '../utils/graphUtils';

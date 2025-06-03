@@ -145,7 +145,7 @@ export const createMockEdge = (overrides: Partial<EdgeData> = {}): EdgeData => (
   ...overrides
 });
 
-export const createMockHierarchy = (overrides: any = {}) => ({
+export const createMockHierarchy = (overrides: Record<string, unknown> = {}) => ({
   id: 'mock-hierarchy',
   name: 'Mock Hierarchy',
   levels: [

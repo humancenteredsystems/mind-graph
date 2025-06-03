@@ -1,32 +1,8 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { useState, ReactNode, useEffect } from 'react';
 import { fetchHierarchies, executeQuery } from '../services/ApiService';
 import { GET_LEVELS_FOR_HIERARCHY } from '../graphql/queries';
 import { HierarchyLevel, AllowedType, GraphQLError } from '../types/hierarchy';
-
-interface HierarchyContextType {
-  hierarchies: { id: string; name: string }[];
-  hierarchyId: string;
-  levels: {
-    id: string;
-    levelNumber: number;
-    label?: string;
-    allowedTypes: { id: string; typeName: string }[];
-  }[];
-  allowedTypesMap: Record<string, string[]>;
-  allNodeTypes: string[];
-  setHierarchyId: (id: string) => void;
-}
-
-const HierarchyContext = createContext<HierarchyContextType>({
-  hierarchies: [],
-  hierarchyId: '',
-  levels: [],
-  allowedTypesMap: {},
-  allNodeTypes: [],
-  setHierarchyId: () => {},
-});
-
-export const useHierarchyContext = () => useContext(HierarchyContext);
+import { HierarchyContext } from './contexts';
 
 interface ProviderProps {
   children: ReactNode;

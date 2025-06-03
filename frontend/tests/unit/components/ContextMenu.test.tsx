@@ -2,6 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import ContextMenu from '../../../src/components/ContextMenu';
 
+// Define menu item interface
+interface MockMenuItem {
+  id: string;
+  label: string;
+  icon: string;
+  action: () => void;
+  shortcut?: string;
+  disabled?: boolean;
+}
+
 // Mock the context modules with correct interface
 const mockUIContext = {
   isAddModalOpen: false,
@@ -16,7 +26,7 @@ const mockUIContext = {
 const mockContextMenuState = {
   open: true,
   position: { x: 100, y: 100 },
-  items: [] as any[],
+  items: [] as MockMenuItem[],
   openMenu: vi.fn(),
   closeMenu: vi.fn(),
 };

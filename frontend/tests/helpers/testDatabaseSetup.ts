@@ -104,7 +104,7 @@ export async function waitForTestData(timeout: number = 5000): Promise<boolean> 
           return true;
         }
       }
-    } catch (error) {
+    } catch {
       // Continue waiting
     }
     

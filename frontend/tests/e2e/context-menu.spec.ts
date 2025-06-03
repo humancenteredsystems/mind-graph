@@ -1,14 +1,15 @@
 // tests/context-menu.spec.ts
 import { test, expect } from '@playwright/test';
+import { TestWindow, NodePosition } from './types';
 
 test('Right-clicking a node shows context menu with Expand option', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('[data-testid="graph-container"] canvas').first()).toBeVisible({ timeout: 15000 });
-  await page.waitForFunction(() => (window as any).cyInstance && (window as any).cyInstance.nodes().length > 0, null, { timeout: 15000 });
+  await page.waitForFunction(() => (window as TestWindow).cyInstance && (window as TestWindow).cyInstance!.nodes().length > 0, null, { timeout: 15000 });
 
   // Get the position of a node to click
-  const nodePosition = await page.evaluate(() => {
-    const cy = (window as any).cyInstance;
+  const nodePosition = await page.evaluate((): NodePosition | null => {
+    const cy = (window as TestWindow).cyInstance;
     if (!cy || cy.nodes().length === 0) return null;
     
     // Get the first node position in renderer coordinates
@@ -17,6 +18,7 @@ test('Right-clicking a node shows context menu with Expand option', async ({ pag
     
     // Get the container bounds
     const container = cy.container();
+    if (!container) return null;
     const rect = container.getBoundingClientRect();
     
     // Calculate screen coordinates

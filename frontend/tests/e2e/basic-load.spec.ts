@@ -10,7 +10,7 @@ test('Page loads and shows graph container', async ({ page }) => {
   // Look for loading message, but don't fail if it's not there or already disappeared
   try {
     await expect(page.getByText('Loading graph data...')).toBeVisible({ timeout: 2000 });
-  } catch (e) {
+  } catch {
     console.log('Loading message not found or already disappeared');
   }
   

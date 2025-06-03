@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode, useRef } from 'react';
+import React, { useState, ReactNode, useRef } from 'react';
 import { NodeData } from '../types/graph';
 import { fetchSystemStatus } from '../services/ApiService';
+import { UIContext } from './contexts';
 
 interface SystemStatus {
   dgraphEnterprise: boolean;
@@ -14,29 +15,6 @@ interface SystemStatus {
   licenseType?: 'oss-only' | 'oss-trial' | 'enterprise-licensed' | 'unknown';
   licenseExpiry?: string | null;
 }
-
-interface UIContextValue {
-  // Add node modal
-  addModalOpen: boolean;
-  addParentId?: string;
-  openAddModal: (parentId?: string) => void;
-  closeAddModal: () => void;
-  // Edit node drawer
-  editDrawerOpen: boolean;
-  editNodeData?: NodeData;
-  openEditDrawer: (node: NodeData) => void;
-  closeEditDrawer: () => void;
-  setEditNode: (node: NodeData) => void; // Function to update node data while drawer is open
-  // Settings modal
-  settingsModalOpen: boolean;
-  openSettingsModal: () => void;
-  closeSettingsModal: () => void;
-  // System status
-  systemStatus: SystemStatus | null;
-  refreshSystemStatus: () => Promise<void>;
-}
-
-const UIContext = createContext<UIContextValue | undefined>(undefined);
 
 export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -123,9 +101,3 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     </UIContext.Provider>
   );
 };
-
-export function useUIContext(): UIContextValue {
-  const ctx = useContext(UIContext);
-  if (!ctx) throw new Error('useUIContext must be used within UIProvider');
-  return ctx;
-}

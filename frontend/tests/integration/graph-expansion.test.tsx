@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { mockNodes } from '../helpers/mockData';
+import { CytoscapeElementType, CytoscapeMockInstance } from '../helpers/mockTypes';
 import App from '../../src/App';
 import { UIProvider } from '../../src/context/UIContext';
 import { ContextMenuProvider } from '../../src/context/ContextMenuContext';
@@ -38,13 +39,14 @@ vi.mock('../../src/utils/graphUtils', () => ({
 
 // Mock Cytoscape with interaction capabilities
 vi.mock('react-cytoscapejs', () => ({
-  default: ({ elements, cy }: { elements: any[]; cy?: any }) => {
-    const mockCy = {
+  default: ({ elements, cy }: { elements: CytoscapeElementType[]; cy?: (instance: CytoscapeMockInstance) => void }) => {
+    const mockCy: CytoscapeMockInstance = {
       layout: vi.fn().mockReturnValue({ run: vi.fn() }),
       on: vi.fn(),
       off: vi.fn(),
-      nodes: vi.fn().mockReturnValue([]),
-      edges: vi.fn().mockReturnValue([]),
+      nodes: vi.fn().mockReturnValue({ length: 0 }),
+      edges: vi.fn().mockReturnValue({ length: 0 }),
+      elements: vi.fn().mockReturnValue({ length: 0 }),
       autounselectify: vi.fn(),
       boxSelectionEnabled: vi.fn()
     };
@@ -219,7 +221,7 @@ describe('Graph Expansion Integration', () => {
     const elements = JSON.parse(
       screen.getByTestId('cytoscape-component').getAttribute('data-elements') || '[]'
     );
-    const nodeElements = elements.filter((el: any) => !el.data.source);
+    const nodeElements = elements.filter((el: CytoscapeElementType) => !el.data.source);
     
     // Verify we have some nodes rendered
     expect(nodeElements.length).toBeGreaterThan(0);

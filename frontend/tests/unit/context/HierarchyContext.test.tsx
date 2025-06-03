@@ -2,13 +2,14 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { renderHook } from '@testing-library/react';
-import { useHierarchyContext, HierarchyProvider } from '../../../src/context/HierarchyContext';
+import { HierarchyProvider } from '../../../src/context/HierarchyContext';
+import { useHierarchyContext } from '../../../src/hooks/useHierarchy';
 import * as ApiService from '../../../src/services/ApiService';
 
 vi.mock('../../../src/services/ApiService');
 
 describe('HierarchyContext', () => {
-  const mockApiService = ApiService as any;
+  const mockApiService = vi.mocked(ApiService);
   const mockHierarchies = [
     {
       id: 'h1',

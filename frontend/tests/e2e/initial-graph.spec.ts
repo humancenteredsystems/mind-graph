@@ -1,10 +1,11 @@
 // tests/initial-graph.spec.ts
 import { test, expect } from '@playwright/test';
+import { TestWindow, GraphCounts, GraphQLResponse } from './types';
 
 // Helper function to get Cytoscape node and edge counts
-const getCyCounts = async (page: any) => {
+const getCyCounts = async (page: import('@playwright/test').Page): Promise<GraphCounts> => {
   return await page.evaluate(() => {
-    const cy = (window as any).cyInstance;
+    const cy = (window as TestWindow).cyInstance;
     if (!cy) return { nodes: 0, edges: 0 };
     return {
       nodes: cy.nodes().length,
@@ -14,7 +15,7 @@ const getCyCounts = async (page: any) => {
 };
 
 test('Initial graph renders expected nodes and edges', async ({ page }) => {
-  let graphQueryResponse: any = null;
+  let graphQueryResponse: GraphQLResponse | null = null;
 
   // Listen to all console events from the page and print them
   page.on('console', msg => {
@@ -53,10 +54,10 @@ test('Initial graph renders expected nodes and edges', async ({ page }) => {
   // Add a small delay to allow CytoscapeComponent to process new elements
   await page.waitForTimeout(500); // Wait for 500ms
 
-  const cyInstanceExists = await page.evaluate(() => !!(window as any).cyInstance);
+  const cyInstanceExists = await page.evaluate(() => !!(window as TestWindow).cyInstance);
   console.log('[TEST LOG] Does window.cyInstance exist before waitForFunction?', cyInstanceExists);
   if (cyInstanceExists) {
-      const initialElementsInCy = await page.evaluate(() => (window as any).cyInstance.elements().length);
+      const initialElementsInCy = await page.evaluate(() => (window as TestWindow).cyInstance?.elements().length ?? 0);
       console.log('[TEST LOG] Elements count in cyInstance before waitForFunction:', initialElementsInCy);
   }
 
@@ -65,17 +66,17 @@ test('Initial graph renders expected nodes and edges', async ({ page }) => {
   try {
     await page.waitForFunction(
       (expectedElements) => {
-        const cy = (window as any).cyInstance;
+        const cy = (window as TestWindow).cyInstance;
         return cy && cy.elements().length === expectedElements;
       },
       23, // Expected 12 nodes + 11 edges
       { timeout: 15000 }
     );
-  } catch (e) {
+  } catch {
     console.log('Timeout waiting for elements to load. Captured graphQueryResponse:', JSON.stringify(graphQueryResponse, null, 2));
     // Log current cyInstance state if available
     const cyState = await page.evaluate(() => {
-      const cy = (window as any).cyInstance;
+      const cy = (window as TestWindow).cyInstance;
       return cy ? { nodes: cy.nodes().length, elements: cy.elements().length } : 'cyInstance not found';
     });
     console.log('cyInstance state on timeout:', cyState);
@@ -89,7 +90,9 @@ test('Initial graph renders expected nodes and edges', async ({ page }) => {
 
   // Additional check on the captured response
   expect(graphQueryResponse).toBeTruthy();
-  expect(graphQueryResponse.queryNode).toBeDefined(); // Check for queryNode directly
-  // Check if queryNode is an array, even if empty
-  expect(Array.isArray(graphQueryResponse.queryNode)).toBe(true); 
+  if (graphQueryResponse) {
+    expect(graphQueryResponse.queryNode).toBeDefined(); // Check for queryNode directly
+    // Check if queryNode is an array, even if empty
+    expect(Array.isArray(graphQueryResponse.queryNode)).toBe(true);
+  }
 });

@@ -104,7 +104,6 @@ describe('NodeFormModal', () => {
       />
     );
     
-    const typeSelect = screen.getByLabelText('Type');
     expect(screen.getByRole('option', { name: 'concept' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'example' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'question' })).toBeInTheDocument();

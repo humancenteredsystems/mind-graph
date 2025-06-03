@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useHierarchyContext } from '../context/HierarchyContext';
+import { useHierarchyContext } from '../hooks/useHierarchy';
 import { NodeData } from '../types/graph';
 import { resolveNodeHierarchyAssignment } from '../utils/graphUtils';
 
