@@ -9,23 +9,13 @@ import {
 } from './testUtilities';
 
 // Mock the contexts with proper exports
-vi.mock('../../src/context/UIContext', async (importOriginal) => {
-  const actual = await importOriginal() as Record<string, unknown>;
-  return {
-    ...actual,
-    UIProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="ui-provider">{children}</div>,
-    useUIContext: () => mockUIContextValue,
-  };
-});
+vi.mock('../../src/hooks/useUI', () => ({
+  useUIContext: () => mockUIContextValue,
+}));
 
-vi.mock('../../src/context/HierarchyContext', async (importOriginal) => {
-  const actual = await importOriginal() as Record<string, unknown>;
-  return {
-    ...actual,
-    HierarchyProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="hierarchy-provider">{children}</div>,
-    useHierarchyContext: () => mockHierarchyContextValue,
-  };
-});
+vi.mock('../../src/hooks/useHierarchy', () => ({
+  useHierarchyContext: () => mockHierarchyContextValue,
+}));
 
 vi.mock('../../src/context/ContextMenuContext', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;

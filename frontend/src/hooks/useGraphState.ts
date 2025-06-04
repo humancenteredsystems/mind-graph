@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useHierarchyContext } from '../context/HierarchyContext';
+import { useHierarchyContext } from './useHierarchy';
 import { fetchTraversalData, executeQuery } from '../services/ApiService';
 import { transformTraversalData, transformAllGraphData } from '../utils/graphUtils';
 import { GET_ALL_NODES_AND_EDGES_QUERY } from '../graphql/queries';

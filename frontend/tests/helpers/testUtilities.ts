@@ -2,13 +2,20 @@ import { vi } from 'vitest';
 
 // Create mock functions before vi.mock calls to avoid hoisting issues
 export const mockUIContextValue = {
-  isAddModalOpen: false,
-  isEditDrawerOpen: false,
-  editingNode: null,
+  addModalOpen: false,
+  addParentId: undefined,
   openAddModal: vi.fn(),
   closeAddModal: vi.fn(),
+  editDrawerOpen: false,
+  editNodeData: undefined,
   openEditDrawer: vi.fn(),
   closeEditDrawer: vi.fn(),
+  setEditNode: vi.fn(),
+  settingsModalOpen: false,
+  openSettingsModal: vi.fn(),
+  closeSettingsModal: vi.fn(),
+  systemStatus: null,
+  refreshSystemStatus: vi.fn(),
 };
 
 export const mockHierarchyContextValue = {
@@ -19,20 +26,20 @@ export const mockHierarchyContextValue = {
   hierarchyId: 'h1',
   setHierarchyId: vi.fn(),
   levels: [
-    { id: 'l1', levelNumber: 1, label: 'Domain', allowedTypes: ['concept'] },
-    { id: 'l2', levelNumber: 2, label: 'Category', allowedTypes: ['concept', 'example'] }
+    { id: 'l1', levelNumber: 1, label: 'Domain', allowedTypes: [{ id: 't1', typeName: 'concept' }] },
+    { id: 'l2', levelNumber: 2, label: 'Category', allowedTypes: [{ id: 't1', typeName: 'concept' }, { id: 't2', typeName: 'example' }] }
   ],
-  isLoading: false,
-  error: null,
+  allowedTypesMap: {},
+  allNodeTypes: ['concept', 'example'],
 };
 
 export const mockContextMenuContextValue = {
-  isVisible: false,
+  open: false,
+  type: undefined,
   position: { x: 0, y: 0 },
-  menuType: 'background',
-  selectedNodes: [],
-  showMenu: vi.fn(),
-  hideMenu: vi.fn(),
+  items: [],
+  openMenu: vi.fn(),
+  closeMenu: vi.fn(),
 };
 
 // Helper to wait for async operations

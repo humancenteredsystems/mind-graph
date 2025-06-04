@@ -1,5 +1,5 @@
 import React from 'react';
-import { useUIContext } from '../context/UIContext';
+import { useUIContext } from '../hooks/useUI';
 
 const SettingsIcon: React.FC = () => {
   const { openSettingsModal } = useUIContext();

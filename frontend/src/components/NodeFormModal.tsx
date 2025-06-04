@@ -1,6 +1,6 @@
 import React, { FC, useState, useEffect, useMemo } from 'react';
 import { NodeData } from '../types/graph';
-import { useHierarchyContext } from '../context/HierarchyContext';
+import { useHierarchyContext } from '../hooks/useHierarchy';
 import { useGraphState } from '../hooks/useGraphState';
 import { resolveNodeHierarchyAssignment } from '../utils/graphUtils';
 
