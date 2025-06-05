@@ -196,7 +196,7 @@ router.post('/admin/dropAll', authenticateAdmin, async (req: Request, res: Respo
  *   "clearFirst": boolean
  * }
  */
-router.post('/tenant/seed', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
+router.post('/admin/tenant/seed', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId = 'test-tenant', dataType = 'test', clearFirst = false } = req.body;
     
@@ -247,7 +247,7 @@ router.post('/tenant/seed', authenticateAdmin, async (req: Request, res: Respons
  *   "confirmTenantId": string  // Safety confirmation
  * }
  */
-router.post('/tenant/reset', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
+router.post('/admin/tenant/reset', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId, confirmTenantId } = req.body;
     
@@ -300,7 +300,7 @@ router.post('/tenant/reset', authenticateAdmin, async (req: Request, res: Respon
  * 
  * GET /api/admin/tenant/:tenantId/status
  */
-router.get('/tenant/:tenantId/status', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
+router.get('/admin/tenant/:tenantId/status', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId } = req.params;
     
@@ -346,7 +346,7 @@ router.get('/tenant/:tenantId/status', authenticateAdmin, async (req: Request, r
  * 
  * GET /api/admin/tenant/list
  */
-router.get('/tenant/list', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
+router.get('/admin/tenant/list', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     console.log('[ADMIN_TENANT] Listing all tenants');
     
@@ -380,6 +380,39 @@ router.get('/tenant/list', authenticateAdmin, async (req: Request, res: Response
     const err = error as Error;
     console.error('[ADMIN_TENANT] Failed to list tenants:', error);
     res.status(500).json(createErrorResponseFromError('Failed to list tenants', err));
+  }
+});
+
+/**
+ * Get schema content for a tenant
+ * 
+ * GET /api/admin/tenant/:tenantId/schema
+ */
+router.get('/admin/tenant/:tenantId/schema', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { tenantId } = req.params;
+    
+    if (!tenantId) {
+      res.status(400).json({ error: 'Missing tenantId parameter' });
+      return;
+    }
+    
+    console.log(`[ADMIN_TENANT] Getting schema content for tenant ${tenantId}`);
+    
+    // Get schema content for the tenant
+    const schemaContent = await tenantManager.getTenantSchemaContent(tenantId);
+    const schemaInfo = await tenantManager.getTenantSchemaInfo(tenantId);
+    
+    res.json({
+      tenantId,
+      schemaInfo,
+      content: schemaContent,
+      retrievedAt: new Date()
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[ADMIN_TENANT] Failed to get tenant schema:', error);
+    res.status(500).json(createErrorResponseFromError('Failed to get tenant schema', err));
   }
 });
 

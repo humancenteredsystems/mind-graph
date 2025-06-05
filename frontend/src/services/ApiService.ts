@@ -352,8 +352,9 @@ interface TenantInfo {
   exists: boolean;
   isTestTenant: boolean;
   isDefaultTenant: boolean;
-  health?: 'healthy' | 'not-accessible' | 'error';
-  error?: string;
+  health: 'healthy' | 'not-accessible' | 'error' | 'unknown';
+  healthDetails?: string;
+  mode?: 'OSS' | 'Enterprise';
 }
 
 /**
@@ -362,7 +363,7 @@ interface TenantInfo {
 const executeAdminRequest = async <T = any>(
   endpoint: string,
   data?: any,
-  method: 'GET' | 'POST' = 'POST',
+  method: 'GET' | 'POST' | 'DELETE' = 'POST',
   adminKey?: string
 ): Promise<T> => {
   try {
@@ -377,9 +378,14 @@ const executeAdminRequest = async <T = any>(
       ...(method === 'GET' ? { params: data } : {})
     };
 
-    const response = method === 'GET' 
-      ? await apiClient.get<T>(endpoint, config)
-      : await apiClient.post<T>(endpoint, data, config);
+    let response;
+    if (method === 'GET') {
+      response = await apiClient.get<T>(endpoint, config);
+    } else if (method === 'DELETE') {
+      response = await apiClient.delete<T>(endpoint, config);
+    } else {
+      response = await apiClient.post<T>(endpoint, data, config);
+    }
 
     return response.data;
   } catch (error) {
@@ -519,10 +525,45 @@ export const getTenantStatus = async (
 export const listTenants = async (
   adminKey: string
 ): Promise<{ tenants: TenantInfo[]; count: number }> => {
-  // Use the existing tenant endpoint that works
-  const tenants = await executeAdminRequest('/tenant', undefined, 'GET', adminKey);
+  // Use the updated admin tenant list endpoint
+  const result = await executeAdminRequest('/admin/tenant/list', undefined, 'GET', adminKey);
   return {
-    tenants: Array.isArray(tenants) ? tenants : [],
-    count: Array.isArray(tenants) ? tenants.length : 0
+    tenants: result.tenants || [],
+    count: result.count || 0
   };
+};
+
+/**
+ * Create a new tenant
+ */
+export const createTenant = async (
+  tenantId: string,
+  adminKey: string
+): Promise<{ message: string; tenant: TenantInfo; namespace: string }> => {
+  return executeAdminRequest('/tenant', { tenantId }, 'POST', adminKey);
+};
+
+/**
+ * Delete a tenant
+ */
+export const deleteTenant = async (
+  tenantId: string,
+  adminKey: string
+): Promise<{ message: string; tenantId: string }> => {
+  return executeAdminRequest(`/tenant/${tenantId}`, undefined, 'DELETE', adminKey);
+};
+
+/**
+ * Get schema content for a tenant
+ */
+export const getTenantSchema = async (
+  tenantId: string,
+  adminKey: string
+): Promise<{
+  tenantId: string;
+  schemaInfo: { id: string; name: string; isDefault: boolean; };
+  content: string;
+  retrievedAt: string;
+}> => {
+  return executeAdminRequest(`/admin/tenant/${tenantId}/schema`, undefined, 'GET', adminKey);
 };

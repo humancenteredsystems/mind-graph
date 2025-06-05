@@ -205,7 +205,7 @@ router.post('/admin/dropAll', auth_1.authenticateAdmin, async (req, res) => {
  *   "clearFirst": boolean
  * }
  */
-router.post('/tenant/seed', auth_1.authenticateAdmin, async (req, res) => {
+router.post('/admin/tenant/seed', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const { tenantId = 'test-tenant', dataType = 'test', clearFirst = false } = req.body;
         console.log(`[ADMIN_TENANT] Seeding data for tenant ${tenantId}, type: ${dataType}, clearFirst: ${clearFirst}`);
@@ -250,7 +250,7 @@ router.post('/tenant/seed', auth_1.authenticateAdmin, async (req, res) => {
  *   "confirmTenantId": string  // Safety confirmation
  * }
  */
-router.post('/tenant/reset', auth_1.authenticateAdmin, async (req, res) => {
+router.post('/admin/tenant/reset', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const { tenantId, confirmTenantId } = req.body;
         if (!tenantId) {
@@ -297,7 +297,7 @@ router.post('/tenant/reset', auth_1.authenticateAdmin, async (req, res) => {
  *
  * GET /api/admin/tenant/:tenantId/status
  */
-router.get('/tenant/:tenantId/status', auth_1.authenticateAdmin, async (req, res) => {
+router.get('/admin/tenant/:tenantId/status', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const { tenantId } = req.params;
         if (!tenantId) {
@@ -335,7 +335,7 @@ router.get('/tenant/:tenantId/status', auth_1.authenticateAdmin, async (req, res
  *
  * GET /api/admin/tenant/list
  */
-router.get('/tenant/list', auth_1.authenticateAdmin, async (req, res) => {
+router.get('/admin/tenant/list', auth_1.authenticateAdmin, async (req, res) => {
     try {
         console.log('[ADMIN_TENANT] Listing all tenants');
         const tenants = await tenantManager.listTenants();
@@ -366,6 +366,35 @@ router.get('/tenant/list', auth_1.authenticateAdmin, async (req, res) => {
         const err = error;
         console.error('[ADMIN_TENANT] Failed to list tenants:', error);
         res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to list tenants', err));
+    }
+});
+/**
+ * Get schema content for a tenant
+ *
+ * GET /api/admin/tenant/:tenantId/schema
+ */
+router.get('/admin/tenant/:tenantId/schema', auth_1.authenticateAdmin, async (req, res) => {
+    try {
+        const { tenantId } = req.params;
+        if (!tenantId) {
+            res.status(400).json({ error: 'Missing tenantId parameter' });
+            return;
+        }
+        console.log(`[ADMIN_TENANT] Getting schema content for tenant ${tenantId}`);
+        // Get schema content for the tenant
+        const schemaContent = await tenantManager.getTenantSchemaContent(tenantId);
+        const schemaInfo = await tenantManager.getTenantSchemaInfo(tenantId);
+        res.json({
+            tenantId,
+            schemaInfo,
+            content: schemaContent,
+            retrievedAt: new Date()
+        });
+    }
+    catch (error) {
+        const err = error;
+        console.error('[ADMIN_TENANT] Failed to get tenant schema:', error);
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to get tenant schema', err));
     }
 });
 exports.default = router;

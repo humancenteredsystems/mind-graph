@@ -347,6 +347,30 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
   const [tenants, setTenants] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [systemStatus, setSystemStatus] = useState<any>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newTenantId, setNewTenantId] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [schemaModal, setSchemaModal] = useState<{
+    isOpen: boolean;
+    tenantId: string;
+    schemaInfo?: { id: string; name: string; isDefault: boolean; };
+    content?: string;
+    loading: boolean;
+  }>({
+    isOpen: false,
+    tenantId: '',
+    loading: false
+  });
+
+  const loadSystemStatus = async () => {
+    try {
+      const status = await ApiService.fetchSystemStatus();
+      setSystemStatus(status);
+    } catch (error) {
+      console.error('Error loading system status:', error);
+    }
+  };
 
   const loadTenants = async () => {
     try {
@@ -362,6 +386,70 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
     }
   };
 
+  const validateTenantId = (tenantId: string): string | null => {
+    if (!tenantId.trim()) {
+      return 'Tenant ID is required';
+    }
+    if (tenantId.length < 3 || tenantId.length > 50) {
+      return 'Tenant ID must be 3-50 characters';
+    }
+    if (!/^[a-zA-Z0-9-_]+$/.test(tenantId)) {
+      return 'Tenant ID can only contain letters, numbers, hyphens, and underscores';
+    }
+    if (tenants.some(t => t.tenantId === tenantId)) {
+      return 'Tenant ID already exists';
+    }
+    return null;
+  };
+
+  const createTenant = async () => {
+    const validationError = validateTenantId(newTenantId);
+    if (validationError) {
+      setCreateError(validationError);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setCreateError(null);
+      await ApiService.createTenant(newTenantId, adminKey);
+      await loadTenants(); // Refresh the list
+      setNewTenantId('');
+      setShowCreateForm(false);
+      setError(null);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error || error?.message || 'Failed to create tenant';
+      setCreateError(errorMessage);
+      console.error('Error creating tenant:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteTenant = async (tenantId: string) => {
+    if (tenantId === 'default' || tenantId === 'test-tenant') {
+      setError('Cannot delete system tenants');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to DELETE tenant "${tenantId}"? This will permanently remove all data and cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await ApiService.deleteTenant(tenantId, adminKey);
+      await loadTenants(); // Refresh the list
+      setError(null);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error || error?.message || `Failed to delete tenant ${tenantId}`;
+      setError(errorMessage);
+      console.error('Error deleting tenant:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const resetTenant = async (tenantId: string) => {
     if (!confirm(`Are you sure you want to reset tenant "${tenantId}"? This will delete all data.`)) {
       return;
@@ -372,8 +460,9 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
       await ApiService.resetTenant(tenantId, adminKey);
       await loadTenants(); // Refresh the list
       setError(null);
-    } catch (error) {
-      setError(`Failed to reset tenant ${tenantId}`);
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error || error?.message || `Failed to reset tenant ${tenantId}`;
+      setError(errorMessage);
       console.error('Error resetting tenant:', error);
     } finally {
       setIsLoading(false);
@@ -381,28 +470,145 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
   };
 
   useEffect(() => {
+    loadSystemStatus();
     loadTenants();
   }, [adminKey]);
 
+  const isMultiTenantMode = systemStatus?.multiTenantVerified === true;
+
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h4 style={{ margin: 0, color: '#374151' }}>Tenants</h4>
-        <button
-          onClick={loadTenants}
-          disabled={isLoading}
-          style={{
-            padding: '6px 12px',
-            background: 'transparent',
-            border: '1px solid #d1d5db',
-            borderRadius: 4,
-            fontSize: 12,
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-          }}
-        >
-          Refresh
-        </button>
+      {/* Header with mode indicator and actions */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h4 style={{ margin: 0, color: '#374151' }}>Tenants</h4>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {isMultiTenantMode && (
+              <button
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                disabled={isLoading}
+                style={{
+                  padding: '6px 12px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  opacity: isLoading ? 0.6 : 1,
+                }}
+              >
+                {showCreateForm ? 'Cancel' : 'Add Tenant'}
+              </button>
+            )}
+            <button
+              onClick={loadTenants}
+              disabled={isLoading}
+              style={{
+                padding: '6px 12px',
+                background: 'transparent',
+                border: '1px solid #d1d5db',
+                borderRadius: 4,
+                fontSize: 12,
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+        
+        {/* Mode indicator */}
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+          Mode: {isMultiTenantMode ? 'Multi-tenant (Dgraph Enterprise)' : 'Single-tenant (Dgraph OSS)'}
+          {!isMultiTenantMode && (
+            <span style={{ color: '#f59e0b' }}> • Tenant management requires Dgraph Enterprise</span>
+          )}
+        </div>
       </div>
+
+      {/* Create tenant form */}
+      {showCreateForm && isMultiTenantMode && (
+        <div style={{
+          marginBottom: 16,
+          padding: 16,
+          border: '1px solid #e5e7eb',
+          borderRadius: 6,
+          background: '#f9fafb',
+        }}>
+          <h5 style={{ margin: '0 0 12px 0', color: '#374151', fontSize: 14 }}>Create New Tenant</h5>
+          <div style={{ marginBottom: 12 }}>
+            <input
+              type="text"
+              value={newTenantId}
+              onChange={(e) => {
+                setNewTenantId(e.target.value);
+                setCreateError(null);
+              }}
+              placeholder="Enter tenant ID (3-50 chars, alphanumeric, -, _)"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #d1d5db',
+                borderRadius: 4,
+                fontSize: 14,
+                boxSizing: 'border-box',
+              }}
+              disabled={isLoading}
+            />
+          </div>
+          
+          {createError && (
+            <div style={{
+              marginBottom: 12,
+              padding: 8,
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              borderRadius: 4,
+              color: '#dc2626',
+              fontSize: 12,
+            }}>
+              {createError}
+            </div>
+          )}
+          
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={createTenant}
+              disabled={isLoading || !newTenantId.trim()}
+              style={{
+                padding: '8px 16px',
+                background: !newTenantId.trim() || isLoading ? '#9ca3af' : '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                fontSize: 12,
+                cursor: !newTenantId.trim() || isLoading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isLoading ? 'Creating...' : 'Create Tenant'}
+            </button>
+            <button
+              onClick={() => {
+                setShowCreateForm(false);
+                setNewTenantId('');
+                setCreateError(null);
+              }}
+              disabled={isLoading}
+              style={{
+                padding: '8px 16px',
+                background: 'transparent',
+                border: '1px solid #d1d5db',
+                borderRadius: 4,
+                fontSize: 12,
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div style={{
@@ -438,43 +644,239 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                   <div style={{ color: '#6b7280', fontSize: 12 }}>Namespace: {tenant.namespace}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{
-                    padding: '2px 8px',
-                    borderRadius: 12,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    background: tenant.health === 'healthy' ? '#dcfce7' : '#fef2f2',
-                    color: tenant.health === 'healthy' ? '#166534' : '#dc2626',
-                  }}>
-                    {tenant.health || 'unknown'}
+                  <span 
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      background: tenant.health === 'healthy' ? '#dcfce7' : 
+                                 tenant.health === 'not-accessible' ? '#fef2f2' :
+                                 tenant.health === 'error' ? '#fef2f2' : '#f3f4f6',
+                      color: tenant.health === 'healthy' ? '#166534' : 
+                             tenant.health === 'not-accessible' ? '#dc2626' :
+                             tenant.health === 'error' ? '#dc2626' : '#6b7280',
+                      cursor: tenant.healthDetails ? 'help' : 'default',
+                    }}
+                    title={tenant.healthDetails || `Status: ${tenant.health}`}
+                  >
+                    {tenant.health}
                   </span>
-                  {tenant.tenantId !== 'default' && (
+                  
+                  {/* Action buttons - only show if multi-tenant mode */}
+                  {isMultiTenantMode && (
+                    <>
+                      {tenant.tenantId !== 'default' && (
+                        <button
+                          onClick={() => resetTenant(tenant.tenantId)}
+                          disabled={isLoading}
+                          style={{
+                            padding: '4px 8px',
+                            background: '#f59e0b',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 4,
+                            fontSize: 11,
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.6 : 1,
+                          }}
+                        >
+                          Reset
+                        </button>
+                      )}
+                      
+                      {tenant.tenantId !== 'default' && tenant.tenantId !== 'test-tenant' && (
+                        <button
+                          onClick={() => deleteTenant(tenant.tenantId)}
+                          disabled={isLoading}
+                          style={{
+                            padding: '4px 8px',
+                            background: '#dc2626',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 4,
+                            fontSize: 11,
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.6 : 1,
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+              
+              {/* Enhanced tenant information */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, color: '#6b7280' }}>
+                    Node Count: <strong>{tenant.nodeCount !== undefined ? tenant.nodeCount.toLocaleString() : 'Loading...'}</strong>
+                  </span>
+                  {tenant.schemaInfo && (
                     <button
-                      onClick={() => resetTenant(tenant.tenantId)}
-                      disabled={isLoading}
+                      onClick={async () => {
+                        setSchemaModal({
+                          isOpen: true,
+                          tenantId: tenant.tenantId,
+                          schemaInfo: tenant.schemaInfo,
+                          loading: true
+                        });
+                        
+                        try {
+                          const schemaData = await ApiService.getTenantSchema(tenant.tenantId, adminKey);
+                          setSchemaModal(prev => ({
+                            ...prev,
+                            content: schemaData.content,
+                            loading: false
+                          }));
+                        } catch (error) {
+                          console.error('Error loading schema:', error);
+                          setSchemaModal(prev => ({
+                            ...prev,
+                            content: 'Error loading schema content',
+                            loading: false
+                          }));
+                        }
+                      }}
                       style={{
-                        padding: '4px 8px',
-                        background: '#dc2626',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
+                        padding: '2px 6px',
+                        background: 'transparent',
+                        border: '1px solid #d1d5db',
+                        borderRadius: 3,
                         fontSize: 11,
-                        cursor: isLoading ? 'not-allowed' : 'pointer',
-                        opacity: isLoading ? 0.6 : 1,
+                        cursor: 'pointer',
+                        color: '#374151',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
                       }}
                     >
-                      Reset
+                      📄 {tenant.schemaInfo.name}
                     </button>
                   )}
                 </div>
               </div>
+              
               <div style={{ fontSize: 12, color: '#6b7280' }}>
                 {tenant.isTestTenant && <span>Test Tenant • </span>}
                 {tenant.isDefaultTenant && <span>Default Tenant • </span>}
                 {tenant.exists ? 'Accessible' : 'Not Accessible'}
+                {!isMultiTenantMode && <span> • Read-only (OSS mode)</span>}
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Schema Modal */}
+      {schemaModal.isOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 3000,
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 8,
+            width: '80%',
+            maxWidth: 800,
+            height: '80%',
+            overflow: 'hidden',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            {/* Schema Modal Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 20px',
+              borderBottom: '1px solid #e5e7eb',
+              background: '#f9fafb',
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
+                  Schema for Tenant: {schemaModal.tenantId}
+                </h3>
+                {schemaModal.schemaInfo && (
+                  <p style={{ margin: '4px 0 0 0', fontSize: 14, color: '#6b7280' }}>
+                    {schemaModal.schemaInfo.name} • {schemaModal.schemaInfo.isDefault ? 'Default Schema' : 'Custom Schema'}
+                  </p>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {schemaModal.content && (
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(schemaModal.content || '');
+                      // Could add a toast notification here
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Copy
+                  </button>
+                )}
+                <button
+                  onClick={() => setSchemaModal({ isOpen: false, tenantId: '', loading: false })}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: 20,
+                    cursor: 'pointer',
+                    color: '#6b7280',
+                    padding: 4,
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            {/* Schema Content */}
+            <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+              {schemaModal.loading ? (
+                <div style={{ textAlign: 'center', padding: 40 }}>
+                  <p style={{ color: '#6b7280' }}>Loading schema content...</p>
+                </div>
+              ) : (
+                <pre style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  padding: 16,
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  overflow: 'auto',
+                  margin: 0,
+                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                  color: '#374151',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}>
+                  {schemaModal.content || 'No schema content available'}
+                </pre>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

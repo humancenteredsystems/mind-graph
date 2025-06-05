@@ -44,7 +44,9 @@ class DgraphCapabilityDetector {
                 enterpriseDetected,
                 namespacesSupported,
                 detectedAt: new Date(),
-                error: undefined
+                error: undefined,
+                licenseType: licenseInfo.type,
+                licenseExpiry: licenseInfo.expiry
             };
             this.lastDetection = Date.now();
             console.log('[DGRAPH_CAPABILITIES] Detection complete:', this.cachedCapabilities);
@@ -52,12 +54,22 @@ class DgraphCapabilityDetector {
         }
         catch (error) {
             console.error('[DGRAPH_CAPABILITIES] Error detecting capabilities:', error.message);
+            // Try to get license info even if other detection fails
+            let fallbackLicenseInfo;
+            try {
+                fallbackLicenseInfo = await this.detectLicenseInfo();
+            }
+            catch (licenseError) {
+                fallbackLicenseInfo = { type: 'unknown', expiry: null };
+            }
             // Fallback to OSS assumptions on network errors
             this.cachedCapabilities = {
                 enterpriseDetected: false,
                 namespacesSupported: false,
                 detectedAt: new Date(),
-                error: error.message
+                error: error.message,
+                licenseType: fallbackLicenseInfo.type,
+                licenseExpiry: fallbackLicenseInfo.expiry
             };
             this.lastDetection = Date.now();
             return this.cachedCapabilities;
@@ -133,7 +145,13 @@ class DgraphCapabilityDetector {
             // Primary method: Check health endpoint for ee_features array
             const healthUrl = `${this.baseUrl}/health`;
             console.log(`[DGRAPH_CAPABILITIES] Testing health endpoint: ${healthUrl}`);
+            // Add admin authentication headers for internal requests
+            const headers = {};
+            if (process.env.ADMIN_API_KEY) {
+                headers['X-Admin-API-Key'] = process.env.ADMIN_API_KEY;
+            }
             const healthResponse = await axios_1.default.get(healthUrl, {
+                headers,
                 timeout: 5000,
                 validateStatus: (status) => status < 500
             });
@@ -179,7 +197,13 @@ class DgraphCapabilityDetector {
             // Test namespace support by trying to access admin schema with namespace parameter
             const testUrl = `${this.baseUrl}/admin/schema?namespace=0x1`;
             console.log(`[DGRAPH_CAPABILITIES] Testing namespace parameter: ${testUrl}`);
+            // Add admin authentication headers for internal requests
+            const headers = {};
+            if (process.env.ADMIN_API_KEY) {
+                headers['X-Admin-API-Key'] = process.env.ADMIN_API_KEY;
+            }
             const response = await axios_1.default.get(testUrl, {
+                headers,
                 timeout: 5000,
                 validateStatus: (status) => status < 500
             });

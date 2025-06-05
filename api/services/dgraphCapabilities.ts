@@ -72,7 +72,9 @@ export class DgraphCapabilityDetector {
         enterpriseDetected,
         namespacesSupported,
         detectedAt: new Date(),
-        error: undefined
+        error: undefined,
+        licenseType: licenseInfo.type,
+        licenseExpiry: licenseInfo.expiry
       };
       
       this.lastDetection = Date.now();
@@ -83,12 +85,22 @@ export class DgraphCapabilityDetector {
     } catch (error: any) {
       console.error('[DGRAPH_CAPABILITIES] Error detecting capabilities:', error.message);
       
+      // Try to get license info even if other detection fails
+      let fallbackLicenseInfo: LicenseInfo;
+      try {
+        fallbackLicenseInfo = await this.detectLicenseInfo();
+      } catch (licenseError) {
+        fallbackLicenseInfo = { type: 'unknown', expiry: null };
+      }
+      
       // Fallback to OSS assumptions on network errors
       this.cachedCapabilities = {
         enterpriseDetected: false,
         namespacesSupported: false,
         detectedAt: new Date(),
-        error: error.message
+        error: error.message,
+        licenseType: fallbackLicenseInfo.type,
+        licenseExpiry: fallbackLicenseInfo.expiry
       };
       
       this.lastDetection = Date.now();
@@ -173,7 +185,14 @@ export class DgraphCapabilityDetector {
       const healthUrl = `${this.baseUrl}/health`;
       console.log(`[DGRAPH_CAPABILITIES] Testing health endpoint: ${healthUrl}`);
       
+      // Add admin authentication headers for internal requests
+      const headers: Record<string, string> = {};
+      if (process.env.ADMIN_API_KEY) {
+        headers['X-Admin-API-Key'] = process.env.ADMIN_API_KEY;
+      }
+      
       const healthResponse: AxiosResponse<DgraphHealthResponse[] | DgraphHealthResponse> = await axios.get(healthUrl, {
+        headers,
         timeout: 5000,
         validateStatus: (status) => status < 500
       });
@@ -228,7 +247,14 @@ export class DgraphCapabilityDetector {
       const testUrl = `${this.baseUrl}/admin/schema?namespace=0x1`;
       console.log(`[DGRAPH_CAPABILITIES] Testing namespace parameter: ${testUrl}`);
       
+      // Add admin authentication headers for internal requests
+      const headers: Record<string, string> = {};
+      if (process.env.ADMIN_API_KEY) {
+        headers['X-Admin-API-Key'] = process.env.ADMIN_API_KEY;
+      }
+      
       const response = await axios.get(testUrl, {
+        headers,
         timeout: 5000,
         validateStatus: (status) => status < 500
       });

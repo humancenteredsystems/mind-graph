@@ -46,9 +46,14 @@ describe('TenantManager', () => {
         tenantId: 'test-tenant',
         namespace: '0x1',
         exists: expect.any(Boolean),
+        health: expect.any(String),
+        healthDetails: expect.any(String),
         isTestTenant: true,
         isDefaultTenant: false
       });
+      
+      // Verify health is one of the expected values
+      expect(['healthy', 'not-accessible', 'error', 'unknown']).toContain(info.health);
     });
 
     it('should identify default tenant', async () => {
@@ -58,9 +63,14 @@ describe('TenantManager', () => {
         tenantId: 'default',
         namespace: '0x0',
         exists: expect.any(Boolean),
+        health: expect.any(String),
+        healthDetails: expect.any(String),
         isTestTenant: false,
         isDefaultTenant: true
       });
+      
+      // Verify health is one of the expected values
+      expect(['healthy', 'not-accessible', 'error', 'unknown']).toContain(info.health);
     });
   });
 });

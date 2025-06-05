@@ -25,9 +25,9 @@ router.get('/system/status', async (req, res) => {
             namespace: tenantContext.namespace || null,
             mode: capabilities.namespacesSupported ? 'multi-tenant' : 'single-tenant',
             detectedAt: capabilities.detectedAt,
-            version: 'unknown', // TenantCapabilities doesn't include version
-            licenseType: 'unknown', // TenantCapabilities doesn't include licenseType
-            licenseExpiry: null, // TenantCapabilities doesn't include licenseExpiry
+            version: 'unknown', // Version detection not implemented yet
+            licenseType: capabilities.licenseType || 'unknown',
+            licenseExpiry: capabilities.licenseExpiry ? capabilities.licenseExpiry.toISOString() : null,
             detectionError: undefined
         };
         // Add error info if detection failed

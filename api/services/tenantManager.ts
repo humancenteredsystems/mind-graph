@@ -4,7 +4,7 @@ import { DgraphTenantFactory } from './dgraphTenant';
 import { pushSchemaViaHttp } from '../utils/pushSchema';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { TenantInfo, CreateTenantResponse } from '../src/types';
+import { TenantInfo, CreateTenantResponse, TenantHealthStatus } from '../src/types';
 
 // Interfaces for dependency injection
 interface TenantManagerDependencies {
@@ -263,20 +263,107 @@ export class TenantManager {
   }
 
   /**
-   * Check if a tenant exists
+   * Comprehensive health check for a tenant namespace
+   * @param tenantId - The tenant identifier
+   * @param namespace - The namespace to check
+   * @returns Health status and details
+   */
+  async checkTenantHealth(tenantId: string, namespace: string): Promise<{
+    health: TenantHealthStatus;
+    details?: string;
+  }> {
+    try {
+      const tenant = this.tenantFactory.createTenant(namespace);
+      
+      // Stage 1: Basic connectivity test
+      try {
+        const schemaQuery = `query { __schema { types { name } } }`;
+        const schemaResult = await tenant.executeGraphQL(schemaQuery);
+        
+        if (!schemaResult || !schemaResult.__schema) {
+          return {
+            health: 'error',
+            details: 'GraphQL schema introspection failed'
+          };
+        }
+      } catch (connectivityError) {
+        // Check if this is a namespace not found error vs other connectivity issues
+        const errorMessage = (connectivityError as Error).message || '';
+        if (errorMessage.includes('namespace') || errorMessage.includes('not found')) {
+          return {
+            health: 'not-accessible',
+            details: `Namespace ${namespace} not found in Dgraph`
+          };
+        }
+        return {
+          health: 'error',
+          details: `Connection failed: ${errorMessage}`
+        };
+      }
+      
+      // Stage 2: Schema verification - check for core types
+      try {
+        const coreTypeQuery = `query { __type(name: "Node") { name } }`;
+        const typeResult = await tenant.executeGraphQL(coreTypeQuery);
+        
+        if (!typeResult || !typeResult.__type) {
+          return {
+            health: 'error',
+            details: 'Core schema types not found - schema may not be initialized'
+          };
+        }
+      } catch (schemaError) {
+        return {
+          health: 'error',
+          details: `Schema verification failed: ${(schemaError as Error).message}`
+        };
+      }
+      
+      // Stage 3: Data accessibility test
+      try {
+        const dataQuery = `query { queryNode(first: 1) { id } }`;
+        await tenant.executeGraphQL(dataQuery);
+        
+        // If we get here, everything is working
+        return {
+          health: 'healthy',
+          details: 'All health checks passed'
+        };
+      } catch (dataError) {
+        // Data query failed, but connectivity and schema are OK
+        // This might be normal for empty tenants
+        const errorMessage = (dataError as Error).message || '';
+        if (errorMessage.includes('queryNode')) {
+          // This is likely just an empty tenant, which is still healthy
+          return {
+            health: 'healthy',
+            details: 'Namespace accessible, schema initialized (no data yet)'
+          };
+        }
+        return {
+          health: 'error',
+          details: `Data access test failed: ${errorMessage}`
+        };
+      }
+      
+    } catch (unexpectedError) {
+      return {
+        health: 'unknown',
+        details: `Unexpected error during health check: ${(unexpectedError as Error).message}`
+      };
+    }
+  }
+
+  /**
+   * Check if a tenant exists (legacy method for backward compatibility)
    * @param tenantId - The tenant identifier
    * @returns Whether the tenant exists
    */
   async tenantExists(tenantId: string): Promise<boolean> {
     try {
       const namespace = await this.getTenantNamespace(tenantId);
-      const tenant = this.tenantFactory.createTenant(namespace);
-      
-      // Try a simple query to check if namespace is accessible
-      const query = `query { __schema { types { name } } }`;
-      await tenant.executeGraphQL(query);
-      
-      return true;
+      const healthResult = await this.checkTenantHealth(tenantId, namespace);
+      return healthResult.health === 'healthy' || healthResult.health === 'error';
     } catch (error) {
       console.log(`[TENANT_MANAGER] Tenant ${tenantId} does not exist or is not accessible`);
       return false;
@@ -338,20 +425,129 @@ export class TenantManager {
   }
 
   /**
-   * Get tenant information
+   * Get node count for a tenant
    * @param tenantId - The tenant identifier
-   * @returns Tenant information
+   * @returns Number of nodes in the tenant
+   */
+  async getTenantNodeCount(tenantId: string): Promise<number> {
+    try {
+      const namespace = await this.getTenantNamespace(tenantId);
+      const tenant = this.tenantFactory.createTenant(namespace);
+      
+      const countQuery = `query { aggregateNode { count } }`;
+      const result = await tenant.executeGraphQL(countQuery);
+      
+      return result?.aggregateNode?.count || 0;
+    } catch (error) {
+      console.log(`[TENANT_MANAGER] Failed to get node count for tenant ${tenantId}:`, error);
+      return 0; // Return 0 if we can't get the count
+    }
+  }
+
+  /**
+   * Get schema information for a tenant
+   * @param tenantId - The tenant identifier
+   * @returns Schema information
+   */
+  async getTenantSchemaInfo(tenantId: string): Promise<{
+    id: string;
+    name: string;
+    isDefault: boolean;
+  }> {
+    try {
+      const namespace = await this.getTenantNamespace(tenantId);
+      const tenant = this.tenantFactory.createTenant(namespace);
+      
+      // Query the schema types to identify which schema is loaded
+      const schemaQuery = `query { __schema { types { name } } }`;
+      const result = await tenant.executeGraphQL(schemaQuery);
+      
+      if (!result?.__schema?.types) {
+        throw new Error('No schema found');
+      }
+      
+      // For now, assume default schema - in the future we could match against known schemas
+      // by comparing the type names against schema registry
+      return {
+        id: 'default',
+        name: 'Default Schema',
+        isDefault: true
+      };
+    } catch (error) {
+      console.log(`[TENANT_MANAGER] Failed to get schema info for tenant ${tenantId}:`, error);
+      return {
+        id: 'unknown',
+        name: 'Unknown Schema',
+        isDefault: false
+      };
+    }
+  }
+
+  /**
+   * Get the actual schema content for a tenant
+   * @param tenantId - The tenant identifier
+   * @returns The GraphQL schema content
+   */
+  async getTenantSchemaContent(tenantId: string): Promise<string> {
+    try {
+      // For now, return the default schema content
+      // In the future, this could detect and return the actual schema from the tenant
+      return await this.getDefaultSchema();
+    } catch (error) {
+      console.error(`[TENANT_MANAGER] Failed to get schema content for tenant ${tenantId}:`, error);
+      throw new Error(`Could not retrieve schema content for tenant ${tenantId}`);
+    }
+  }
+
+  /**
+   * Get tenant information with comprehensive health checking
+   * @param tenantId - The tenant identifier
+   * @returns Tenant information including health status
    */
   async getTenantInfo(tenantId: string): Promise<TenantInfo> {
     const namespace = await this.getTenantNamespace(tenantId);
-    const exists = await this.tenantExists(tenantId);
+    
+    // Perform comprehensive health check
+    const healthResult = await this.checkTenantHealth(tenantId, namespace);
+    
+    // Determine exists based on health status
+    const exists = healthResult.health === 'healthy' || healthResult.health === 'error';
+    
+    // Get additional stats if tenant is healthy
+    let nodeCount: number | undefined;
+    let schemaInfo: { id: string; name: string; isDefault: boolean; } | undefined;
+    
+    if (healthResult.health === 'healthy') {
+      try {
+        // Get node count and schema info in parallel
+        const [nodeCountResult, schemaInfoResult] = await Promise.allSettled([
+          this.getTenantNodeCount(tenantId),
+          this.getTenantSchemaInfo(tenantId)
+        ]);
+        
+        if (nodeCountResult.status === 'fulfilled') {
+          nodeCount = nodeCountResult.value;
+        }
+        
+        if (schemaInfoResult.status === 'fulfilled') {
+          schemaInfo = schemaInfoResult.value;
+        }
+      } catch (error) {
+        console.log(`[TENANT_MANAGER] Failed to get additional stats for tenant ${tenantId}:`, error);
+        // Continue without stats rather than failing
+      }
+    }
     
     return {
       tenantId,
       namespace,
       exists,
+      health: healthResult.health,
+      healthDetails: healthResult.details,
       isTestTenant: tenantId === 'test-tenant',
-      isDefaultTenant: tenantId === 'default'
+      isDefaultTenant: tenantId === 'default',
+      nodeCount,
+      schemaInfo
     };
   }
 

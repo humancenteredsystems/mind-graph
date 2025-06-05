@@ -1,12 +1,22 @@
 // Tenant and multi-tenancy related types
 
+export type TenantHealthStatus = 'healthy' | 'not-accessible' | 'error' | 'unknown';
+
 export interface TenantInfo {
   tenantId: string;
   namespace: string | null;
   isTestTenant: boolean;
   isDefaultTenant: boolean;
   exists: boolean;
+  health: TenantHealthStatus;
+  healthDetails?: string;
   mode?: 'OSS' | 'Enterprise';
+  nodeCount?: number;
+  schemaInfo?: {
+    id: string;
+    name: string;
+    isDefault: boolean;
+  };
 }
 
 export interface TenantCapabilities {
@@ -14,6 +24,8 @@ export interface TenantCapabilities {
   namespacesSupported: boolean;
   detectedAt: Date;
   error?: string;
+  licenseType?: 'oss-only' | 'oss-trial' | 'enterprise-licensed' | 'unknown';
+  licenseExpiry?: Date | null;
 }
 
 export interface CreateTenantRequest {
