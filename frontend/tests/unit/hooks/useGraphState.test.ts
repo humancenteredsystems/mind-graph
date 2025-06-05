@@ -36,35 +36,30 @@ describe('useGraphState', () => {
           id: 'node1',
           label: 'Test Node 1',
           type: 'concept',
-          hierarchyAssignments: [
+          assignments: [
             {
-              hierarchy: { id: 'test-hierarchy', name: 'Test Hierarchy' },
-              level: { id: 'level1', levelNumber: 1, label: 'Level 1' }
+              hierarchyId: 'test-hierarchy',
+              hierarchyName: 'Test Hierarchy',
+              levelId: 'level1',
+              levelNumber: 1
             }
           ],
-          outgoing: [
-            {
-              type: 'simple',
-              to: {
-                id: 'node2'
-              }
-            }
-          ]
         },
         {
           id: 'node2',
           label: 'Test Node 2',
           type: 'concept',
-          hierarchyAssignments: [
+          assignments: [
             {
-              hierarchy: { id: 'test-hierarchy', name: 'Test Hierarchy' },
-              level: { id: 'level2', levelNumber: 2, label: 'Level 2' }
+              hierarchyId: 'test-hierarchy',
+              hierarchyName: 'Test Hierarchy',
+              levelId: 'level2',
+              levelNumber: 2
             }
-          ],
-          outgoing: []
+          ]
         }
       ]
-    } as any);
+    });
 
     // Mock fetchTraversalData for loadInitialGraph
     vi.mocked(ApiService.fetchTraversalData).mockResolvedValue({

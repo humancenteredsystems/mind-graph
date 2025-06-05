@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useUIContext } from '../hooks/useUI';
 import * as ApiService from '../services/ApiService';
 
@@ -197,7 +197,7 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
         
         // For now, simulate since the endpoints aren't loaded
         throw new Error('Using simulation');
-      } catch (apiError) {
+      } catch {
         console.log('Using test simulation for', type);
         
         // Run simulated test
@@ -343,11 +343,39 @@ interface TenantsTabProps {
   adminKey: string;
 }
 
+interface TenantInfo {
+  tenantId: string;
+  namespace: string;
+  exists: boolean;
+  isTestTenant: boolean;
+  isDefaultTenant: boolean;
+  health: 'healthy' | 'not-accessible' | 'error' | 'unknown';
+  healthDetails?: string;
+  nodeCount?: number;
+  schemaInfo?: {
+    id: string;
+    name: string;
+    isDefault: boolean;
+  };
+}
+
+interface SystemStatus {
+  dgraphEnterprise: boolean;
+  multiTenantVerified: boolean;
+  currentTenant: string;
+  namespace: string | null;
+  mode: 'multi-tenant' | 'single-tenant';
+  detectedAt: string;
+  version?: string;
+  detectionError?: string;
+  namespacesSupported?: boolean;
+}
+
 const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
-  const [tenants, setTenants] = useState<any[]>([]);
+  const [tenants, setTenants] = useState<TenantInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [systemStatus, setSystemStatus] = useState<any>(null);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTenantId, setNewTenantId] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
@@ -372,7 +400,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
     }
   };
 
-  const loadTenants = async () => {
+  const loadTenants = useCallback(async () => {
     try {
       setIsLoading(true);
       const result = await ApiService.listTenants(adminKey);
@@ -384,7 +412,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [adminKey]);
 
   const validateTenantId = (tenantId: string): string | null => {
     if (!tenantId.trim()) {
@@ -417,8 +445,9 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
       setNewTenantId('');
       setShowCreateForm(false);
       setError(null);
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.error || error?.message || 'Failed to create tenant';
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.error || err?.message || 'Failed to create tenant';
       setCreateError(errorMessage);
       console.error('Error creating tenant:', error);
     } finally {
@@ -441,8 +470,9 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
       await ApiService.deleteTenant(tenantId, adminKey);
       await loadTenants(); // Refresh the list
       setError(null);
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.error || error?.message || `Failed to delete tenant ${tenantId}`;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.error || err?.message || `Failed to delete tenant ${tenantId}`;
       setError(errorMessage);
       console.error('Error deleting tenant:', error);
     } finally {
@@ -460,8 +490,9 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
       await ApiService.resetTenant(tenantId, adminKey);
       await loadTenants(); // Refresh the list
       setError(null);
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.error || error?.message || `Failed to reset tenant ${tenantId}`;
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.error || err?.message || `Failed to reset tenant ${tenantId}`;
       setError(errorMessage);
       console.error('Error resetting tenant:', error);
     } finally {
@@ -472,7 +503,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
   useEffect(() => {
     loadSystemStatus();
     loadTenants();
-  }, [adminKey]);
+  }, [adminKey, loadTenants]);
 
   const isMultiTenantMode = systemStatus?.multiTenantVerified === true;
 
@@ -731,14 +762,13 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                             content: schemaData.content,
                             loading: false
                           }));
-                        } catch (error) {
-                          console.error('Error loading schema:', error);
-                          setSchemaModal(prev => ({
-                            ...prev,
-                            content: 'Error loading schema content',
-                            loading: false
-                          }));
-                        }
+        } catch {
+          setSchemaModal(prev => ({
+            ...prev,
+            content: 'Error loading schema content',
+            loading: false
+          }));
+        }
                       }}
                       style={{
                         padding: '2px 6px',
@@ -902,14 +932,14 @@ const AdminModal: React.FC = () => {
       await ApiService.listTenants(key);
       
       // If successful, authenticate
-      const success = authenticateAdmin(key);
+      const success = authenticateAdmin();
       if (success) {
         setAdminKey(key);
         setLoginError(null);
       } else {
         setLoginError('Authentication failed');
       }
-    } catch (error) {
+    } catch {
       setLoginError('Invalid admin key');
     }
   };

@@ -4,30 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent } from '../../helpers/testUtils';
 import NodeFormModal from '../../../src/components/NodeFormModal';
 
-// Create mock data for hierarchy context
-const mockHierarchies = [
-  {
-    id: 'hierarchy1',
-    name: 'Test Hierarchy',
-    levels: [
-      {
-        id: 'level1',
-        levelNumber: 1,
-        label: 'Domain',
-        allowedTypes: ['concept', 'question']
-      },
-      {
-        id: 'level2',
-        levelNumber: 2,
-        label: 'Subdomain',
-        allowedTypes: ['example', 'concept']
-      }
-    ]
-  }
-];
 
-const mockLevels = mockHierarchies[0].levels;
-const mockAllNodeTypes = ['concept', 'example', 'question'];
 
 // Override the existing hierarchy context mock with our test-specific data
 vi.mock('../../../src/hooks/useHierarchy', () => ({

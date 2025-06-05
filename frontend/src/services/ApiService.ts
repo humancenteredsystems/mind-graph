@@ -360,9 +360,9 @@ interface TenantInfo {
 /**
  * Execute admin API request with authentication
  */
-const executeAdminRequest = async <T = any>(
+const executeAdminRequest = async <T = unknown>(
   endpoint: string,
-  data?: any,
+  data?: unknown,
   method: 'GET' | 'POST' | 'DELETE' = 'POST',
   adminKey?: string
 ): Promise<T> => {
@@ -446,7 +446,7 @@ export const getActiveTestRuns = async (
 export const createTestStreamConnection = (
   runId: string,
   adminKey: string,
-  onMessage: (data: any) => void,
+  onMessage: (data: unknown) => void,
   onError?: (error: Event) => void,
   onClose?: () => void
 ): EventSource => {
@@ -526,7 +526,7 @@ export const listTenants = async (
   adminKey: string
 ): Promise<{ tenants: TenantInfo[]; count: number }> => {
   // Use the updated admin tenant list endpoint
-  const result = await executeAdminRequest('/admin/tenant/list', undefined, 'GET', adminKey);
+  const result = await executeAdminRequest<{ tenants: TenantInfo[]; count: number }>('/admin/tenant/list', undefined, 'GET', adminKey);
   return {
     tenants: result.tenants || [],
     count: result.count || 0

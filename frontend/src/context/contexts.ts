@@ -88,7 +88,7 @@ interface UIContextValue {
   adminAuthenticated: boolean;
   openAdminModal: () => void;
   closeAdminModal: () => void;
-  authenticateAdmin: (key: string) => boolean;
+  authenticateAdmin: () => boolean;
   logoutAdmin: () => void;
   // System status
   systemStatus: SystemStatus | null;
