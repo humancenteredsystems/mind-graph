@@ -80,13 +80,15 @@ app.use('/api', validateTenantAccess);
 // Note: ensureTenant is applied selectively in routes that need it
 
 // Mount other route modules that require tenant context
+// Mount critical public routes first to avoid admin middleware conflicts
+app.use('/api', hierarchyRoutes);
 app.use('/api', graphqlRoutes);
 app.use('/api', schemaRoutes);
+app.use('/api', diagnosticRoutes);
+app.use('/api', tenantRoutes);
+// Mount admin routes last to prevent conflicts with public endpoints
 app.use('/api', adminRoutes);
 app.use('/api', adminTestRoutes);
-app.use('/api', diagnosticRoutes);
-app.use('/api', hierarchyRoutes);
-app.use('/api', tenantRoutes);
 
 export default app;
 

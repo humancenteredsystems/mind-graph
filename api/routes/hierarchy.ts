@@ -16,9 +16,9 @@ async function getTenantClient(req: Request) {
   return await adaptiveTenantFactory.createTenantFromContext(userContext);
 }
 
-// --- Hierarchy CRUD ---
+// --- PUBLIC HIERARCHY ROUTES (No authentication required) ---
 
-// Get all hierarchies
+// Get all hierarchies - PUBLIC ENDPOINT
 router.get('/hierarchy', async (req: Request, res: Response): Promise<void> => {
   const query = `
     query {
@@ -39,11 +39,10 @@ router.get('/hierarchy', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// Admin-protected routes
-router.use(authenticateAdmin);
+// --- ADMIN-PROTECTED HIERARCHY ROUTES ---
 
 // Create a new hierarchy
-router.post('/hierarchy', async (req: Request, res: Response): Promise<void> => {
+router.post('/hierarchy', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const { id, name }: { id: string; name: string } = req.body;
   if (!id || !name) {
     res.status(400).json({ error: 'Missing required fields: id and name' });
@@ -72,7 +71,7 @@ router.post('/hierarchy', async (req: Request, res: Response): Promise<void> => 
 });
 
 // Get hierarchy by ID
-router.get('/hierarchy/:id', async (req: Request, res: Response): Promise<void> => {
+router.get('/hierarchy/:id', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const idParam = req.params.id;
   const id = idParam; // ID is now a string
 
@@ -107,7 +106,7 @@ router.get('/hierarchy/:id', async (req: Request, res: Response): Promise<void> 
 });
 
 // Update an existing hierarchy
-router.put('/hierarchy/:id', async (req: Request, res: Response): Promise<void> => {
+router.put('/hierarchy/:id', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const idParam = req.params.id;
   const id = idParam; // ID is now a string
   const { name }: { name: string } = req.body;
@@ -143,7 +142,7 @@ router.put('/hierarchy/:id', async (req: Request, res: Response): Promise<void> 
 });
 
 // Delete a hierarchy
-router.delete('/hierarchy/:id', async (req: Request, res: Response): Promise<void> => {
+router.delete('/hierarchy/:id', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const idParam = req.params.id;
   const id = idParam; // ID is now a string
 
@@ -173,7 +172,7 @@ router.delete('/hierarchy/:id', async (req: Request, res: Response): Promise<voi
 // --- Hierarchy Level CRUD ---
 
 // Create a new hierarchy level
-router.post('/hierarchy/level', async (req: Request, res: Response): Promise<void> => {
+router.post('/hierarchy/level', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const { hierarchyId, levelNumber, label }: { hierarchyId: string; levelNumber: number; label: string } = req.body;
   if (!hierarchyId || !levelNumber || !label) {
     res.status(400).json({ error: 'Missing required fields: hierarchyId, levelNumber, and label' });
@@ -203,7 +202,7 @@ router.post('/hierarchy/level', async (req: Request, res: Response): Promise<voi
 });
 
 // Update an existing hierarchy level
-router.put('/hierarchy/level/:id', async (req: Request, res: Response): Promise<void> => {
+router.put('/hierarchy/level/:id', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const idParam = req.params.id;
   const id = idParam; // ID is now a string
   const { label }: { label: string } = req.body;
@@ -239,7 +238,7 @@ router.put('/hierarchy/level/:id', async (req: Request, res: Response): Promise<
 });
 
 // Delete a hierarchy level
-router.delete('/hierarchy/level/:id', async (req: Request, res: Response): Promise<void> => {
+router.delete('/hierarchy/level/:id', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const idParam = req.params.id;
   const id = idParam; // ID is now a string
 
@@ -269,7 +268,7 @@ router.delete('/hierarchy/level/:id', async (req: Request, res: Response): Promi
 // --- Hierarchy Assignment CRUD ---
 
 // Create a new hierarchy assignment
-router.post('/hierarchy/assignment', async (req: Request, res: Response): Promise<void> => {
+router.post('/hierarchy/assignment', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const { nodeId, hierarchyId, levelId }: { nodeId: string; hierarchyId: string; levelId: string } = req.body;
   if (!nodeId || !hierarchyId || !levelId) {
     res.status(400).json({ error: 'Missing required fields: nodeId, hierarchyId, and levelId' });
@@ -300,7 +299,7 @@ router.post('/hierarchy/assignment', async (req: Request, res: Response): Promis
 });
 
 // Delete a hierarchy assignment
-router.delete('/hierarchy/assignment/:id', async (req: Request, res: Response): Promise<void> => {
+router.delete('/hierarchy/assignment/:id', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const idParam = req.params.id;
   const id = idParam; // ID is now a string
 

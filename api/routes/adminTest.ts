@@ -5,9 +5,6 @@ import { createErrorResponseFromError } from '../utils/errorResponse';
 
 const router = express.Router();
 
-// All admin test routes require admin authentication
-router.use(authenticateAdmin);
-
 /**
  * Start a test run
  * 
@@ -21,7 +18,7 @@ router.use(authenticateAdmin);
  *   "coverage"?: boolean
  * }
  */
-router.post('/test', async (req: Request, res: Response): Promise<void> => {
+router.post('/test', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const options: TestRunOptions = req.body;
     
@@ -54,7 +51,7 @@ router.post('/test', async (req: Request, res: Response): Promise<void> => {
  * 
  * GET /api/admin/test/:runId
  */
-router.get('/test/:runId', async (req: Request, res: Response): Promise<void> => {
+router.get('/test/:runId', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { runId } = req.params;
     
@@ -83,7 +80,7 @@ router.get('/test/:runId', async (req: Request, res: Response): Promise<void> =>
  * 
  * POST /api/admin/test/:runId/stop
  */
-router.post('/test/:runId/stop', async (req: Request, res: Response): Promise<void> => {
+router.post('/test/:runId/stop', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { runId } = req.params;
     
@@ -118,7 +115,7 @@ router.post('/test/:runId/stop', async (req: Request, res: Response): Promise<vo
  * 
  * GET /api/admin/test
  */
-router.get('/test', async (req: Request, res: Response): Promise<void> => {
+router.get('/test', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const activeRuns = testRunner.getActiveRuns();
     
@@ -138,7 +135,7 @@ router.get('/test', async (req: Request, res: Response): Promise<void> => {
  * 
  * GET /api/admin/test/:runId/stream
  */
-router.get('/test/:runId/stream', async (req: Request, res: Response): Promise<void> => {
+router.get('/test/:runId/stream', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   const { runId } = req.params;
   
   if (!runId) {

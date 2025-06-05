@@ -52,7 +52,6 @@ router.get('/tenant/info', async (req: Request, res: Response): Promise<void> =>
 });
 
 // --- Admin-Protected Tenant Operations ---
-router.use(authenticateAdmin);
 
 /**
  * Create a new tenant
@@ -88,7 +87,7 @@ router.use(authenticateAdmin);
  * - 409: Tenant already exists
  * - 500: Schema initialization or hierarchy seeding failure
  */
-router.post('/tenant', ensureTenant, async (req: Request, res: Response): Promise<void> => {
+router.post('/tenant', authenticateAdmin, ensureTenant, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId }: { tenantId: string } = req.body;
     
@@ -120,8 +119,8 @@ router.post('/tenant', ensureTenant, async (req: Request, res: Response): Promis
   }
 });
 
-// List all tenants
-router.get('/tenant', async (req: Request, res: Response): Promise<void> => {
+// List all tenants (admin only)
+router.get('/tenant', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const tenants = await tenantManager.listTenants();
     res.json(tenants);
@@ -132,8 +131,8 @@ router.get('/tenant', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// Get specific tenant information
-router.get('/tenant/:tenantId', async (req: Request, res: Response): Promise<void> => {
+// Get specific tenant information (admin only)
+router.get('/tenant/:tenantId', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId } = req.params;
     const tenantInfo = await tenantManager.getTenantInfo(tenantId);
@@ -146,8 +145,8 @@ router.get('/tenant/:tenantId', async (req: Request, res: Response): Promise<voi
   }
 });
 
-// Delete a tenant
-router.delete('/tenant/:tenantId', async (req: Request, res: Response): Promise<void> => {
+// Delete a tenant (admin only)
+router.delete('/tenant/:tenantId', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId } = req.params;
     
@@ -178,8 +177,8 @@ router.delete('/tenant/:tenantId', async (req: Request, res: Response): Promise<
   }
 });
 
-// Initialize test tenant (for development)
-router.post('/tenant/test/init', async (req: Request, res: Response): Promise<void> => {
+// Initialize test tenant (for development) (admin only)
+router.post('/tenant/test/init', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const testTenantId = 'test-tenant';
     
@@ -209,8 +208,8 @@ router.post('/tenant/test/init', async (req: Request, res: Response): Promise<vo
   }
 });
 
-// Reset test tenant (clear all data)
-router.post('/tenant/test/reset', async (req: Request, res: Response): Promise<void> => {
+// Reset test tenant (clear all data) (admin only)
+router.post('/tenant/test/reset', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const testTenantId = 'test-tenant';
     
