@@ -52,7 +52,6 @@ router.get('/tenant/info', async (req, res) => {
     }
 });
 // --- Admin-Protected Tenant Operations ---
-router.use(auth_1.authenticateAdmin);
 /**
  * Create a new tenant
  *
@@ -87,7 +86,7 @@ router.use(auth_1.authenticateAdmin);
  * - 409: Tenant already exists
  * - 500: Schema initialization or hierarchy seeding failure
  */
-router.post('/tenant', tenantContext_1.ensureTenant, async (req, res) => {
+router.post('/tenant', auth_1.authenticateAdmin, tenantContext_1.ensureTenant, async (req, res) => {
     try {
         const { tenantId } = req.body;
         if (!tenantId) {
@@ -115,8 +114,8 @@ router.post('/tenant', tenantContext_1.ensureTenant, async (req, res) => {
         res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to create tenant', err));
     }
 });
-// List all tenants
-router.get('/tenant', async (req, res) => {
+// List all tenants (admin only)
+router.get('/tenant', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const tenants = await tenantManager.listTenants();
         res.json(tenants);
@@ -127,8 +126,8 @@ router.get('/tenant', async (req, res) => {
         res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to list tenants', err));
     }
 });
-// Get specific tenant information
-router.get('/tenant/:tenantId', async (req, res) => {
+// Get specific tenant information (admin only)
+router.get('/tenant/:tenantId', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const { tenantId } = req.params;
         const tenantInfo = await tenantManager.getTenantInfo(tenantId);
@@ -140,8 +139,8 @@ router.get('/tenant/:tenantId', async (req, res) => {
         res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to get tenant information', err));
     }
 });
-// Delete a tenant
-router.delete('/tenant/:tenantId', async (req, res) => {
+// Delete a tenant (admin only)
+router.delete('/tenant/:tenantId', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const { tenantId } = req.params;
         // Prevent deletion of system tenants
@@ -168,8 +167,8 @@ router.delete('/tenant/:tenantId', async (req, res) => {
         res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to delete tenant', err));
     }
 });
-// Initialize test tenant (for development)
-router.post('/tenant/test/init', async (req, res) => {
+// Initialize test tenant (for development) (admin only)
+router.post('/tenant/test/init', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const testTenantId = 'test-tenant';
         // Check if test tenant already exists
@@ -196,8 +195,8 @@ router.post('/tenant/test/init', async (req, res) => {
         res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to initialize test tenant', err));
     }
 });
-// Reset test tenant (clear all data)
-router.post('/tenant/test/reset', async (req, res) => {
+// Reset test tenant (clear all data) (admin only)
+router.post('/tenant/test/reset', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const testTenantId = 'test-tenant';
         // Delete and recreate test tenant

@@ -16,8 +16,8 @@ async function getTenantClient(req) {
     } : null;
     return await adaptiveTenantFactory_1.adaptiveTenantFactory.createTenantFromContext(userContext);
 }
-// --- Hierarchy CRUD ---
-// Get all hierarchies
+// --- PUBLIC HIERARCHY ROUTES (No authentication required) ---
+// Get all hierarchies - PUBLIC ENDPOINT
 router.get('/hierarchy', async (req, res) => {
     const query = `
     query {
@@ -38,10 +38,9 @@ router.get('/hierarchy', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch hierarchies', details: err.message });
     }
 });
-// Admin-protected routes
-router.use(auth_1.authenticateAdmin);
+// --- ADMIN-PROTECTED HIERARCHY ROUTES ---
 // Create a new hierarchy
-router.post('/hierarchy', async (req, res) => {
+router.post('/hierarchy', auth_1.authenticateAdmin, async (req, res) => {
     const { id, name } = req.body;
     if (!id || !name) {
         res.status(400).json({ error: 'Missing required fields: id and name' });
@@ -70,7 +69,7 @@ router.post('/hierarchy', async (req, res) => {
     }
 });
 // Get hierarchy by ID
-router.get('/hierarchy/:id', async (req, res) => {
+router.get('/hierarchy/:id', auth_1.authenticateAdmin, async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     // Basic validation for non-empty string ID
@@ -103,7 +102,7 @@ router.get('/hierarchy/:id', async (req, res) => {
     }
 });
 // Update an existing hierarchy
-router.put('/hierarchy/:id', async (req, res) => {
+router.put('/hierarchy/:id', auth_1.authenticateAdmin, async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     const { name } = req.body;
@@ -138,7 +137,7 @@ router.put('/hierarchy/:id', async (req, res) => {
     }
 });
 // Delete a hierarchy
-router.delete('/hierarchy/:id', async (req, res) => {
+router.delete('/hierarchy/:id', auth_1.authenticateAdmin, async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     if (typeof id !== 'string' || !id.trim()) {
@@ -166,7 +165,7 @@ router.delete('/hierarchy/:id', async (req, res) => {
 });
 // --- Hierarchy Level CRUD ---
 // Create a new hierarchy level
-router.post('/hierarchy/level', async (req, res) => {
+router.post('/hierarchy/level', auth_1.authenticateAdmin, async (req, res) => {
     const { hierarchyId, levelNumber, label } = req.body;
     if (!hierarchyId || !levelNumber || !label) {
         res.status(400).json({ error: 'Missing required fields: hierarchyId, levelNumber, and label' });
@@ -196,7 +195,7 @@ router.post('/hierarchy/level', async (req, res) => {
     }
 });
 // Update an existing hierarchy level
-router.put('/hierarchy/level/:id', async (req, res) => {
+router.put('/hierarchy/level/:id', auth_1.authenticateAdmin, async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     const { label } = req.body;
@@ -231,7 +230,7 @@ router.put('/hierarchy/level/:id', async (req, res) => {
     }
 });
 // Delete a hierarchy level
-router.delete('/hierarchy/level/:id', async (req, res) => {
+router.delete('/hierarchy/level/:id', auth_1.authenticateAdmin, async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     if (typeof id !== 'string' || !id.trim()) {
@@ -259,7 +258,7 @@ router.delete('/hierarchy/level/:id', async (req, res) => {
 });
 // --- Hierarchy Assignment CRUD ---
 // Create a new hierarchy assignment
-router.post('/hierarchy/assignment', async (req, res) => {
+router.post('/hierarchy/assignment', auth_1.authenticateAdmin, async (req, res) => {
     const { nodeId, hierarchyId, levelId } = req.body;
     if (!nodeId || !hierarchyId || !levelId) {
         res.status(400).json({ error: 'Missing required fields: nodeId, hierarchyId, and levelId' });
@@ -290,7 +289,7 @@ router.post('/hierarchy/assignment', async (req, res) => {
     }
 });
 // Delete a hierarchy assignment
-router.delete('/hierarchy/assignment/:id', async (req, res) => {
+router.delete('/hierarchy/assignment/:id', auth_1.authenticateAdmin, async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     if (typeof id !== 'string' || !id.trim()) {

@@ -69,13 +69,15 @@ app.use('/api', tenantContext_1.setTenantContext);
 app.use('/api', tenantContext_1.validateTenantAccess);
 // Note: ensureTenant is applied selectively in routes that need it
 // Mount other route modules that require tenant context
+// Mount critical public routes first to avoid admin middleware conflicts
+app.use('/api', hierarchy_1.default);
 app.use('/api', graphql_1.default);
 app.use('/api', schema_1.default);
+app.use('/api', diagnostic_1.default);
+app.use('/api', tenants_1.default);
+// Mount admin routes last to prevent conflicts with public endpoints
 app.use('/api', admin_1.default);
 app.use('/api', adminTest_1.default);
-app.use('/api', diagnostic_1.default);
-app.use('/api', hierarchy_1.default);
-app.use('/api', tenants_1.default);
 exports.default = app;
 // Start the server only if this file is run directly
 if (require.main === module) {

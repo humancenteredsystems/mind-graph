@@ -8,8 +8,6 @@ const auth_1 = require("../middleware/auth");
 const testRunner_1 = require("../services/testRunner");
 const errorResponse_1 = require("../utils/errorResponse");
 const router = express_1.default.Router();
-// All admin test routes require admin authentication
-router.use(auth_1.authenticateAdmin);
 /**
  * Start a test run
  *
@@ -23,7 +21,7 @@ router.use(auth_1.authenticateAdmin);
  *   "coverage"?: boolean
  * }
  */
-router.post('/test', async (req, res) => {
+router.post('/test', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const options = req.body;
         // Validate required fields
@@ -52,7 +50,7 @@ router.post('/test', async (req, res) => {
  *
  * GET /api/admin/test/:runId
  */
-router.get('/test/:runId', async (req, res) => {
+router.get('/test/:runId', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const { runId } = req.params;
         if (!runId) {
@@ -77,7 +75,7 @@ router.get('/test/:runId', async (req, res) => {
  *
  * POST /api/admin/test/:runId/stop
  */
-router.post('/test/:runId/stop', async (req, res) => {
+router.post('/test/:runId/stop', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const { runId } = req.params;
         if (!runId) {
@@ -107,7 +105,7 @@ router.post('/test/:runId/stop', async (req, res) => {
  *
  * GET /api/admin/test
  */
-router.get('/test', async (req, res) => {
+router.get('/test', auth_1.authenticateAdmin, async (req, res) => {
     try {
         const activeRuns = testRunner_1.testRunner.getActiveRuns();
         res.json({
@@ -126,7 +124,7 @@ router.get('/test', async (req, res) => {
  *
  * GET /api/admin/test/:runId/stream
  */
-router.get('/test/:runId/stream', async (req, res) => {
+router.get('/test/:runId/stream', auth_1.authenticateAdmin, async (req, res) => {
     const { runId } = req.params;
     if (!runId) {
         res.status(400).json({ error: 'Missing runId parameter' });
