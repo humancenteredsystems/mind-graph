@@ -118,19 +118,51 @@ interface TestsTabProps {
 
 interface TestResult {
   id: string;
-  type: 'unit' | 'integration' | 'integration-real';
+  type: 'unit' | 'integration' | 'integration-real' | 'linting';
   status: 'running' | 'completed' | 'failed';
   startTime: Date;
   endTime?: Date;
   passed: number;
   failed: number;
   total: number;
+  lintResults?: {
+    frontend: LintProjectResult;
+    backend: LintProjectResult;
+    summary: {
+      totalErrors: number;
+      totalWarnings: number;
+      totalFiles: number;
+    };
+  };
+}
+
+interface LintProjectResult {
+  errors: number;
+  warnings: number;
+  files: LintFile[];
+  configured: boolean;
+}
+
+interface LintFile {
+  filePath: string;
+  errorCount: number;
+  warningCount: number;
+  issues: LintIssue[];
+}
+
+interface LintIssue {
+  line: number;
+  column: number;
+  rule: string;
+  severity: 'error' | 'warning';
+  message: string;
 }
 
 const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [runningTests, setRunningTests] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
 
   const generateTestId = (type: string) => `${type}-${Date.now()}`;
 
@@ -165,6 +197,75 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
     result.failed = scenario.failed;
 
     return result;
+  };
+
+  const startLinting = async () => {
+    if (runningTests.has('linting')) {
+      return; // Linting already running
+    }
+
+    const testId = generateTestId('linting');
+    setRunningTests(prev => new Set(prev).add('linting'));
+    setError(null);
+
+    // Add running linting to results
+    const runningResult: TestResult = {
+      id: testId,
+      type: 'linting',
+      status: 'running',
+      startTime: new Date(),
+      passed: 0,
+      failed: 0,
+      total: 0
+    };
+
+    setTestResults(prev => [runningResult, ...prev]);
+
+    try {
+      console.log('Starting linting operation');
+      const lintResult = await ApiService.runLinting(adminKey);
+      
+      // Calculate passed/failed based on linting results
+      const hasErrors = lintResult.results.summary.totalErrors > 0;
+      
+      const completedResult: TestResult = {
+        id: testId,
+        type: 'linting',
+        status: hasErrors ? 'failed' : 'completed',
+        startTime: runningResult.startTime,
+        endTime: new Date(),
+        passed: hasErrors ? 0 : 1,
+        failed: hasErrors ? 1 : 0,
+        total: 1,
+        lintResults: lintResult.results
+      };
+      
+      // Update the result in the list
+      setTestResults(prev => 
+        prev.map(r => r.id === testId ? completedResult : r)
+      );
+      
+      console.log('Linting completed:', lintResult.results.summary);
+    } catch (error) {
+      // Mark linting as failed
+      setTestResults(prev => 
+        prev.map(r => r.id === testId ? {
+          ...r,
+          status: 'failed' as const,
+          endTime: new Date(),
+          failed: 1,
+          total: 1
+        } : r)
+      );
+      setError('Failed to run linting');
+      console.error('Error running linting:', error);
+    } finally {
+      setRunningTests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete('linting');
+        return newSet;
+      });
+    }
   };
 
   const startTest = async (type: 'unit' | 'integration' | 'integration-real') => {
@@ -237,6 +338,15 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
     };
   };
 
+  const getLintingButtonState = () => {
+    const isRunning = runningTests.has('linting');
+    return {
+      disabled: isRunning,
+      text: isRunning ? 'Running...' : 'Linting',
+      opacity: isRunning ? 0.6 : 1
+    };
+  };
+
   return (
     <div style={{ padding: 20 }}>
       <div style={{ marginBottom: 20 }}>
@@ -271,6 +381,30 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
               </button>
             );
           })}
+          
+          {/* Linting Button */}
+          {(() => {
+            const lintingButtonState = getLintingButtonState();
+            return (
+              <button
+                onClick={startLinting}
+                disabled={lintingButtonState.disabled}
+                style={{
+                  padding: '8px 16px',
+                  background: '#f59e0b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: lintingButtonState.disabled ? 'not-allowed' : 'pointer',
+                  opacity: lintingButtonState.opacity,
+                }}
+              >
+                {lintingButtonState.text}
+              </button>
+            );
+          })()}
         </div>
       </div>
 
@@ -325,9 +459,151 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
                   Started: {result.startTime.toLocaleTimeString()}
                   {result.endTime && ` • Completed: ${result.endTime.toLocaleTimeString()}`}
                 </div>
-                {result.status !== 'running' && result.total > 0 && (
+                {result.status !== 'running' && result.type !== 'linting' && result.total > 0 && (
                   <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
                     <strong>{result.passed} passed, {result.failed} failed</strong> ({result.total} total)
+                  </div>
+                )}
+                
+                {/* Special display for linting results */}
+                {result.type === 'linting' && result.status !== 'running' && result.lintResults && (
+                  <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
+                    <strong>
+                      Frontend: {result.lintResults.frontend.configured 
+                        ? `${result.lintResults.frontend.files.length} files checked`
+                        : 'Not configured'
+                      }
+                    </strong>
+                    <span> • </span>
+                    <strong>
+                      Backend: {result.lintResults.backend.configured 
+                        ? `${result.lintResults.backend.files.length} files checked`
+                        : 'Not configured'
+                      }
+                    </strong>
+                  </div>
+                )}
+                
+                {/* Linting Results Summary */}
+                {result.type === 'linting' && result.lintResults && result.status !== 'running' && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      marginBottom: 4
+                    }}>
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>
+                        <strong>
+                          {result.lintResults.summary.totalErrors} errors, {result.lintResults.summary.totalWarnings} warnings
+                        </strong>
+                        {result.lintResults.summary.totalFiles > 0 && ` across ${result.lintResults.summary.totalFiles} files`}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newExpanded = new Set(expandedResults);
+                          if (newExpanded.has(result.id)) {
+                            newExpanded.delete(result.id);
+                          } else {
+                            newExpanded.add(result.id);
+                          }
+                          setExpandedResults(newExpanded);
+                        }}
+                        style={{
+                          background: 'none',
+                          border: '1px solid #d1d5db',
+                          borderRadius: 3,
+                          padding: '2px 6px',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          color: '#6b7280',
+                        }}
+                      >
+                        {expandedResults.has(result.id) ? 'Hide Details' : 'Show Details'}
+                      </button>
+                    </div>
+                    
+                    {/* Expanded Linting Details */}
+                    {expandedResults.has(result.id) && (
+                      <div style={{
+                        marginTop: 8,
+                        padding: 12,
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 4,
+                        fontSize: 12,
+                      }}>
+                        {/* Frontend Results */}
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                            Frontend: {result.lintResults.frontend.errors} errors, {result.lintResults.frontend.warnings} warnings
+                          </div>
+                          {result.lintResults.frontend.files.length > 0 ? (
+                            <div style={{ marginLeft: 8 }}>
+                              {result.lintResults.frontend.files.map((file, index) => (
+                                <div key={index} style={{ marginBottom: 6 }}>
+                                  <div style={{ fontWeight: 500, color: '#6b7280' }}>
+                                    {file.filePath.replace(/^.*\/frontend\//, '')} 
+                                    ({file.errorCount} errors, {file.warningCount} warnings)
+                                  </div>
+                                  {file.issues.slice(0, 3).map((issue, issueIndex) => (
+                                    <div key={issueIndex} style={{ 
+                                      marginLeft: 12, 
+                                      marginTop: 2,
+                                      color: issue.severity === 'error' ? '#dc2626' : '#f59e0b'
+                                    }}>
+                                      Line {issue.line}: {issue.message} ({issue.rule})
+                                    </div>
+                                  ))}
+                                  {file.issues.length > 3 && (
+                                    <div style={{ marginLeft: 12, color: '#6b7280', fontStyle: 'italic' }}>
+                                      ... and {file.issues.length - 3} more issues
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ marginLeft: 8, color: '#10b981' }}>✓ No issues found</div>
+                          )}
+                        </div>
+                        
+                        {/* Backend Results */}
+                        <div>
+                          <div style={{ fontWeight: 500, marginBottom: 4, color: '#374151' }}>
+                            Backend: {result.lintResults.backend.errors} errors, {result.lintResults.backend.warnings} warnings
+                          </div>
+                          {result.lintResults.backend.files.length > 0 ? (
+                            <div style={{ marginLeft: 8 }}>
+                              {result.lintResults.backend.files.map((file, index) => (
+                                <div key={index} style={{ marginBottom: 6 }}>
+                                  <div style={{ fontWeight: 500, color: '#6b7280' }}>
+                                    {file.filePath.replace(/^.*\/api\//, '')} 
+                                    ({file.errorCount} errors, {file.warningCount} warnings)
+                                  </div>
+                                  {file.issues.slice(0, 3).map((issue, issueIndex) => (
+                                    <div key={issueIndex} style={{ 
+                                      marginLeft: 12, 
+                                      marginTop: 2,
+                                      color: issue.severity === 'error' ? '#dc2626' : '#f59e0b'
+                                    }}>
+                                      Line {issue.line}: {issue.message} ({issue.rule})
+                                    </div>
+                                  ))}
+                                  {file.issues.length > 3 && (
+                                    <div style={{ marginLeft: 12, color: '#6b7280', fontStyle: 'italic' }}>
+                                      ... and {file.issues.length - 3} more issues
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ marginLeft: 8, color: '#10b981' }}>✓ No issues found</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

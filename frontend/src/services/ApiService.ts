@@ -325,7 +325,7 @@ export const fetchAllNodeIds = async (): Promise<string[]> => {
 // -------------------------------------------------------------------
 
 interface TestRunOptions {
-  type: 'unit' | 'integration' | 'integration-real' | 'all';
+  type: 'unit' | 'integration' | 'integration-real' | 'linting' | 'all';
   tenantId?: string;
   pattern?: string;
   coverage?: boolean;
@@ -344,6 +344,37 @@ interface TestRunResult {
     total: number;
     suites: number;
   };
+  lintResults?: {
+    frontend: LintProjectResult;
+    backend: LintProjectResult;
+    summary: {
+      totalErrors: number;
+      totalWarnings: number;
+      totalFiles: number;
+    };
+  };
+}
+
+interface LintProjectResult {
+  errors: number;
+  warnings: number;
+  files: LintFile[];
+  configured: boolean;
+}
+
+interface LintFile {
+  filePath: string;
+  errorCount: number;
+  warningCount: number;
+  issues: LintIssue[];
+}
+
+interface LintIssue {
+  line: number;
+  column: number;
+  rule: string;
+  severity: 'error' | 'warning';
+  message: string;
 }
 
 interface TenantInfo {
@@ -566,4 +597,25 @@ export const getTenantSchema = async (
   retrievedAt: string;
 }> => {
   return executeAdminRequest(`/admin/tenant/${tenantId}/schema`, undefined, 'GET', adminKey);
+};
+
+/**
+ * Run linting on frontend and backend code
+ */
+export const runLinting = async (
+  adminKey: string
+): Promise<{
+  success: boolean;
+  results: {
+    frontend: LintProjectResult;
+    backend: LintProjectResult;
+    summary: {
+      totalErrors: number;
+      totalWarnings: number;
+      totalFiles: number;
+    };
+  };
+  executedAt: string;
+}> => {
+  return executeAdminRequest('/admin/test/lint', {}, 'POST', adminKey);
 };
