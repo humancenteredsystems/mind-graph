@@ -1,7 +1,9 @@
 import express, { Request, Response } from 'express';
-import { TenantManager } from '../services/tenantManager';
+import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
 import { authenticateAdmin } from '../middleware/auth';
+import { createErrorResponseFromError } from '../utils/errorResponse';
 import { ensureTenant } from '../middleware/tenantContext';
+import { TenantManager } from '../services/tenantManager';
 
 const router = express.Router();
 const tenantManager = new TenantManager();
@@ -45,7 +47,7 @@ router.get('/tenant/info', async (req: Request, res: Response): Promise<void> =>
   } catch (error) {
     const err = error as Error;
     console.error('[TENANT_INFO] Error:', err);
-    res.status(500).json({ error: 'Failed to get tenant information' });
+    res.status(500).json(createErrorResponseFromError('Failed to get tenant information', err));
   }
 });
 
@@ -114,7 +116,7 @@ router.post('/tenant', ensureTenant, async (req: Request, res: Response): Promis
   } catch (error) {
     const err = error as Error;
     console.error('[CREATE_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to create tenant' });
+    res.status(500).json(createErrorResponseFromError('Failed to create tenant', err));
   }
 });
 
@@ -126,7 +128,7 @@ router.get('/tenant', async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     const err = error as Error;
     console.error('[LIST_TENANTS] Error:', err);
-    res.status(500).json({ error: 'Failed to list tenants' });
+    res.status(500).json(createErrorResponseFromError('Failed to list tenants', err));
   }
 });
 
@@ -140,7 +142,7 @@ router.get('/tenant/:tenantId', async (req: Request, res: Response): Promise<voi
   } catch (error) {
     const err = error as Error;
     console.error('[GET_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to get tenant information' });
+    res.status(500).json(createErrorResponseFromError('Failed to get tenant information', err));
   }
 });
 
@@ -172,7 +174,7 @@ router.delete('/tenant/:tenantId', async (req: Request, res: Response): Promise<
   } catch (error) {
     const err = error as Error;
     console.error('[DELETE_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to delete tenant' });
+    res.status(500).json(createErrorResponseFromError('Failed to delete tenant', err));
   }
 });
 
@@ -203,7 +205,7 @@ router.post('/tenant/test/init', async (req: Request, res: Response): Promise<vo
   } catch (error) {
     const err = error as Error;
     console.error('[INIT_TEST_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to initialize test tenant' });
+    res.status(500).json(createErrorResponseFromError('Failed to initialize test tenant', err));
   }
 });
 
@@ -225,7 +227,7 @@ router.post('/tenant/test/reset', async (req: Request, res: Response): Promise<v
   } catch (error) {
     const err = error as Error;
     console.error('[RESET_TEST_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to reset test tenant' });
+    res.status(500).json(createErrorResponseFromError('Failed to reset test tenant', err));
   }
 });
 

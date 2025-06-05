@@ -108,10 +108,10 @@ router.post('/admin/schema', authenticateAdmin, async (req: Request, res: Respon
       console.error('[SCHEMA PUSH] Push failed:', result.error);
       res.status(500).json({ success: false, message: 'Schema push encountered errors', results: result });
     }
-  } catch (err) {
-    console.error('[SCHEMA PUSH] Error:', err);
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    res.status(500).json({ success: false, message: errorMessage });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[ADMIN] Failed to push schema:', error);
+    res.status(500).json({ error: 'Failed to push schema', details: err.message });
   }
 });
 
@@ -172,9 +172,9 @@ router.post('/admin/dropAll', authenticateAdmin, async (req: Request, res: Respo
       res.status(500).json(response);
     }
   } catch (error) {
-    console.error('[DROP ALL] Error in endpoint handler:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    res.status(500).json({ success: false, message: errorMessage });
+    const err = error as Error;
+    console.error('[ADMIN] Failed to drop all data:', error);
+    res.status(500).json({ error: 'Failed to drop all data', details: err.message });
   }
 });
 

@@ -41,7 +41,7 @@ router.get('/system/status', async (req: Request, res: Response): Promise<void> 
     res.json(systemStatus);
   } catch (error) {
     const err = error as Error;
-    console.error('[SYSTEM_STATUS] Error getting system status:', err);
+    console.error('[SYSTEM_STATUS] Failed to get system status:', error);
     res.status(500).json({ 
       error: 'Failed to get system status',
       details: err.message 
@@ -68,7 +68,7 @@ router.post('/system/refresh', async (req: Request, res: Response): Promise<void
     });
   } catch (error) {
     const err = error as Error;
-    console.error('[SYSTEM_REFRESH] Error refreshing capabilities:', err);
+    console.error('[SYSTEM_REFRESH] Failed to refresh system capabilities:', error);
     res.status(500).json({ 
       error: 'Failed to refresh system capabilities',
       details: err.message 
@@ -91,7 +91,7 @@ router.get('/system/health', async (req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     const err = error as Error;
-    console.error('[SYSTEM_HEALTH] Error getting health status:', err);
+    console.error('[SYSTEM_HEALTH] Failed to get health status:', error);
     res.status(500).json({ 
       status: 'unhealthy',
       error: err.message,

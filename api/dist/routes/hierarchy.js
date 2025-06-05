@@ -34,7 +34,7 @@ router.get('/hierarchy', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to fetch hierarchies', details: error.message });
     }
 });
 // Admin-protected routes
@@ -64,7 +64,7 @@ router.post('/hierarchy', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to create hierarchy', details: error.message });
     }
 });
 // Get hierarchy by ID
@@ -96,7 +96,7 @@ router.get('/hierarchy/:id', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to fetch hierarchy', details: error.message });
     }
 });
 // Update an existing hierarchy
@@ -130,7 +130,7 @@ router.put('/hierarchy/:id', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to update hierarchy', details: error.message });
     }
 });
 // Delete a hierarchy
@@ -156,7 +156,7 @@ router.delete('/hierarchy/:id', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to delete hierarchy', details: error.message });
     }
 });
 // --- Hierarchy Level CRUD ---
@@ -186,7 +186,7 @@ router.post('/hierarchy/level', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to create hierarchy level', details: error.message });
     }
 });
 // Update an existing hierarchy level
@@ -220,7 +220,7 @@ router.put('/hierarchy/level/:id', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to update hierarchy level', details: error.message });
     }
 });
 // Delete a hierarchy level
@@ -246,7 +246,7 @@ router.delete('/hierarchy/level/:id', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to delete hierarchy level', details: error.message });
     }
 });
 // --- Hierarchy Assignment CRUD ---
@@ -277,7 +277,7 @@ router.post('/hierarchy/assignment', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to create hierarchy assignment', details: error.message });
     }
 });
 // Delete a hierarchy assignment
@@ -303,7 +303,7 @@ router.delete('/hierarchy/assignment/:id', async (req, res) => {
     }
     catch (err) {
         const error = err;
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to delete hierarchy assignment', details: error.message });
     }
 });
 exports.default = router;

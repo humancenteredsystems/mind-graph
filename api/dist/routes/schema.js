@@ -41,6 +41,7 @@ const config_1 = __importDefault(require("../config"));
 const schemaRegistry = __importStar(require("../services/schemaRegistry"));
 const auth_1 = require("../middleware/auth");
 const pushSchema_1 = require("../utils/pushSchema");
+const errorResponse_1 = require("../utils/errorResponse");
 const router = express_1.default.Router();
 // Use admin URL from config
 const DGRAPH_ADMIN_SCHEMA_URL = config_1.default.dgraphAdminUrl;
@@ -62,7 +63,7 @@ router.get('/schemas', auth_1.authenticateAdmin, async (req, res) => {
     catch (error) {
         const err = error;
         console.error('[SCHEMAS] Error getting schemas:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to get schemas', err));
     }
 });
 // GET /api/schemas/:id - Get a specific schema by ID
@@ -78,7 +79,7 @@ router.get('/schemas/:id', auth_1.authenticateAdmin, async (req, res) => {
     catch (error) {
         const err = error;
         console.error(`[SCHEMAS] Error getting schema ${req.params.id}:`, err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to get schema', err));
     }
 });
 // GET /api/schemas/:id/content - Get the schema content
@@ -94,7 +95,7 @@ router.get('/schemas/:id/content', auth_1.authenticateAdmin, async (req, res) =>
             res.status(404).json({ error: err.message });
             return;
         }
-        res.status(500).json({ error: err.message });
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to get schema content', err));
     }
 });
 // POST /api/schemas - Create a new schema
@@ -115,7 +116,7 @@ router.post('/schemas', auth_1.authenticateAdmin, async (req, res) => {
     catch (error) {
         const err = error;
         console.error('[SCHEMAS] Error creating schema:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to create schema', err));
     }
 });
 // PUT /api/schemas/:id - Update an existing schema
@@ -136,7 +137,7 @@ router.put('/schemas/:id', auth_1.authenticateAdmin, async (req, res) => {
             res.status(404).json({ error: err.message });
             return;
         }
-        res.status(500).json({ error: err.message });
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to update schema', err));
     }
 });
 // POST /api/schemas/:id/push - Push a specific schema to Dgraph
@@ -176,7 +177,7 @@ router.post('/schemas/:id/push', auth_1.authenticateAdmin, async (req, res) => {
             res.status(404).json({ error: err.message });
             return;
         }
-        res.status(500).json({ error: err.message });
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to push schema', err));
     }
 });
 exports.default = router;

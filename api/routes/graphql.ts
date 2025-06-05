@@ -60,14 +60,13 @@ router.post('/query', async (req: Request, res: Response): Promise<void> => {
       const result = await tenantClient.executeGraphQL(query, variables || {});
       res.json(result);
   } catch (error) {
-    // Log the detailed error
-    console.error(`Error in /api/query endpoint:`, error);
-    // Provide a more specific error message if possible
-    const errorMessage = error instanceof Error && error.message.includes('GraphQL query failed:')
-      ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
+    const err = error as Error;
+    console.error('[GRAPHQL] Failed to execute query:', error);
+    const errorMessage = err.message.includes('GraphQL query failed:')
+      ? `GraphQL error: ${err.message.replace('GraphQL query failed: ', '')}`
       : 'Server error executing query';
-    const statusCode = error instanceof Error && error.message.includes('GraphQL query failed:') ? 400 : 500;
-    res.status(statusCode).json({ error: errorMessage, details: error instanceof Error ? error.message : 'Unknown error' });
+    const statusCode = err.message.includes('GraphQL query failed:') ? 400 : 500;
+    res.status(statusCode).json({ error: errorMessage, details: err.message });
   }
 });
 
@@ -104,15 +103,16 @@ router.post('/mutate', async (req: Request, res: Response): Promise<void> => {
     console.log('[MUTATE] Dgraph result:', result); // Keep existing log for general mutations
     res.status(200).json(result); // Use 200 OK for mutations unless specifically creating (201)
   } catch (error) {
-    console.error(`Error in /api/mutate endpoint:`, error);
+    const err = error as Error;
+    console.error('[GRAPHQL] Failed to execute mutation:', error);
     if (error instanceof InvalidLevelError || error instanceof NodeTypeNotAllowedError) {
-      res.status(400).json({ error: error.message }); // Or 422 Unprocessable Entity
+      res.status(400).json({ error: err.message });
     } else {
-      const errorMessage = error instanceof Error && error.message.includes('GraphQL query failed:')
-        ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
+      const errorMessage = err.message.includes('GraphQL query failed:')
+        ? `GraphQL error: ${err.message.replace('GraphQL query failed: ', '')}`
         : 'Server error executing mutation';
-      const statusCode = error instanceof Error && error.message.includes('GraphQL query failed:') ? 400 : 500;
-      res.status(statusCode).json({ error: errorMessage, details: error instanceof Error ? error.message : 'Unknown error' });
+      const statusCode = err.message.includes('GraphQL query failed:') ? 400 : 500;
+      res.status(statusCode).json({ error: errorMessage, details: err.message });
     }
   }
 });
@@ -148,13 +148,14 @@ router.post('/traverse', async (req: Request, res: Response): Promise<void> => {
     const data = raw.queryNode || [];
     const safe = data.map(filterValidOutgoingEdges);
     res.json({ data: { queryNode: safe } });
-  } catch (err) {
-    const error = err as Error;
-    if (error.message?.startsWith('GraphQL query failed:')) {
-      res.status(400).json({ error: `GraphQL error during traversal: ${error.message}`, details: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[GRAPHQL] Failed to execute traversal:', error);
+    if (err.message?.startsWith('GraphQL query failed:')) {
+      res.status(400).json({ error: `GraphQL error during traversal: ${err.message}`, details: err.message });
       return;
     }
-    res.status(500).json({ error: 'Server error during traversal', details: error.message });
+    res.status(500).json({ error: 'Server error during traversal', details: err.message });
   }
 });
 
@@ -192,7 +193,7 @@ router.get('/search', async (req: Request, res: Response): Promise<void> => {
     res.json(result);
   } catch (error) {
     const err = error as Error;
-    console.error(`Error in /api/search endpoint: ${err.message}`);
+    console.error('[GRAPHQL] Failed to execute search:', error);
     if (err.message.startsWith('GraphQL query failed:')) {
        res.status(400).json({ error: `GraphQL error during search: ${err.message}`, details: err.message });
     } else {
@@ -222,10 +223,10 @@ router.get('/schema', async (req: Request, res: Response): Promise<void> => {
         }
     } catch (error) {
         const err = error as Error;
-        console.error(`Error fetching schema from Dgraph admin: ${err.message}`);
+        console.error('[GRAPHQL] Failed to fetch schema from Dgraph admin:', error);
         if (axios.isAxiosError(error) && error.response) {
-            console.error('Dgraph admin response status:', error.response.status);
-            console.error('Dgraph admin response data:', error.response.data);
+            console.error('[GRAPHQL] Dgraph admin response status:', error.response.status);
+            console.error('[GRAPHQL] Dgraph admin response data:', error.response.data);
         }
         res.status(500).json({ error: 'Failed to fetch schema from Dgraph', details: err.message });
     }
@@ -288,7 +289,7 @@ router.post('/deleteNodeCascade', async (req: Request, res: Response): Promise<v
 
   } catch (error) {
     const err = error as Error;
-    console.error('[DELETE NODE CASCADE] Error:', err);
+    console.error('[GRAPHQL] Failed to delete node cascade:', error);
     const errorMessage = err.message.includes('GraphQL query failed:')
       ? `GraphQL error during delete: ${err.message.replace('GraphQL query failed: ', '')}`
       : `Server error during delete: ${err.message}`;
@@ -310,7 +311,7 @@ router.get('/health', async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     const err = error as Error;
-    console.error('[HEALTH] Error during health check:', err);
+    console.error('[GRAPHQL] Failed health check:', error);
     res.status(500).json({
       apiStatus: 'ERROR',
       dgraphStatus: 'disconnected',
