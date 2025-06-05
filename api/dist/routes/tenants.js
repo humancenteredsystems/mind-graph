@@ -7,8 +7,9 @@ const express_1 = __importDefault(require("express"));
 const auth_1 = require("../middleware/auth");
 const errorResponse_1 = require("../utils/errorResponse");
 const tenantContext_1 = require("../middleware/tenantContext");
+const tenantManager_1 = require("../services/tenantManager");
 const router = express_1.default.Router();
-const tenantManager = new TenantManager();
+const tenantManager = new tenantManager_1.TenantManager();
 // --- Public Tenant Operations ---
 /**
  * Get current tenant information

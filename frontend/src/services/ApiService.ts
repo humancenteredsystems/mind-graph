@@ -320,3 +320,209 @@ export const fetchAllNodeIds = async (): Promise<string[]> => {
     throw error;
   }
 };
+
+// Admin API Functions
+// -------------------------------------------------------------------
+
+interface TestRunOptions {
+  type: 'unit' | 'integration' | 'integration-real' | 'all';
+  tenantId?: string;
+  pattern?: string;
+  coverage?: boolean;
+}
+
+interface TestRunResult {
+  id: string;
+  status: 'running' | 'completed' | 'failed' | 'stopped';
+  startTime: string;
+  endTime?: string;
+  exitCode?: number;
+  output: string[];
+  summary?: {
+    passed: number;
+    failed: number;
+    total: number;
+    suites: number;
+  };
+}
+
+interface TenantInfo {
+  tenantId: string;
+  namespace: string;
+  exists: boolean;
+  isTestTenant: boolean;
+  isDefaultTenant: boolean;
+  health?: 'healthy' | 'not-accessible' | 'error';
+  error?: string;
+}
+
+/**
+ * Execute admin API request with authentication
+ */
+const executeAdminRequest = async <T = any>(
+  endpoint: string,
+  data?: any,
+  method: 'GET' | 'POST' = 'POST',
+  adminKey?: string
+): Promise<T> => {
+  try {
+    const headers: Record<string, string> = {};
+    
+    if (adminKey) {
+      headers['X-Admin-API-Key'] = adminKey;
+    }
+
+    const config = {
+      headers,
+      ...(method === 'GET' ? { params: data } : {})
+    };
+
+    const response = method === 'GET' 
+      ? await apiClient.get<T>(endpoint, config)
+      : await apiClient.post<T>(endpoint, data, config);
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', `Admin API error (${endpoint}):`, error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', `Generic admin API error (${endpoint}):`, error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Start a test run
+ */
+export const startTestRun = async (
+  options: TestRunOptions,
+  adminKey: string
+): Promise<{ runId: string; status: string; message: string }> => {
+  return executeAdminRequest('/admin/test', options, 'POST', adminKey);
+};
+
+/**
+ * Get test run status and results
+ */
+export const getTestRun = async (
+  runId: string,
+  adminKey: string
+): Promise<TestRunResult> => {
+  return executeAdminRequest(`/admin/test/${runId}`, undefined, 'GET', adminKey);
+};
+
+/**
+ * Stop a running test
+ */
+export const stopTestRun = async (
+  runId: string,
+  adminKey: string
+): Promise<{ message: string; runId: string; status: string }> => {
+  return executeAdminRequest(`/admin/test/${runId}/stop`, {}, 'POST', adminKey);
+};
+
+/**
+ * Get all active test runs
+ */
+export const getActiveTestRuns = async (
+  adminKey: string
+): Promise<{ activeRuns: TestRunResult[]; count: number }> => {
+  return executeAdminRequest('/admin/test', undefined, 'GET', adminKey);
+};
+
+/**
+ * Create Server-Sent Events connection for test output streaming
+ */
+export const createTestStreamConnection = (
+  runId: string,
+  adminKey: string,
+  onMessage: (data: any) => void,
+  onError?: (error: Event) => void,
+  onClose?: () => void
+): EventSource => {
+  const url = `${API_BASE_URL}/admin/test/${runId}/stream`;
+  const eventSource = new EventSource(url);
+
+  // Add admin key to the request (note: EventSource doesn't support custom headers)
+  // We'll need to modify the backend to accept admin key as query parameter for SSE
+  
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      onMessage(data);
+    } catch (error) {
+      log('ApiService', 'Error parsing SSE message:', error);
+    }
+  };
+
+  eventSource.onerror = (event) => {
+    log('ApiService', 'SSE connection error:', event);
+    if (onError) onError(event);
+  };
+
+  eventSource.addEventListener('close', () => {
+    log('ApiService', 'SSE connection closed');
+    if (onClose) onClose();
+  });
+
+  return eventSource;
+};
+
+/**
+ * Seed test data in a tenant
+ */
+export const seedTenantData = async (
+  tenantId: string,
+  dataType: 'sample' | 'test' | 'minimal' = 'test',
+  clearFirst: boolean = false,
+  adminKey: string
+): Promise<{ message: string; tenantId: string; tenant: TenantInfo }> => {
+  return executeAdminRequest('/admin/tenant/seed', {
+    tenantId,
+    dataType,
+    clearFirst
+  }, 'POST', adminKey);
+};
+
+/**
+ * Reset a tenant completely
+ */
+export const resetTenant = async (
+  tenantId: string,
+  adminKey: string,
+  allowSystemTenant: boolean = false
+): Promise<{ message: string; tenantId: string; tenant: TenantInfo }> => {
+  return executeAdminRequest('/admin/tenant/reset', {
+    tenantId,
+    confirmTenantId: tenantId,
+    allowSystemTenant
+  }, 'POST', adminKey);
+};
+
+/**
+ * Get detailed tenant status
+ */
+export const getTenantStatus = async (
+  tenantId: string,
+  adminKey: string
+): Promise<TenantInfo> => {
+  return executeAdminRequest(`/admin/tenant/${tenantId}/status`, undefined, 'GET', adminKey);
+};
+
+/**
+ * List all tenants with their status
+ */
+export const listTenants = async (
+  adminKey: string
+): Promise<{ tenants: TenantInfo[]; count: number }> => {
+  // Use the existing tenant endpoint that works
+  const tenants = await executeAdminRequest('/tenant', undefined, 'GET', adminKey);
+  return {
+    tenants: Array.isArray(tenants) ? tenants : [],
+    count: Array.isArray(tenants) ? tenants.length : 0
+  };
+};

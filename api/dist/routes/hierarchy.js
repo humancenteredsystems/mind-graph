@@ -32,9 +32,10 @@ router.get('/hierarchy', async (req, res) => {
         const data = await tenantClient.executeGraphQL(query);
         res.json(data.queryHierarchy);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to fetch hierarchies', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to fetch hierarchies:', error);
+        res.status(500).json({ error: 'Failed to fetch hierarchies', details: err.message });
     }
 });
 // Admin-protected routes
@@ -62,9 +63,10 @@ router.post('/hierarchy', async (req, res) => {
         const hier = data.addHierarchy.hierarchy[0];
         res.status(201).json(hier);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to create hierarchy', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to create hierarchy:', error);
+        res.status(500).json({ error: 'Failed to create hierarchy', details: err.message });
     }
 });
 // Get hierarchy by ID
@@ -94,9 +96,10 @@ router.get('/hierarchy/:id', async (req, res) => {
         }
         res.json(hier);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to fetch hierarchy', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to fetch hierarchy:', error);
+        res.status(500).json({ error: 'Failed to fetch hierarchy', details: err.message });
     }
 });
 // Update an existing hierarchy
@@ -128,9 +131,10 @@ router.put('/hierarchy/:id', async (req, res) => {
         const hier = data.updateHierarchy.hierarchy[0];
         res.json(hier);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to update hierarchy', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to update hierarchy:', error);
+        res.status(500).json({ error: 'Failed to update hierarchy', details: err.message });
     }
 });
 // Delete a hierarchy
@@ -154,9 +158,10 @@ router.delete('/hierarchy/:id', async (req, res) => {
         const data = await tenantClient.executeGraphQL(mutation, { id });
         res.json(data.deleteHierarchy);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to delete hierarchy', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to delete hierarchy:', error);
+        res.status(500).json({ error: 'Failed to delete hierarchy', details: err.message });
     }
 });
 // --- Hierarchy Level CRUD ---
@@ -184,9 +189,10 @@ router.post('/hierarchy/level', async (req, res) => {
         const level = data.addHierarchyLevel.hierarchyLevel[0];
         res.status(201).json(level);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to create hierarchy level', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to create hierarchy level:', error);
+        res.status(500).json({ error: 'Failed to create hierarchy level', details: err.message });
     }
 });
 // Update an existing hierarchy level
@@ -218,9 +224,10 @@ router.put('/hierarchy/level/:id', async (req, res) => {
         const level = data.updateHierarchyLevel.hierarchyLevel[0];
         res.json(level);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to update hierarchy level', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to update hierarchy level:', error);
+        res.status(500).json({ error: 'Failed to update hierarchy level', details: err.message });
     }
 });
 // Delete a hierarchy level
@@ -244,9 +251,10 @@ router.delete('/hierarchy/level/:id', async (req, res) => {
         const data = await tenantClient.executeGraphQL(mutation, { id });
         res.json(data.deleteHierarchyLevel);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to delete hierarchy level', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to delete hierarchy level:', error);
+        res.status(500).json({ error: 'Failed to delete hierarchy level', details: err.message });
     }
 });
 // --- Hierarchy Assignment CRUD ---
@@ -275,9 +283,10 @@ router.post('/hierarchy/assignment', async (req, res) => {
         const assignment = data.addHierarchyAssignment.hierarchyAssignment[0];
         res.status(201).json(assignment);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to create hierarchy assignment', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to create hierarchy assignment:', error);
+        res.status(500).json({ error: 'Failed to create hierarchy assignment', details: err.message });
     }
 });
 // Delete a hierarchy assignment
@@ -301,9 +310,10 @@ router.delete('/hierarchy/assignment/:id', async (req, res) => {
         const data = await tenantClient.executeGraphQL(mutation, { id });
         res.json(data.deleteHierarchyAssignment);
     }
-    catch (err) {
-        const error = err;
-        res.status(500).json({ error: 'Failed to delete hierarchy assignment', details: error.message });
+    catch (error) {
+        const err = error;
+        console.error('[HIERARCHY] Failed to delete hierarchy assignment:', error);
+        res.status(500).json({ error: 'Failed to delete hierarchy assignment', details: err.message });
     }
 });
 exports.default = router;

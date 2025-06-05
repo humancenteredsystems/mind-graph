@@ -11,6 +11,8 @@ import NodeFormModal from './components/NodeFormModal';
 import NodeDrawer from './components/NodeDrawer';
 import SettingsIcon from './components/SettingsIcon';
 import SettingsModal from './components/SettingsModal';
+import AdminButton from './components/AdminButton';
+import AdminModal from './components/AdminModal';
 
 function AppInner() {
   const {
@@ -64,6 +66,8 @@ function AppInner() {
     <div className="App">
       <SettingsIcon />
       <SettingsModal />
+      <AdminButton />
+      <AdminModal />
       
       <h1>MakeItMakeSense.io Graph</h1>
       

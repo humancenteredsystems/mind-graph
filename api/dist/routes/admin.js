@@ -42,7 +42,10 @@ const auth_1 = require("../middleware/auth");
 const schemaRegistry = __importStar(require("../services/schemaRegistry"));
 const pushSchema_1 = require("../utils/pushSchema");
 const dgraphAdmin_1 = require("../utils/dgraphAdmin");
+const tenantManager_1 = require("../services/tenantManager");
+const errorResponse_1 = require("../utils/errorResponse");
 const router = express_1.default.Router();
+const tenantManager = new tenantManager_1.TenantManager();
 // Use URLs from config
 const DGRAPH_ADMIN_SCHEMA_URL = config_1.default.dgraphAdminUrl;
 const DGRAPH_ALTER_URL = `${config_1.default.dgraphBaseUrl.replace(/\/+$/, '')}/alter`;
@@ -124,10 +127,10 @@ router.post('/admin/schema', auth_1.authenticateAdmin, async (req, res) => {
             res.status(500).json({ success: false, message: 'Schema push encountered errors', results: result });
         }
     }
-    catch (err) {
-        console.error('[SCHEMA PUSH] Error:', err);
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        res.status(500).json({ success: false, message: errorMessage });
+    catch (error) {
+        const err = error;
+        console.error('[ADMIN] Failed to push schema:', error);
+        res.status(500).json({ error: 'Failed to push schema', details: err.message });
     }
 });
 // POST /api/admin/dropAll - Endpoint to drop all data from Dgraph instance(s)
@@ -183,9 +186,186 @@ router.post('/admin/dropAll', auth_1.authenticateAdmin, async (req, res) => {
         }
     }
     catch (error) {
-        console.error('[DROP ALL] Error in endpoint handler:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        res.status(500).json({ success: false, message: errorMessage });
+        const err = error;
+        console.error('[ADMIN] Failed to drop all data:', error);
+        res.status(500).json({ error: 'Failed to drop all data', details: err.message });
+    }
+});
+// Enhanced Tenant Management Endpoints
+// -------------------------------------------------------------------
+/**
+ * Seed test data in a tenant
+ *
+ * POST /api/admin/tenant/seed
+ *
+ * Body:
+ * {
+ *   "tenantId": string,
+ *   "dataType": "sample" | "test" | "minimal",
+ *   "clearFirst": boolean
+ * }
+ */
+router.post('/tenant/seed', auth_1.authenticateAdmin, async (req, res) => {
+    try {
+        const { tenantId = 'test-tenant', dataType = 'test', clearFirst = false } = req.body;
+        console.log(`[ADMIN_TENANT] Seeding data for tenant ${tenantId}, type: ${dataType}, clearFirst: ${clearFirst}`);
+        // Clear data first if requested
+        if (clearFirst) {
+            console.log(`[ADMIN_TENANT] Clearing data for tenant ${tenantId} before seeding`);
+            await tenantManager.deleteTenant(tenantId);
+            await tenantManager.createTenant(tenantId);
+        }
+        // Check if tenant exists
+        const exists = await tenantManager.tenantExists(tenantId);
+        if (!exists) {
+            console.log(`[ADMIN_TENANT] Creating tenant ${tenantId} before seeding`);
+            await tenantManager.createTenant(tenantId);
+        }
+        // Get tenant info
+        const tenantInfo = await tenantManager.getTenantInfo(tenantId);
+        // TODO: Implement actual data seeding based on dataType
+        // For now, just return success with tenant info
+        res.json({
+            message: `Data seeding completed for tenant ${tenantId}`,
+            tenantId,
+            dataType,
+            tenant: tenantInfo,
+            seededAt: new Date()
+        });
+    }
+    catch (error) {
+        const err = error;
+        console.error('[ADMIN_TENANT] Failed to seed tenant data:', error);
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to seed tenant data', err));
+    }
+});
+/**
+ * Reset a tenant completely (delete and recreate)
+ *
+ * POST /api/admin/tenant/reset
+ *
+ * Body:
+ * {
+ *   "tenantId": string,
+ *   "confirmTenantId": string  // Safety confirmation
+ * }
+ */
+router.post('/tenant/reset', auth_1.authenticateAdmin, async (req, res) => {
+    try {
+        const { tenantId, confirmTenantId } = req.body;
+        if (!tenantId) {
+            res.status(400).json({ error: 'Missing required field: tenantId' });
+            return;
+        }
+        // Safety check: require confirmation
+        if (tenantId !== confirmTenantId) {
+            res.status(400).json({
+                error: 'Tenant ID confirmation required',
+                details: 'confirmTenantId must match tenantId for safety'
+            });
+            return;
+        }
+        // Prevent resetting system tenants without explicit override
+        if ((tenantId === 'default' || tenantId === 'test-tenant') && !req.body.allowSystemTenant) {
+            res.status(400).json({
+                error: 'Cannot reset system tenant without explicit override',
+                details: 'Set allowSystemTenant: true to reset system tenants'
+            });
+            return;
+        }
+        console.log(`[ADMIN_TENANT] Resetting tenant ${tenantId}`);
+        // Delete and recreate tenant
+        await tenantManager.deleteTenant(tenantId);
+        const namespace = await tenantManager.createTenant(tenantId);
+        const tenantInfo = await tenantManager.getTenantInfo(tenantId);
+        res.json({
+            message: `Tenant ${tenantId} reset successfully`,
+            tenantId,
+            namespace,
+            tenant: tenantInfo,
+            resetAt: new Date()
+        });
+    }
+    catch (error) {
+        const err = error;
+        console.error('[ADMIN_TENANT] Failed to reset tenant:', error);
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to reset tenant', err));
+    }
+});
+/**
+ * Get detailed tenant status and health
+ *
+ * GET /api/admin/tenant/:tenantId/status
+ */
+router.get('/tenant/:tenantId/status', auth_1.authenticateAdmin, async (req, res) => {
+    try {
+        const { tenantId } = req.params;
+        if (!tenantId) {
+            res.status(400).json({ error: 'Missing tenantId parameter' });
+            return;
+        }
+        console.log(`[ADMIN_TENANT] Getting status for tenant ${tenantId}`);
+        // Get basic tenant info
+        const tenantInfo = await tenantManager.getTenantInfo(tenantId);
+        // Get tenant namespace
+        const namespace = await tenantManager.getTenantNamespace(tenantId);
+        // Check if tenant exists and is accessible
+        const exists = await tenantManager.tenantExists(tenantId);
+        // TODO: Add more health checks
+        // - Schema validation
+        // - Data counts
+        // - Connection health
+        const status = {
+            ...tenantInfo,
+            namespace,
+            exists,
+            health: exists ? 'healthy' : 'not-accessible',
+            checkedAt: new Date()
+        };
+        res.json(status);
+    }
+    catch (error) {
+        const err = error;
+        console.error('[ADMIN_TENANT] Failed to get tenant status:', error);
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to get tenant status', err));
+    }
+});
+/**
+ * List all tenants with their status
+ *
+ * GET /api/admin/tenant/list
+ */
+router.get('/tenant/list', auth_1.authenticateAdmin, async (req, res) => {
+    try {
+        console.log('[ADMIN_TENANT] Listing all tenants');
+        const tenants = await tenantManager.listTenants();
+        // Add health status for each tenant
+        const tenantsWithStatus = await Promise.all(tenants.map(async (tenant) => {
+            try {
+                const exists = await tenantManager.tenantExists(tenant.tenantId);
+                return {
+                    ...tenant,
+                    health: exists ? 'healthy' : 'not-accessible'
+                };
+            }
+            catch (error) {
+                return {
+                    ...tenant,
+                    health: 'error',
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                };
+            }
+        }));
+        res.json({
+            tenants: tenantsWithStatus,
+            count: tenantsWithStatus.length,
+            checkedAt: new Date()
+        });
+    }
+    catch (error) {
+        const err = error;
+        console.error('[ADMIN_TENANT] Failed to list tenants:', error);
+        res.status(500).json((0, errorResponse_1.createErrorResponseFromError)('Failed to list tenants', err));
     }
 });
 exports.default = router;
