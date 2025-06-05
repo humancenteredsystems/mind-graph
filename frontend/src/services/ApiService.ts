@@ -1,8 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'; // Added AxiosInstance and AxiosError
 
 // Base URL for API endpoint loaded from Vite environment or fallback
-const envUrl = (import.meta.env.VITE_API_BASE_URL as string)?.trim();
-export const API_BASE_URL = envUrl && envUrl.length > 0 ? envUrl.replace(/\/$/, '') : '/api';
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string)?.replace(/\/$/, '') || '/api';
 
 // Create a dedicated Axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -263,7 +262,7 @@ export const fetchHierarchies = async (): Promise<{ id: string; name: string }[]
  */
 export async function deleteNodeCascade(
   nodeId: string
-): Promise<{ deletedEdgesCount: number; deletedNodesCount: number; deletedNodeId: string }> {
+): Promise<{ success: boolean; deletedNode: string; deletedEdgesCount: number; deletedNodesCount: number }> {
   try {
     const response = await apiClient.post(`/deleteNodeCascade`, { nodeId }, { // Changed axios to apiClient, removed API_BASE_URL
       headers: { 'Content-Type': 'application/json' }
@@ -283,6 +282,31 @@ export async function deleteNodeCascade(
     throw new Error((error as AxiosError<{ error?: string }>).response?.data?.error || 'Failed to delete node.'); // Adjusted error handling
   }
 }
+
+/**
+ * Search nodes by term using the backend search endpoint.
+ */
+export const fetchSearch = async (
+  term: string,
+  field: string = 'label'
+): Promise<{ queryNode?: Array<{ id: string; label: string; type: string }> }> => {
+  try {
+    const response = await apiClient.get(`/search`, {
+      params: { term, field }
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Axios error searching nodes:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error searching nodes:', error);
+    }
+    throw error;
+  }
+};
 
 /**
  * Fetch all node IDs.

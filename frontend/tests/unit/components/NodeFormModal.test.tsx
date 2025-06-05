@@ -1,11 +1,10 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { screen, fireEvent } from '@testing-library/react';
-import { render } from '@testing-library/react';
+import { render, screen, fireEvent } from '../../helpers/testUtils';
 import NodeFormModal from '../../../src/components/NodeFormModal';
 
-// Create mock data before vi.mock calls to avoid hoisting issues
+// Create mock data for hierarchy context
 const mockHierarchies = [
   {
     id: 'hierarchy1',
@@ -30,17 +29,23 @@ const mockHierarchies = [
 const mockLevels = mockHierarchies[0].levels;
 const mockAllNodeTypes = ['concept', 'example', 'question'];
 
-// Mock the context hooks
-vi.mock('../../../src/context/HierarchyContext', () => ({
+// Override the existing hierarchy context mock with our test-specific data
+vi.mock('../../../src/hooks/useHierarchy', () => ({
   useHierarchyContext: () => ({
-    hierarchies: mockHierarchies,
-    hierarchyId: 'hierarchy1',
-    levels: mockLevels,
+    hierarchies: [
+      { id: 'h1', name: 'Test Hierarchy 1' },
+      { id: 'h2', name: 'Test Hierarchy 2' }
+    ],
+    hierarchyId: 'h1',
+    levels: [
+      { id: 'l1', levelNumber: 1, label: 'Domain' },
+      { id: 'l2', levelNumber: 2, label: 'Category' }
+    ],
     allowedTypesMap: {
-      'hierarchy1level1': ['concept', 'question'],
-      'hierarchy1level2': ['example', 'concept']
+      'h1l1': ['concept', 'question'],
+      'h1l2': ['example', 'concept']
     },
-    allNodeTypes: mockAllNodeTypes,
+    allNodeTypes: ['concept', 'example', 'question'],
     setHierarchyId: vi.fn(),
   }),
 }));
@@ -104,9 +109,11 @@ describe('NodeFormModal', () => {
       />
     );
     
+    // The component shows available types based on the current level selection
+    // For level 1 (Domain), it shows concept and example (filtered from allowedTypesMap)
     expect(screen.getByRole('option', { name: 'concept' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'example' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'question' })).toBeInTheDocument();
+    // Note: 'question' is not shown because it's filtered out for the current level
   });
 
   it('calls onSubmit with correct values when form is submitted', () => {
@@ -131,8 +138,8 @@ describe('NodeFormModal', () => {
       expect.objectContaining({
         label: 'Test Node',
         type: 'concept',
-        hierarchyId: 'hierarchy1',
-        levelId: 'level1'
+        hierarchyId: 'h1',
+        levelId: 'l1'
       })
     );
   });

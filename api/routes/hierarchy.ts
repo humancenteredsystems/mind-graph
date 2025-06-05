@@ -34,7 +34,7 @@ router.get('/hierarchy', async (req: Request, res: Response): Promise<void> => {
     res.json(data.queryHierarchy);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to fetch hierarchies', details: error.message });
   }
 });
 
@@ -65,7 +65,7 @@ router.post('/hierarchy', async (req: Request, res: Response): Promise<void> => 
     res.status(201).json(hier);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to create hierarchy', details: error.message });
   }
 });
 
@@ -99,7 +99,7 @@ router.get('/hierarchy/:id', async (req: Request, res: Response): Promise<void> 
     res.json(hier);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to fetch hierarchy', details: error.message });
   }
 });
 
@@ -134,7 +134,7 @@ router.put('/hierarchy/:id', async (req: Request, res: Response): Promise<void> 
     res.json(hier);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to update hierarchy', details: error.message });
   }
 });
 
@@ -161,7 +161,7 @@ router.delete('/hierarchy/:id', async (req: Request, res: Response): Promise<voi
     res.json(data.deleteHierarchy);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to delete hierarchy', details: error.message });
   }
 });
 
@@ -192,7 +192,7 @@ router.post('/hierarchy/level', async (req: Request, res: Response): Promise<voi
     res.status(201).json(level);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to create hierarchy level', details: error.message });
   }
 });
 
@@ -227,7 +227,7 @@ router.put('/hierarchy/level/:id', async (req: Request, res: Response): Promise<
     res.json(level);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to update hierarchy level', details: error.message });
   }
 });
 
@@ -254,7 +254,7 @@ router.delete('/hierarchy/level/:id', async (req: Request, res: Response): Promi
     res.json(data.deleteHierarchyLevel);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to delete hierarchy level', details: error.message });
   }
 });
 
@@ -286,7 +286,7 @@ router.post('/hierarchy/assignment', async (req: Request, res: Response): Promis
     res.status(201).json(assignment);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to create hierarchy assignment', details: error.message });
   }
 });
 
@@ -313,7 +313,7 @@ router.delete('/hierarchy/assignment/:id', async (req: Request, res: Response): 
     res.json(data.deleteHierarchyAssignment);
   } catch (err) {
     const error = err as Error;
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to delete hierarchy assignment', details: error.message });
   }
 });
 

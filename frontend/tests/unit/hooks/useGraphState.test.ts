@@ -9,8 +9,8 @@ vi.mock('../../../src/services/ApiService', () => ({
   executeMutation: vi.fn(),
 }));
 
-// Mock the hierarchy context
-vi.mock('../../../src/context/HierarchyContext', () => ({
+// Mock the hierarchy context using the correct hook path
+vi.mock('../../../src/hooks/useHierarchy', () => ({
   useHierarchyContext: () => ({
     hierarchyId: 'test-hierarchy',
     hierarchies: [{ id: 'test-hierarchy', name: 'Test Hierarchy' }],
@@ -23,6 +23,7 @@ vi.mock('../../../src/context/HierarchyContext', () => ({
 
 import { useGraphState } from '../../../src/hooks/useGraphState';
 import * as ApiService from '../../../src/services/ApiService';
+import type { RawNodeResponse } from '../../../src/types/graph';
 
 describe('useGraphState', () => {
   beforeEach(() => {
@@ -44,7 +45,9 @@ describe('useGraphState', () => {
           outgoing: [
             {
               type: 'simple',
-              to: { id: 'node2' }
+              to: {
+                id: 'node2'
+              }
             }
           ]
         },
@@ -61,7 +64,7 @@ describe('useGraphState', () => {
           outgoing: []
         }
       ]
-    });
+    } as any);
 
     // Mock fetchTraversalData for loadInitialGraph
     vi.mocked(ApiService.fetchTraversalData).mockResolvedValue({
@@ -77,7 +80,7 @@ describe('useGraphState', () => {
             }
           ],
           outgoing: []
-        }
+        } as RawNodeResponse
       ]
     });
   });

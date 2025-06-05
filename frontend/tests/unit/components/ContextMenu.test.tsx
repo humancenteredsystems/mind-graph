@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '../../helpers/testUtils';
 import ContextMenu from '../../../src/components/ContextMenu';
 
 // Define menu item interface
@@ -12,17 +12,7 @@ interface MockMenuItem {
   disabled?: boolean;
 }
 
-// Mock the context modules with correct interface
-const mockUIContext = {
-  isAddModalOpen: false,
-  isEditDrawerOpen: false,
-  editingNode: null,
-  openAddModal: vi.fn(),
-  closeAddModal: vi.fn(),
-  openEditDrawer: vi.fn(),
-  closeEditDrawer: vi.fn(),
-};
-
+// Mock context menu state that will be used by the test utilities
 const mockContextMenuState = {
   open: true,
   position: { x: 100, y: 100 },
@@ -31,11 +21,8 @@ const mockContextMenuState = {
   closeMenu: vi.fn(),
 };
 
-vi.mock('../../../src/context/UIContext', () => ({
-  useUIContext: () => mockUIContext,
-}));
-
-vi.mock('../../../src/context/ContextMenuContext', () => ({
+// Override the existing mock with our test-specific state
+vi.mock('../../../src/hooks/useContextMenu', () => ({
   useContextMenu: () => mockContextMenuState,
 }));
 

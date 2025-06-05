@@ -65,9 +65,9 @@ router.post('/query', async (req: Request, res: Response): Promise<void> => {
     // Provide a more specific error message if possible
     const errorMessage = error instanceof Error && error.message.includes('GraphQL query failed:')
       ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
-      : 'Server error executing query.';
+      : 'Server error executing query';
     const statusCode = error instanceof Error && error.message.includes('GraphQL query failed:') ? 400 : 500;
-    res.status(statusCode).json({ error: errorMessage });
+    res.status(statusCode).json({ error: errorMessage, details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
@@ -110,9 +110,9 @@ router.post('/mutate', async (req: Request, res: Response): Promise<void> => {
     } else {
       const errorMessage = error instanceof Error && error.message.includes('GraphQL query failed:')
         ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
-        : 'Server error executing mutation.';
+        : 'Server error executing mutation';
       const statusCode = error instanceof Error && error.message.includes('GraphQL query failed:') ? 400 : 500;
-      res.status(statusCode).json({ error: errorMessage });
+      res.status(statusCode).json({ error: errorMessage, details: error instanceof Error ? error.message : 'Unknown error' });
     }
   }
 });
@@ -151,10 +151,10 @@ router.post('/traverse', async (req: Request, res: Response): Promise<void> => {
   } catch (err) {
     const error = err as Error;
     if (error.message?.startsWith('GraphQL query failed:')) {
-      res.status(400).json({ error: `GraphQL error during traversal: ${error.message}` });
+      res.status(400).json({ error: `GraphQL error during traversal: ${error.message}`, details: error.message });
       return;
     }
-    res.status(500).json({ error: 'Server error during traversal.' });
+    res.status(500).json({ error: 'Server error during traversal', details: error.message });
   }
 });
 
@@ -194,9 +194,9 @@ router.get('/search', async (req: Request, res: Response): Promise<void> => {
     const err = error as Error;
     console.error(`Error in /api/search endpoint: ${err.message}`);
     if (err.message.startsWith('GraphQL query failed:')) {
-       res.status(400).json({ error: `GraphQL error during search: ${err.message}` });
+       res.status(400).json({ error: `GraphQL error during search: ${err.message}`, details: err.message });
     } else {
-       res.status(500).json({ error: 'Server error during search.' });
+       res.status(500).json({ error: 'Server error during search', details: err.message });
     }
   }
 });
@@ -227,7 +227,7 @@ router.get('/schema', async (req: Request, res: Response): Promise<void> => {
             console.error('Dgraph admin response status:', error.response.status);
             console.error('Dgraph admin response data:', error.response.data);
         }
-        res.status(500).json({ error: 'Failed to fetch schema from Dgraph.' });
+        res.status(500).json({ error: 'Failed to fetch schema from Dgraph', details: err.message });
     }
 });
 
@@ -292,7 +292,7 @@ router.post('/deleteNodeCascade', async (req: Request, res: Response): Promise<v
     const errorMessage = err.message.includes('GraphQL query failed:')
       ? `GraphQL error during delete: ${err.message.replace('GraphQL query failed: ', '')}`
       : `Server error during delete: ${err.message}`;
-    res.status(500).json({ error: errorMessage });
+    res.status(500).json({ error: errorMessage, details: err.message });
   }
 });
 
