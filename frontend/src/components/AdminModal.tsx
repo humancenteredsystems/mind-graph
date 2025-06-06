@@ -776,6 +776,93 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
     }
   };
 
+  const clearTenantData = async (tenantId: string) => {
+    if (!confirm(`Are you sure you want to clear all data from tenant "${tenantId}"? This will keep the schema but remove all nodes and edges.`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await ApiService.clearTenantData(tenantId, adminKey);
+      await loadTenants(); // Refresh the list
+      setError(null);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.error || err?.message || `Failed to clear data for tenant ${tenantId}`;
+      setError(errorMessage);
+      console.error('Error clearing tenant data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const clearTenantSchema = async (tenantId: string) => {
+    if (!confirm(`Are you sure you want to clear the schema from tenant "${tenantId}"? This will push a minimal schema and remove all type definitions.`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await ApiService.clearTenantSchema(tenantId, adminKey);
+      await loadTenants(); // Refresh the list
+      setError(null);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.error || err?.message || `Failed to clear schema for tenant ${tenantId}`;
+      setError(errorMessage);
+      console.error('Error clearing tenant schema:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const pushFreshSchema = async (tenantId: string) => {
+    if (!confirm(`Are you sure you want to push a fresh default schema to tenant "${tenantId}"? This will overwrite the current schema.`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await ApiService.pushSchema(tenantId, 'default', adminKey);
+      await loadTenants(); // Refresh the list
+      setError(null);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.error || err?.message || `Failed to push schema to tenant ${tenantId}`;
+      setError(errorMessage);
+      console.error('Error pushing schema:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fullReset = async (tenantId: string) => {
+    if (!confirm(`Are you sure you want to perform a FULL RESET of tenant "${tenantId}"? This will:\n\n1. Clear all data\n2. Push fresh default schema\n3. Seed test data\n\nThis cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const result = await ApiService.fullTenantReset(tenantId, adminKey, true);
+      
+      if (result.success) {
+        console.log('Full reset completed:', result.steps);
+        await loadTenants(); // Refresh the list
+        setError(null);
+      } else {
+        setError(`Full reset failed: ${result.message}`);
+        console.error('Full reset errors:', result.errors);
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.error || err?.message || `Failed to perform full reset for tenant ${tenantId}`;
+      setError(errorMessage);
+      console.error('Error performing full reset:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadSystemStatus();
     loadTenants();
@@ -973,6 +1060,78 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                   {/* Action buttons - only show if multi-tenant mode */}
                   {isMultiTenantMode && (
                     <>
+                      <button
+                        onClick={() => clearTenantData(tenant.tenantId)}
+                        disabled={isLoading}
+                        style={{
+                          padding: '4px 8px',
+                          background: '#8b5cf6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          cursor: isLoading ? 'not-allowed' : 'pointer',
+                          opacity: isLoading ? 0.6 : 1,
+                        }}
+                        title="Clear nodes & edges (safe namespace-scoped deletion)"
+                      >
+                        Clear Data
+                      </button>
+                      
+                      <button
+                        onClick={() => clearTenantSchema(tenant.tenantId)}
+                        disabled={isLoading}
+                        style={{
+                          padding: '4px 8px',
+                          background: '#f59e0b',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          cursor: isLoading ? 'not-allowed' : 'pointer',
+                          opacity: isLoading ? 0.6 : 1,
+                        }}
+                        title="Clear schema (push minimal schema)"
+                      >
+                        Clear Schema
+                      </button>
+                      
+                      <button
+                        onClick={() => pushFreshSchema(tenant.tenantId)}
+                        disabled={isLoading}
+                        style={{
+                          padding: '4px 8px',
+                          background: '#06b6d4',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          cursor: isLoading ? 'not-allowed' : 'pointer',
+                          opacity: isLoading ? 0.6 : 1,
+                        }}
+                        title="Push fresh default schema"
+                      >
+                        Push Schema
+                      </button>
+                      
+                      <button
+                        onClick={() => fullReset(tenant.tenantId)}
+                        disabled={isLoading}
+                        style={{
+                          padding: '4px 8px',
+                          background: '#10b981',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          cursor: isLoading ? 'not-allowed' : 'pointer',
+                          opacity: isLoading ? 0.6 : 1,
+                        }}
+                        title="Full reset: clear data + fresh schema + test data"
+                      >
+                        Full Reset
+                      </button>
+
                       {tenant.tenantId !== 'default' && (
                         <button
                           onClick={() => resetTenant(tenant.tenantId)}

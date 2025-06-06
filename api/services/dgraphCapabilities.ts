@@ -116,8 +116,9 @@ export class DgraphCapabilityDetector {
     console.log('[DGRAPH_CAPABILITIES] Detecting license information...');
     
     try {
-      const stateUrl = `${this.zeroUrl}/state`;
-      console.log(`[DGRAPH_CAPABILITIES] Testing Zero state: ${stateUrl}`);
+      // Try Alpha state endpoint first (more reliable in Docker setups)
+      const stateUrl = `${this.baseUrl}/state`;
+      console.log(`[DGRAPH_CAPABILITIES] Testing Alpha state: ${stateUrl}`);
       
       const response: AxiosResponse<DgraphZeroStateResponse> = await axios.get(stateUrl, {
         timeout: 5000,
@@ -197,22 +198,32 @@ export class DgraphCapabilityDetector {
         validateStatus: (status) => status < 500
       });
 
+      console.log(`[DGRAPH_CAPABILITIES] Health response status: ${healthResponse.status}`);
+      console.log(`[DGRAPH_CAPABILITIES] Health response data:`, JSON.stringify(healthResponse.data, null, 2));
+
       if (healthResponse.status === 200 && healthResponse.data) {
         const healthData = healthResponse.data;
         
         // Check if response is an array (typical for Dgraph health)
         if (Array.isArray(healthData) && healthData.length > 0) {
           const alphaInfo = healthData[0]; // First alpha instance
+          console.log(`[DGRAPH_CAPABILITIES] Alpha info:`, alphaInfo);
+          console.log(`[DGRAPH_CAPABILITIES] ee_features:`, alphaInfo.ee_features);
           
           // Look for ee_features array - this is the definitive indicator
           if (alphaInfo.ee_features && Array.isArray(alphaInfo.ee_features) && alphaInfo.ee_features.length > 0) {
             console.log('[DGRAPH_CAPABILITIES] ✅ Enterprise features detected via ee_features:', alphaInfo.ee_features);
             return true;
+          } else {
+            console.log('[DGRAPH_CAPABILITIES] ❌ No ee_features found in alpha info');
           }
+        } else {
+          console.log('[DGRAPH_CAPABILITIES] ❌ Health data is not an array or is empty');
         }
         
         // Fallback: Check for enterprise indicators in single object response
         if (!Array.isArray(healthData)) {
+          console.log('[DGRAPH_CAPABILITIES] Checking single object response');
           if (healthData.ee_features && Array.isArray(healthData.ee_features) && healthData.ee_features.length > 0) {
             console.log('[DGRAPH_CAPABILITIES] ✅ Enterprise features detected via ee_features:', healthData.ee_features);
             return true;
@@ -224,6 +235,8 @@ export class DgraphCapabilityDetector {
             return true;
           }
         }
+      } else {
+        console.log(`[DGRAPH_CAPABILITIES] ❌ Invalid health response: status=${healthResponse.status}, data=${!!healthResponse.data}`);
       }
 
       console.log('[DGRAPH_CAPABILITIES] ❌ No active Enterprise features detected');

@@ -5,6 +5,7 @@ import * as schemaRegistry from '../services/schemaRegistry';
 import { pushSchemaViaHttp } from '../utils/pushSchema';
 import { sendDgraphAdminRequest } from '../utils/dgraphAdmin';
 import { TenantManager } from '../services/tenantManager';
+import { DgraphTenantFactory } from '../services/dgraphTenant';
 import { createErrorResponseFromError } from '../utils/errorResponse';
 import { 
   DropAllRequest, 
@@ -417,6 +418,143 @@ router.get('/admin/tenant/:tenantId/schema', authenticateAdmin, async (req: Requ
     const err = error as Error;
     console.error('[ADMIN_TENANT] Failed to get tenant schema:', error);
     res.status(500).json(createErrorResponseFromError('Failed to get tenant schema', err));
+  }
+});
+
+/**
+ * Clear nodes and edges from a tenant (safe namespace-scoped deletion)
+ * 
+ * POST /api/admin/tenant/clear-data
+ * 
+ * Body:
+ * {
+ *   "tenantId": string
+ * }
+ */
+router.post('/admin/tenant/clear-data', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { tenantId } = req.body;
+    
+    if (!tenantId) {
+      res.status(400).json({ error: 'Missing required field: tenantId' });
+      return;
+    }
+    
+    console.log(`[ADMIN_TENANT] Clearing data for tenant ${tenantId}`);
+    
+    // Get tenant namespace and create client for namespace-scoped operations
+    const namespace = await tenantManager.getTenantNamespace(tenantId);
+    const tenantClient = DgraphTenantFactory.createTenant(namespace);
+    
+    // Step 1: Query all edges and delete them first
+    console.log(`[ADMIN_TENANT] Querying edges for tenant ${tenantId}`);
+    const edgeQuery = `{ queryEdge { id } }`;
+    const edgeResult = await tenantClient.executeGraphQL(edgeQuery);
+    const edges = edgeResult?.queryEdge || [];
+    
+    let deletedEdges = 0;
+    if (edges.length > 0) {
+      console.log(`[ADMIN_TENANT] Deleting ${edges.length} edges for tenant ${tenantId}`);
+      const deleteEdgesMutation = `
+        mutation {
+          deleteEdge(filter: {}) {
+            numUids
+          }
+        }
+      `;
+      const edgeDeleteResult = await tenantClient.executeGraphQL(deleteEdgesMutation);
+      deletedEdges = edgeDeleteResult?.deleteEdge?.numUids || 0;
+      console.log(`[ADMIN_TENANT] Deleted ${deletedEdges} edges for tenant ${tenantId}`);
+    }
+    
+    // Step 2: Query all nodes and delete them
+    console.log(`[ADMIN_TENANT] Querying nodes for tenant ${tenantId}`);
+    const nodeQuery = `{ queryNode { id } }`;
+    const nodeResult = await tenantClient.executeGraphQL(nodeQuery);
+    const nodes = nodeResult?.queryNode || [];
+    
+    let deletedNodes = 0;
+    if (nodes.length > 0) {
+      console.log(`[ADMIN_TENANT] Deleting ${nodes.length} nodes for tenant ${tenantId}`);
+      const deleteNodesMutation = `
+        mutation {
+          deleteNode(filter: {}) {
+            numUids
+          }
+        }
+      `;
+      const nodeDeleteResult = await tenantClient.executeGraphQL(deleteNodesMutation);
+      deletedNodes = nodeDeleteResult?.deleteNode?.numUids || 0;
+      console.log(`[ADMIN_TENANT] Deleted ${deletedNodes} nodes for tenant ${tenantId}`);
+    }
+    
+    res.json({
+      success: true,
+      message: `Data cleared for tenant ${tenantId}`,
+      deletedNodes,
+      deletedEdges,
+      tenantId,
+      clearedAt: new Date()
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[ADMIN_TENANT] Failed to clear tenant data:', error);
+    res.status(500).json(createErrorResponseFromError('Failed to clear tenant data', err));
+  }
+});
+
+/**
+ * Clear schema from a tenant (push minimal schema)
+ * 
+ * POST /api/admin/tenant/clear-schema
+ * 
+ * Body:
+ * {
+ *   "tenantId": string
+ * }
+ */
+router.post('/admin/tenant/clear-schema', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { tenantId } = req.body;
+    
+    if (!tenantId) {
+      res.status(400).json({ error: 'Missing required field: tenantId' });
+      return;
+    }
+    
+    console.log(`[ADMIN_TENANT] Clearing schema for tenant ${tenantId}`);
+    
+    // Get tenant namespace
+    const namespace = await tenantManager.getTenantNamespace(tenantId);
+    
+    // Push minimal schema to clear existing schema
+    const minimalSchema = `
+      type Query {
+        health: String
+      }
+    `;
+    
+    const result = await pushSchemaToConfiguredDgraph(minimalSchema, namespace || null);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `Schema cleared for tenant ${tenantId}`,
+        tenantId,
+        clearedAt: new Date()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: `Failed to clear schema for tenant ${tenantId}`,
+        error: result.error,
+        details: result.details
+      });
+    }
+  } catch (error) {
+    const err = error as Error;
+    console.error('[ADMIN_TENANT] Failed to clear tenant schema:', error);
+    res.status(500).json(createErrorResponseFromError('Failed to clear tenant schema', err));
   }
 });
 

@@ -43,7 +43,7 @@ interface SchemaUpdateFields {
 }
 
 // Path to the schema registry file (relative to project root)
-const REGISTRY_PATH = path.join(__dirname, '../schemas/schema_registry.json');
+const REGISTRY_PATH = path.join(__dirname, '../../schemas/schema_registry.json');
 
 /**
  * Get all schemas from the registry
@@ -101,7 +101,7 @@ export async function getSchemaContent(schemaId: string): Promise<string> {
       throw new Error(`Schema not found: ${schemaId}`);
     }
     
-    const schemaPath = path.join(__dirname, '..', schema.path);
+    const schemaPath = path.join(__dirname, '../..', schema.path);
     const schemaContent = await fs.readFile(schemaPath, 'utf8');
     return schemaContent;
   } catch (error: any) {
@@ -156,11 +156,11 @@ export async function addSchema(schemaInfo: SchemaInfo, schemaContent: string): 
     await fs.writeFile(REGISTRY_PATH, JSON.stringify(registry, null, 2), 'utf8');
     
     // Create directories if needed
-    const dirPath = path.dirname(path.join(__dirname, '..', newSchema.path));
+    const dirPath = path.dirname(path.join(__dirname, '../..', newSchema.path));
     await fs.mkdir(dirPath, { recursive: true });
     
     // Write the schema content
-    await fs.writeFile(path.join(__dirname, '..', newSchema.path), schemaContent, 'utf8');
+    await fs.writeFile(path.join(__dirname, '../..', newSchema.path), schemaContent, 'utf8');
     
     return newSchema;
   } catch (error: any) {
@@ -211,7 +211,7 @@ export async function updateSchema(schemaId: string, updates: SchemaUpdateFields
     
     // Update schema content if provided
     if (newContent) {
-      await fs.writeFile(path.join(__dirname, '..', updatedSchema.path), newContent, 'utf8');
+      await fs.writeFile(path.join(__dirname, '../..', updatedSchema.path), newContent, 'utf8');
     }
     
     return updatedSchema;

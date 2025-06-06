@@ -619,3 +619,296 @@ export const runLinting = async (
 }> => {
   return executeAdminRequest('/admin/test/lint', {}, 'POST', adminKey);
 };
+
+/**
+ * Push schema to a tenant
+ */
+export const pushTenantSchema = async (
+  tenantId: string,
+  schema?: string,
+  schemaId?: string,
+  adminKey?: string
+): Promise<{
+  success: boolean;
+  results: {
+    success: boolean;
+    error?: string;
+    details?: string;
+  };
+}> => {
+  const headers: Record<string, string> = {};
+  
+  if (adminKey) {
+    headers['X-Admin-API-Key'] = adminKey;
+  }
+  
+  // Add tenant header for the schema push
+  headers['X-Tenant-Id'] = tenantId;
+  
+  const payload: any = {};
+  if (schema) payload.schema = schema;
+  if (schemaId) payload.schemaId = schemaId;
+  
+  return executeAdminRequest('/admin/schema', payload, 'POST', adminKey);
+};
+
+/**
+ * Clear nodes and edges from a tenant (safe namespace-scoped deletion)
+ */
+export const clearTenantData = async (
+  tenantId: string,
+  adminKey: string
+): Promise<{
+  success: boolean;
+  message: string;
+  deletedNodes: number;
+  deletedEdges: number;
+  tenantId: string;
+  error?: string;
+}> => {
+  const headers: Record<string, string> = {};
+  
+  if (adminKey) {
+    headers['X-Admin-API-Key'] = adminKey;
+  }
+  
+  // Add tenant header for the operation
+  headers['X-Tenant-Id'] = tenantId;
+  
+  return executeAdminRequest('/admin/tenant/clear-data', {
+    tenantId
+  }, 'POST', adminKey);
+};
+
+/**
+ * Clear schema from a tenant (push minimal schema)
+ */
+export const clearTenantSchema = async (
+  tenantId: string,
+  adminKey: string
+): Promise<{
+  success: boolean;
+  message: string;
+  tenantId: string;
+  error?: string;
+}> => {
+  return executeAdminRequest('/admin/tenant/clear-schema', {
+    tenantId
+  }, 'POST', adminKey);
+};
+
+// Schema Management Functions
+// -------------------------------------------------------------------
+
+/**
+ * Push a specific schema to a tenant by schema ID
+ */
+export const pushSchema = async (
+  tenantId: string,
+  schemaId: string,
+  adminKey: string
+): Promise<{
+  success: boolean;
+  results: {
+    success: boolean;
+    error?: string;
+    details?: string;
+  };
+}> => {
+  // Set tenant header for this specific request
+  const headers: Record<string, string> = {
+    'X-Tenant-Id': tenantId
+  };
+  
+  if (adminKey) {
+    headers['X-Admin-API-Key'] = adminKey;
+  }
+
+  try {
+    const response = await apiClient.post('/admin/schema', {
+      schemaId
+    }, { headers });
+    
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', `Error pushing schema ${schemaId} to tenant ${tenantId}:`, error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', `Generic error pushing schema ${schemaId} to tenant ${tenantId}:`, error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Read current schema information for a tenant
+ */
+export const readSchema = async (
+  tenantId: string,
+  adminKey: string
+): Promise<{
+  tenantId: string;
+  schemaInfo: { id: string; name: string; isDefault: boolean; };
+  retrievedAt: string;
+}> => {
+  const result = await getTenantSchema(tenantId, adminKey);
+  return {
+    tenantId: result.tenantId,
+    schemaInfo: result.schemaInfo,
+    retrievedAt: result.retrievedAt
+  };
+};
+
+interface SchemaInfo {
+  id: string;
+  name: string;
+  description: string;
+  path: string;
+  owner: string;
+  created_at: string;
+  updated_at: string;
+  is_production?: boolean;
+  is_template?: boolean;
+}
+
+/**
+ * List all available schemas from the schema registry
+ */
+export const listAvailableSchemas = async (
+  adminKey: string
+): Promise<{ schemas: SchemaInfo[] }> => {
+  return executeAdminRequest('/schemas', undefined, 'GET', adminKey);
+};
+
+/**
+ * Get schema content by ID from the schema registry
+ */
+export const getSchemaContent = async (
+  schemaId: string,
+  adminKey: string
+): Promise<string> => {
+  try {
+    const response = await apiClient.get<string>(`/schemas/${schemaId}/content`, {
+      headers: {
+        'X-Admin-API-Key': adminKey
+      },
+      responseType: 'text'
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', `Error fetching schema content for ${schemaId}:`, error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', `Generic error fetching schema content for ${schemaId}:`, error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get schema metadata by ID from the schema registry
+ */
+export const getSchemaById = async (
+  schemaId: string,
+  adminKey: string
+): Promise<SchemaInfo> => {
+  return executeAdminRequest(`/schemas/${schemaId}`, undefined, 'GET', adminKey);
+};
+
+/**
+ * Push a specific schema by ID to a tenant
+ */
+export const pushSchemaById = async (
+  tenantId: string,
+  schemaId: string,
+  adminKey: string
+): Promise<{
+  success: boolean;
+  results: {
+    success: boolean;
+    error?: string;
+    details?: string;
+  };
+}> => {
+  // Use the existing pushTenantSchema function with schemaId
+  return pushTenantSchema(tenantId, undefined, schemaId, adminKey);
+};
+
+/**
+ * Read current schema information for a tenant
+ */
+export const readTenantSchemaInfo = async (
+  tenantId: string,
+  adminKey: string
+): Promise<{
+  tenantId: string;
+  schemaInfo: { id: string; name: string; isDefault: boolean; };
+  retrievedAt: string;
+}> => {
+  const result = await getTenantSchema(tenantId, adminKey);
+  return {
+    tenantId: result.tenantId,
+    schemaInfo: result.schemaInfo,
+    retrievedAt: result.retrievedAt
+  };
+};
+
+
+/**
+ * Full tenant reset with fresh schema
+ */
+export const fullTenantReset = async (
+  tenantId: string,
+  adminKey: string,
+  useDefaultSchema: boolean = true
+): Promise<{
+  success: boolean;
+  message: string;
+  steps: string[];
+  errors?: string[];
+}> => {
+  const steps: string[] = [];
+  const errors: string[] = [];
+  
+  try {
+    // Step 1: Clear all data
+    steps.push('Clearing tenant data...');
+    await clearTenantData(tenantId, adminKey);
+    steps.push('✅ Data cleared');
+    
+    // Step 2: Push fresh schema using schemaId
+    if (useDefaultSchema) {
+      steps.push('Pushing default schema...');
+      await pushTenantSchema(tenantId, undefined, 'default', adminKey);
+      steps.push('✅ Schema pushed');
+    }
+    
+    // Step 3: Seed basic test data (optional)
+    steps.push('Seeding test data...');
+    await seedTenantData(tenantId, 'test', false, adminKey);
+    steps.push('✅ Test data seeded');
+    
+    return {
+      success: true,
+      message: `Tenant ${tenantId} fully reset and ready`,
+      steps
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    errors.push(errorMsg);
+    steps.push(`❌ Error: ${errorMsg}`);
+    
+    return {
+      success: false,
+      message: `Tenant reset failed: ${errorMsg}`,
+      steps,
+      errors
+    };
+  }
+};
