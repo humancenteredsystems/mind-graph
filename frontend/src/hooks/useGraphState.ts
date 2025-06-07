@@ -88,11 +88,20 @@ export const useGraphState = (): UseGraphState => {
   }, [hierarchyId]);
 
   const loadCompleteGraph = useCallback(async () => {
-    log('useGraphState', `Loading complete graph for hierarchy ${hierarchyId}`);
+    log('useGraphState', `Loading complete graph for hierarchy ${hierarchyId || 'unknown'}`);
     setIsLoading(true);
     setError(null);
+    
+    // Add a timeout to prevent infinite loading
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Graph loading timeout')), 10000); // 10 second timeout
+    });
+    
     try {
-      const rawData = await executeQuery(GET_ALL_NODES_AND_EDGES_QUERY);
+      const rawData = await Promise.race([
+        executeQuery(GET_ALL_NODES_AND_EDGES_QUERY),
+        timeoutPromise
+      ]) as any; // Type assertion to handle Promise.race result
       const { nodes: allNodes, edges: allEdges } = transformAllGraphData(rawData);
       setNodes(allNodes);
       setEdges(allEdges);
@@ -109,7 +118,14 @@ export const useGraphState = (): UseGraphState => {
       });
     } catch (err) {
       log('useGraphState', 'Error loading complete graph', err);
-      setError('Failed to load complete graph data.');
+      // Don't set error for timeout - just show empty state
+      if (err instanceof Error && err.message === 'Graph loading timeout') {
+        log('useGraphState', 'Graph loading timed out, showing empty state');
+        setNodes([]);
+        setEdges([]);
+      } else {
+        setError('Failed to load complete graph data.');
+      }
     } finally {
       setIsLoading(false);
     }

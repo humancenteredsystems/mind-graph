@@ -1115,7 +1115,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                       </button>
                       
                       <button
-                        onClick={() => fullReset(tenant.tenantId)}
+                        onClick={() => ApiService.seedTenantData(tenant.tenantId, 'test', false, adminKey).then(() => loadTenants()).catch((error) => setError(`Failed to seed data: ${error.message}`))}
                         disabled={isLoading}
                         style={{
                           padding: '4px 8px',
@@ -1127,9 +1127,9 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                           cursor: isLoading ? 'not-allowed' : 'pointer',
                           opacity: isLoading ? 0.6 : 1,
                         }}
-                        title="Full reset: clear data + fresh schema + test data"
+                        title="Seed hierarchy data and sample nodes"
                       >
-                        Full Reset
+                        Seed Data
                       </button>
 
                       {tenant.tenantId !== 'default' && (

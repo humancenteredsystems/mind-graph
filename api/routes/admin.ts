@@ -224,16 +224,244 @@ router.post('/admin/tenant/seed', authenticateAdmin, async (req: Request, res: R
     // Get tenant info
     const tenantInfo = await tenantManager.getTenantInfo(tenantId);
     
-    // TODO: Implement actual data seeding based on dataType
-    // For now, just return success with tenant info
+    // Implement actual hierarchy data seeding
+    console.log(`[ADMIN_TENANT] Starting hierarchy seeding for tenant ${tenantId}, type: ${dataType}`);
     
-    res.json({
-      message: `Data seeding completed for tenant ${tenantId}`,
-      tenantId,
-      dataType,
-      tenant: tenantInfo,
-      seededAt: new Date()
-    });
+    try {
+      // Get tenant namespace and create client for seeding operations
+      const namespace = await tenantManager.getTenantNamespace(tenantId);
+      const tenantClient = DgraphTenantFactory.createTenant(namespace);
+      
+      // Create the primary hierarchy
+      const hierarchyId = 'h1';
+      const hierarchyName = 'Primary Knowledge Graph';
+      
+      console.log(`[ADMIN_TENANT] Creating hierarchy: ${hierarchyName}`);
+      const createHierarchyMutation = `
+        mutation CreateHierarchy($input: [AddHierarchyInput!]!) {
+          addHierarchy(input: $input) {
+            hierarchy {
+              id
+              name
+            }
+          }
+        }
+      `;
+      
+      const hierarchyResult = await tenantClient.executeGraphQL(createHierarchyMutation, {
+        input: [{ id: hierarchyId, name: hierarchyName }]
+      });
+      
+      if (!hierarchyResult?.addHierarchy?.hierarchy?.[0]) {
+        throw new Error('Failed to create hierarchy');
+      }
+      
+      // Create hierarchy levels
+      const levelsData = [
+        { levelNumber: 1, label: 'Domains' },
+        { levelNumber: 2, label: 'Key Concepts' },
+        { levelNumber: 3, label: 'Detailed Examples' }
+      ];
+      
+      console.log(`[ADMIN_TENANT] Creating ${levelsData.length} hierarchy levels`);
+      const createLevelsMutation = `
+        mutation CreateLevels($input: [AddHierarchyLevelInput!]!) {
+          addHierarchyLevel(input: $input) {
+            hierarchyLevel {
+              id
+              levelNumber
+              label
+            }
+          }
+        }
+      `;
+      
+      const levelInputs = levelsData.map(level => ({
+        hierarchy: { id: hierarchyId },
+        levelNumber: level.levelNumber,
+        label: level.label
+      }));
+      
+      const levelsResult = await tenantClient.executeGraphQL(createLevelsMutation, {
+        input: levelInputs
+      });
+      
+      const createdLevels = levelsResult?.addHierarchyLevel?.hierarchyLevel || [];
+      if (createdLevels.length !== levelsData.length) {
+        throw new Error(`Failed to create all levels. Expected ${levelsData.length}, got ${createdLevels.length}`);
+      }
+      
+      // Create level types for each level
+      const levelTypesData = [
+        { levelNumber: 1, types: ['domain', 'category'] },
+        { levelNumber: 2, types: ['concept', 'principle'] },
+        { levelNumber: 3, types: ['example', 'application'] }
+      ];
+      
+      console.log(`[ADMIN_TENANT] Creating hierarchy level types`);
+      const createLevelTypesMutation = `
+        mutation CreateLevelTypes($input: [AddHierarchyLevelTypeInput!]!) {
+          addHierarchyLevelType(input: $input) {
+            hierarchyLevelType {
+              id
+              typeName
+            }
+          }
+        }
+      `;
+      
+      for (const levelTypeData of levelTypesData) {
+        const level = createdLevels.find((l: any) => l.levelNumber === levelTypeData.levelNumber);
+        if (!level) continue;
+        
+        const typeInputs = levelTypeData.types.map(typeName => ({
+          level: { id: level.id },
+          typeName
+        }));
+        
+        await tenantClient.executeGraphQL(createLevelTypesMutation, {
+          input: typeInputs
+        });
+      }
+      
+      // Create sample nodes if dataType is 'test'
+      if (dataType === 'test') {
+        console.log(`[ADMIN_TENANT] Creating sample nodes and edges`);
+        
+        const sampleNodes = [
+          // Level 1: Domains & Categories
+          { id: 'dom1', label: 'Software Engineering', type: 'domain', status: 'approved', branch: 'main' },
+          { id: 'dom2', label: 'Data Science', type: 'domain', status: 'approved', branch: 'main' },
+          { id: 'cat1', label: 'Development Methodologies', type: 'category', status: 'approved', branch: 'main' },
+          
+          // Level 2: Concepts & Principles
+          { id: 'con1', label: 'API Design', type: 'concept', status: 'approved', branch: 'main' },
+          { id: 'con2', label: 'Microservices', type: 'concept', status: 'approved', branch: 'main' },
+          { id: 'con3', label: 'Machine Learning', type: 'concept', status: 'approved', branch: 'main' },
+          { id: 'pri1', label: 'REST Principles', type: 'principle', status: 'approved', branch: 'main' },
+          
+          // Level 3: Examples & Applications
+          { id: 'ex1', label: 'GraphQL Implementation', type: 'example', status: 'approved', branch: 'main' },
+          { id: 'ex2', label: 'Event Sourcing Pattern', type: 'example', status: 'approved', branch: 'main' },
+          { id: 'ex3', label: 'Regression Analysis', type: 'example', status: 'approved', branch: 'main' },
+          { id: 'app1', label: 'Docker Container Setup', type: 'application', status: 'approved', branch: 'main' }
+        ];
+        
+        const createNodesMutation = `
+          mutation CreateNodes($input: [AddNodeInput!]!) {
+            addNode(input: $input) {
+              node {
+                id
+                label
+                type
+              }
+            }
+          }
+        `;
+        
+        const nodesResult = await tenantClient.executeGraphQL(createNodesMutation, {
+          input: sampleNodes
+        });
+        
+        const createdNodes = nodesResult?.addNode?.node || [];
+        console.log(`[ADMIN_TENANT] Created ${createdNodes.length} sample nodes`);
+        
+        // Create sample edges
+        const sampleEdges = [
+          { from: { id: 'dom1' }, fromId: 'dom1', to: { id: 'con1' }, toId: 'con1', type: 'simple' },
+          { from: { id: 'dom1' }, fromId: 'dom1', to: { id: 'con2' }, toId: 'con2', type: 'simple' },
+          { from: { id: 'dom2' }, fromId: 'dom2', to: { id: 'con3' }, toId: 'con3', type: 'simple' },
+          { from: { id: 'cat1' }, fromId: 'cat1', to: { id: 'pri1' }, toId: 'pri1', type: 'simple' },
+          { from: { id: 'con1' }, fromId: 'con1', to: { id: 'ex1' }, toId: 'ex1', type: 'simple' },
+          { from: { id: 'con2' }, fromId: 'con2', to: { id: 'ex2' }, toId: 'ex2', type: 'simple' },
+          { from: { id: 'con3' }, fromId: 'con3', to: { id: 'ex3' }, toId: 'ex3', type: 'simple' },
+          { from: { id: 'pri1' }, fromId: 'pri1', to: { id: 'app1' }, toId: 'app1', type: 'simple' },
+          { from: { id: 'con1' }, fromId: 'con1', to: { id: 'con2' }, toId: 'con2', type: 'simple' }
+        ];
+        
+        const createEdgesMutation = `
+          mutation CreateEdges($input: [AddEdgeInput!]!) {
+            addEdge(input: $input) {
+              edge {
+                fromId
+                toId
+                type
+              }
+            }
+          }
+        `;
+        
+        const edgesResult = await tenantClient.executeGraphQL(createEdgesMutation, {
+          input: sampleEdges
+        });
+        
+        const createdEdges = edgesResult?.addEdge?.edge || [];
+        console.log(`[ADMIN_TENANT] Created ${createdEdges.length} sample edges`);
+        
+        // Create hierarchy assignments
+        const levelMap = new Map(createdLevels.map((l: any) => [l.levelNumber, l.id]));
+        const hierarchyAssignments = [
+          // Level 1 assignments
+          { node: { id: 'dom1' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(1) } },
+          { node: { id: 'dom2' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(1) } },
+          { node: { id: 'cat1' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(1) } },
+          
+          // Level 2 assignments
+          { node: { id: 'con1' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(2) } },
+          { node: { id: 'con2' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(2) } },
+          { node: { id: 'con3' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(2) } },
+          { node: { id: 'pri1' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(2) } },
+          
+          // Level 3 assignments
+          { node: { id: 'ex1' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(3) } },
+          { node: { id: 'ex2' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(3) } },
+          { node: { id: 'ex3' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(3) } },
+          { node: { id: 'app1' }, hierarchy: { id: hierarchyId }, level: { id: levelMap.get(3) } }
+        ];
+        
+        const createAssignmentsMutation = `
+          mutation CreateAssignments($input: [AddHierarchyAssignmentInput!]!) {
+            addHierarchyAssignment(input: $input) {
+              hierarchyAssignment {
+                id
+              }
+            }
+          }
+        `;
+        
+        const assignmentsResult = await tenantClient.executeGraphQL(createAssignmentsMutation, {
+          input: hierarchyAssignments
+        });
+        
+        const createdAssignments = assignmentsResult?.addHierarchyAssignment?.hierarchyAssignment || [];
+        console.log(`[ADMIN_TENANT] Created ${createdAssignments.length} hierarchy assignments`);
+      }
+      
+      console.log(`[ADMIN_TENANT] Hierarchy seeding completed successfully for tenant ${tenantId}`);
+      
+      res.json({
+        message: `Data seeding completed for tenant ${tenantId}`,
+        tenantId,
+        dataType,
+        tenant: tenantInfo,
+        seededData: {
+          hierarchy: { id: hierarchyId, name: hierarchyName },
+          levels: createdLevels.length,
+          sampleNodes: dataType === 'test' ? 11 : 0,
+          sampleEdges: dataType === 'test' ? 9 : 0,
+          hierarchyAssignments: dataType === 'test' ? 11 : 0
+        },
+        seededAt: new Date()
+      });
+      
+    } catch (seedError) {
+      console.error(`[ADMIN_TENANT] Seeding failed for tenant ${tenantId}:`, seedError);
+      res.status(500).json({
+        error: 'Failed to seed hierarchy data',
+        details: seedError instanceof Error ? seedError.message : 'Unknown seeding error',
+        tenantId
+      });
+    }
   } catch (error) {
     const err = error as Error;
     console.error('[ADMIN_TENANT] Failed to seed tenant data:', error);
@@ -448,7 +676,7 @@ router.post('/admin/tenant/clear-data', authenticateAdmin, async (req: Request, 
     
     // Step 1: Query all edges and delete them first
     console.log(`[ADMIN_TENANT] Querying edges for tenant ${tenantId}`);
-    const edgeQuery = `{ queryEdge { id } }`;
+    const edgeQuery = `{ queryEdge { fromId toId type } }`;
     const edgeResult = await tenantClient.executeGraphQL(edgeQuery);
     const edges = edgeResult?.queryEdge || [];
     
