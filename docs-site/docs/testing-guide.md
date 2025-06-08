@@ -24,6 +24,7 @@ The application uses a multi-layered testing strategy:
 - `services/schemaRegistry.test.ts` - Schema registry operations
 - `services/validation.test.ts` - Input validation
 - `utils/dgraphAdmin.test.ts` - Dgraph admin utilities
+- `utils/pushSchema.test.ts` - Schema push functionality
 - `middleware/auth.test.ts` - Authentication middleware
 
 **Running Unit Tests:**
@@ -255,6 +256,43 @@ module.exports = {
    expect(response.body).toBeTruthy();
    ```
 
+### Mocking Best Practices
+
+#### Axios Mocking
+For HTTP client mocking, use `jest.spyOn` with proper setup in `beforeEach`:
+
+```typescript
+describe('HTTP Service Tests', () => {
+  let mockedAxiosPost: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Set up the spy in beforeEach to ensure it's applied after module loading
+    mockedAxiosPost = jest.spyOn(axios, 'post').mockImplementation();
+  });
+
+  afterEach(() => {
+    mockedAxiosPost.mockRestore();
+  });
+
+  it('should make HTTP request', async () => {
+    const mockResponse = { status: 200, data: { success: true } };
+    mockedAxiosPost.mockResolvedValueOnce(mockResponse);
+
+    const result = await httpService.makeRequest();
+
+    expect(result.success).toBe(true);
+    expect(mockedAxiosPost).toHaveBeenCalledWith(/* expected args */);
+  });
+});
+```
+
+**Key Points:**
+- Use `jest.spyOn` instead of `jest.mock()` for more reliable mocking
+- Set up spies in `beforeEach` to ensure proper timing
+- Always restore mocks in `afterEach`
+- Avoid manual mocks in `__mocks__/` directories when using `jest.spyOn`
+
 ### Test Performance
 
 1. **Use Appropriate Test Types:**
@@ -349,6 +387,11 @@ jobs:
      jest.clearAllMocks();
    });
    ```
+
+4. **Axios Mocking Issues:**
+   - Use `jest.spyOn` instead of `jest.mock()`
+   - Set up spies in `beforeEach` for proper timing
+   - Avoid conflicts between manual mocks and `jest.mock()`
 
 ### Test Output Analysis
 ```bash
