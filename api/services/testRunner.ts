@@ -209,16 +209,41 @@ export class TestRunner extends EventEmitter {
   private parseTestOutput(result: TestRunResult, output: string): void {
     // Try to parse Jest JSON output first - look for complete JSON objects
     try {
-      // Look for JSON output that contains the test results
-      // More robust regex to find JSON objects with test results
-      const jsonMatches = output.match(/\{[^{}]*"numTotalTests"\s*:\s*\d+[^{}]*\}/g) || 
-                         output.match(/\{[\s\S]*?"success"\s*:\s*(true|false)[\s\S]*?\}/g);
+      // Look for the final JSON output that Jest produces with --json flag
+      // Jest outputs a complete JSON object at the end, so we look for the last valid JSON
+      const lines = output.split('\n');
+      let jsonString = '';
       
-      if (jsonMatches && jsonMatches.length > 0) {
-        // Use the last (most complete) JSON match
-        const jsonString = jsonMatches[jsonMatches.length - 1];
-        const jestResults = JSON.parse(jsonString);
-        
+      // Look for lines that start with { and try to parse them as JSON
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (line.startsWith('{') && line.includes('numTotalTests')) {
+          try {
+            // Try to parse this line as JSON
+            const jestResults = JSON.parse(line);
+            if (jestResults.numTotalTests !== undefined) {
+              result.summary = {
+                passed: jestResults.numPassedTests || 0,
+                failed: jestResults.numFailedTests || 0,
+                total: jestResults.numTotalTests || 0,
+                suites: jestResults.numTotalTestSuites || 0
+              };
+              
+              console.log(`[TEST_RUNNER] Parsed JSON summary for ${result.id}:`, result.summary);
+              return;
+            }
+          } catch (parseError) {
+            // This line wasn't valid JSON, continue searching
+            continue;
+          }
+        }
+      }
+      
+      // If no single line worked, try to find a complete JSON block
+      // Look for JSON that spans multiple lines
+      const jsonBlockMatch = output.match(/\{[\s\S]*?"numTotalTests"\s*:\s*\d+[\s\S]*?\}/);
+      if (jsonBlockMatch) {
+        const jestResults = JSON.parse(jsonBlockMatch[0]);
         result.summary = {
           passed: jestResults.numPassedTests || 0,
           failed: jestResults.numFailedTests || 0,
@@ -226,7 +251,7 @@ export class TestRunner extends EventEmitter {
           suites: jestResults.numTotalTestSuites || 0
         };
         
-        console.log(`[TEST_RUNNER] Parsed JSON summary for ${result.id}:`, result.summary);
+        console.log(`[TEST_RUNNER] Parsed JSON block summary for ${result.id}:`, result.summary);
         return;
       }
     } catch (error) {
