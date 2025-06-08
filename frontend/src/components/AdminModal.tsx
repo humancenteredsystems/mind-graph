@@ -166,38 +166,6 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
 
   const generateTestId = (type: string) => `${type}-${Date.now()}`;
 
-  const simulateTestRun = async (type: 'unit' | 'integration' | 'integration-real'): Promise<TestResult> => {
-    // Simulate different test scenarios based on type
-    const testScenarios = {
-      unit: { passed: 77, failed: 0, total: 77, duration: 2000 },
-      integration: { passed: 45, failed: 0, total: 45, duration: 3000 },
-      'integration-real': { passed: 35, failed: 8, total: 43, duration: 5000 }
-    };
-
-    const scenario = testScenarios[type];
-    const testId = generateTestId(type);
-    
-    const result: TestResult = {
-      id: testId,
-      type,
-      status: 'running',
-      startTime: new Date(),
-      passed: 0,
-      failed: 0,
-      total: scenario.total
-    };
-
-    // Simulate test execution time
-    await new Promise(resolve => setTimeout(resolve, scenario.duration));
-
-    // Complete the test with results
-    result.status = scenario.failed > 0 ? 'failed' : 'completed';
-    result.endTime = new Date();
-    result.passed = scenario.passed;
-    result.failed = scenario.failed;
-
-    return result;
-  };
 
   const startLinting = async () => {
     if (runningTests.has('linting')) {
@@ -291,24 +259,60 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
     setTestResults(prev => [runningResult, ...prev]);
 
     try {
-      // Try the new API first, fall back to simulation
-      try {
-        const apiResult = await ApiService.startTestRun({ type }, adminKey);
-        console.log('API test started:', apiResult);
-        
-        // For now, simulate since the endpoints aren't loaded
-        throw new Error('Using simulation');
-      } catch {
-        console.log('Using test simulation for', type);
-        
-        // Run simulated test
-        const result = await simulateTestRun(type);
-        
-        // Update the result in the list
-        setTestResults(prev => 
-          prev.map(r => r.id === testId ? result : r)
-        );
-      }
+      console.log(`Starting ${type} tests via API`);
+      const apiResult = await ApiService.startTestRun({ type }, adminKey);
+      console.log('Test run started:', apiResult);
+      
+      // Poll for test completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const testRun = await ApiService.getTestRun(apiResult.runId, adminKey);
+          
+          if (testRun.status === 'completed' || testRun.status === 'failed') {
+            clearInterval(pollInterval);
+            
+            const completedResult: TestResult = {
+              id: testId,
+              type,
+              status: testRun.status === 'completed' ? 'completed' : 'failed',
+              startTime: runningResult.startTime,
+              endTime: new Date(),
+              passed: testRun.summary?.passed || 0,
+              failed: testRun.summary?.failed || 0,
+              total: testRun.summary?.total || 0
+            };
+            
+            setTestResults(prev => 
+              prev.map(r => r.id === testId ? completedResult : r)
+            );
+            
+            setRunningTests(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(type);
+              return newSet;
+            });
+          }
+        } catch (pollError) {
+          console.error('Error polling test status:', pollError);
+          clearInterval(pollInterval);
+          
+          // Mark as failed
+          setTestResults(prev => 
+            prev.map(r => r.id === testId ? {
+              ...r,
+              status: 'failed' as const,
+              endTime: new Date()
+            } : r)
+          );
+          
+          setRunningTests(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(type);
+            return newSet;
+          });
+        }
+      }, 2000); // Poll every 2 seconds
+      
     } catch (error) {
       // Mark test as failed
       setTestResults(prev => 
@@ -318,9 +322,9 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
           endTime: new Date()
         } : r)
       );
-      setError(`Failed to start ${type} tests`);
+      setError(`Failed to start ${type} tests: ${error instanceof Error ? error.message : 'Unknown error'}`);
       console.error('Error starting test:', error);
-    } finally {
+      
       setRunningTests(prev => {
         const newSet = new Set(prev);
         newSet.delete(type);

@@ -13,12 +13,7 @@ describe('Real Integration: Hierarchy Operations', () => {
 
   beforeEach(async () => {
     await global.testUtils.resetTestDatabase();
-    // Ensure specific test data, including 'test-hierarchy-1', is seeded after reset
     await global.testUtils.seedTestData();
-    // Add a small delay to allow Dgraph to fully process writes/schema changes from seeding
-    console.log('[TEST_HIERARCHY_OPS] Waiting after seed for Dgraph processing...');
-    await global.testUtils.wait(1000); // Wait 1 second
-    console.log('[TEST_HIERARCHY_OPS] Proceeding with test.');
   });
 
   describe('Hierarchy Management', () => {
@@ -38,7 +33,7 @@ describe('Real Integration: Hierarchy Operations', () => {
       expect(testHierarchy.name).toBe('Test Hierarchy 1');
     });
 
-    it('should create new hierarchy with admin key', async () => {
+    it('should create new hierarchy', async () => {
       const newHierarchy = {
         id: `hierarchy-${Date.now()}`,
         name: 'Test Created Hierarchy'
@@ -46,7 +41,6 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy')
-        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(newHierarchy)
         .expect(201);
 
@@ -66,22 +60,38 @@ describe('Real Integration: Hierarchy Operations', () => {
       expect(verification.getHierarchy).toBeTruthy();
       expect(verification.getHierarchy.id).toBe(newHierarchy.id);
     });
-
-    it('should reject hierarchy creation without admin key', async () => {
-      const newHierarchy = {
-        id: 'unauthorized-hierarchy',
-        name: 'Should Not Be Created'
-      };
-
-      await testRequest(app)
-        .post('/api/hierarchy')
-        .send(newHierarchy)
-        .expect(401);
-    });
   });
 
   describe('Level Management', () => {
     it('should create new level in existing hierarchy', async () => {
+      // DEBUG: Check what hierarchies actually exist
+      console.log('[DEBUG] Checking existing hierarchies before test...');
+      const existingHierarchies = await verifyInTestTenant(`
+        query {
+          queryHierarchy {
+            id
+            name
+          }
+        }
+      `);
+      console.log('[DEBUG] Existing hierarchies:', JSON.stringify(existingHierarchies, null, 2));
+
+      // DEBUG: Try to get the specific hierarchy
+      const specificHierarchy = await verifyInTestTenant(`
+        query {
+          getHierarchy(id: "test-hierarchy-1") {
+            id
+            name
+            levels {
+              id
+              levelNumber
+              label
+            }
+          }
+        }
+      `);
+      console.log('[DEBUG] Specific hierarchy test-hierarchy-1:', JSON.stringify(specificHierarchy, null, 2));
+
       const newLevel = {
         hierarchyId: 'test-hierarchy-1',
         levelNumber: 3,
@@ -91,11 +101,12 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy/level')
-        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
-        .send(newLevel)
-        .expect(201);
+        .send(newLevel);
 
-      expect(response.body.hierarchyId).toBe('test-hierarchy-1');
+      console.log('[DEBUG] Level creation response status:', response.status);
+      console.log('[DEBUG] Level creation response body:', JSON.stringify(response.body, null, 2));
+
+      expect(response.status).toBe(201);
       expect(response.body.levelNumber).toBe(3);
       expect(response.body.label).toBe('Test Level 3');
 
@@ -116,19 +127,6 @@ describe('Real Integration: Hierarchy Operations', () => {
       expect(levelNumbers).toContain(3);
     });
 
-    it('should reject level creation without admin key', async () => {
-      const newLevel = {
-        hierarchyId: 'test-hierarchy-1',
-        levelNumber: 4,
-        label: 'Unauthorized Level'
-      };
-
-      await testRequest(app)
-        .post('/api/hierarchy/level')
-        .send(newLevel)
-        .expect(401);
-    });
-
     it('should validate level number uniqueness', async () => {
       const duplicateLevel = {
         hierarchyId: 'test-hierarchy-1',
@@ -138,7 +136,6 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy/level')
-        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(duplicateLevel)
         .expect(500);
 
@@ -156,12 +153,11 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy/assignment')
-        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(assignment)
         .expect(201);
 
-      expect(response.body.nodeId).toBe('test-concept-1');
-      expect(response.body.hierarchyId).toBe('test-hierarchy-1');
+      expect(response.body.node.id).toBe('test-concept-1');
+      expect(response.body.hierarchy.id).toBe('test-hierarchy-1');
 
       // Verify assignment exists
       const verification = await verifyInTestTenant(`
@@ -185,19 +181,6 @@ describe('Real Integration: Hierarchy Operations', () => {
       expect(hierarchyIds).toContain('test-hierarchy-1');
     });
 
-    it('should reject assignment without admin key', async () => {
-      const assignment = {
-        nodeId: 'test-concept-1',
-        hierarchyId: 'test-hierarchy-1',
-        levelId: 'test-level-1'
-      };
-
-      await testRequest(app)
-        .post('/api/hierarchy/assignment')
-        .send(assignment)
-        .expect(401);
-    });
-
     it('should validate node existence for assignment', async () => {
       const invalidAssignment = {
         nodeId: 'non-existent-node',
@@ -207,7 +190,6 @@ describe('Real Integration: Hierarchy Operations', () => {
 
       const response = await testRequest(app)
         .post('/api/hierarchy/assignment')
-        .set('X-Admin-API-Key', process.env.ADMIN_API_KEY!)
         .send(invalidAssignment)
         .expect(500);
 

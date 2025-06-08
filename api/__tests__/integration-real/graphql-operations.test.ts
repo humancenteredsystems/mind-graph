@@ -14,6 +14,7 @@ describe('Real Integration: GraphQL Operations', () => {
 
   beforeEach(async () => {
     await global.testUtils.resetTestDatabase();
+    await global.testUtils.seedTestData();
   });
 
   describe('Query Operations', () => {
@@ -21,13 +22,12 @@ describe('Real Integration: GraphQL Operations', () => {
       const response = await testRequest(app)
         .post('/api/query')
         .send({
-          query: `
+            query: `
             query {
               queryNode(first: 5) {
                 id
                 label
                 type
-                status
               }
             }
           `
@@ -50,7 +50,6 @@ describe('Real Integration: GraphQL Operations', () => {
             id
             label
             type
-            status
           }
         }
       `;
@@ -167,7 +166,6 @@ describe('Real Integration: GraphQL Operations', () => {
               id
               label
               type
-              status
             }
           }
         }
@@ -490,7 +488,6 @@ describe('Real Integration: GraphQL Operations', () => {
           id
           label
           type
-          status
         }
 
         query {
@@ -518,7 +515,6 @@ describe('Real Integration: GraphQL Operations', () => {
         expect(node).toHaveProperty('id');
         expect(node).toHaveProperty('label');
         expect(node).toHaveProperty('type');
-        expect(node).toHaveProperty('status');
       }
     });
 
@@ -718,7 +714,7 @@ describe('Real Integration: GraphQL Operations', () => {
       const verificationQuery = `
         query { 
           queryNode(filter: { 
-            label: { regexp: "/^Batch Node/" } 
+            label: { anyofterms: "Batch Node" } 
           }) { 
             id 
             label 

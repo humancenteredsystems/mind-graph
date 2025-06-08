@@ -439,7 +439,7 @@ export const startTestRun = async (
   options: TestRunOptions,
   adminKey: string
 ): Promise<{ runId: string; status: string; message: string }> => {
-  return executeAdminRequest('/admin/test', options, 'POST', adminKey);
+  return executeAdminRequest('/test', options, 'POST', adminKey);
 };
 
 /**
@@ -449,7 +449,7 @@ export const getTestRun = async (
   runId: string,
   adminKey: string
 ): Promise<TestRunResult> => {
-  return executeAdminRequest(`/admin/test/${runId}`, undefined, 'GET', adminKey);
+  return executeAdminRequest(`/test/${runId}`, undefined, 'GET', adminKey);
 };
 
 /**
@@ -459,7 +459,7 @@ export const stopTestRun = async (
   runId: string,
   adminKey: string
 ): Promise<{ message: string; runId: string; status: string }> => {
-  return executeAdminRequest(`/admin/test/${runId}/stop`, {}, 'POST', adminKey);
+  return executeAdminRequest(`/test/${runId}/stop`, {}, 'POST', adminKey);
 };
 
 /**
@@ -468,7 +468,7 @@ export const stopTestRun = async (
 export const getActiveTestRuns = async (
   adminKey: string
 ): Promise<{ activeRuns: TestRunResult[]; count: number }> => {
-  return executeAdminRequest('/admin/test', undefined, 'GET', adminKey);
+  return executeAdminRequest('/test', undefined, 'GET', adminKey);
 };
 
 /**
@@ -481,11 +481,8 @@ export const createTestStreamConnection = (
   onError?: (error: Event) => void,
   onClose?: () => void
 ): EventSource => {
-  const url = `${API_BASE_URL}/admin/test/${runId}/stream`;
+  const url = `${API_BASE_URL}/test/${runId}/stream?adminKey=${encodeURIComponent(adminKey)}`;
   const eventSource = new EventSource(url);
-
-  // Add admin key to the request (note: EventSource doesn't support custom headers)
-  // We'll need to modify the backend to accept admin key as query parameter for SSE
   
   eventSource.onmessage = (event) => {
     try {

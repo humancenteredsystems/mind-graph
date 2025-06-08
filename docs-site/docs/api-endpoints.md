@@ -308,20 +308,20 @@ MakeItMakeSense.io API is running!
 
 ## Hierarchy Management Endpoints
 
+**Authentication:** All hierarchy management endpoints are **publicly accessible** and do not require admin authentication. Hierarchies are user-managed knowledge organization tools that are part of the normal user workflow for organizing and structuring their data.
+
 ### GET /api/hierarchy
 
 **Path:** `/api/hierarchy`  
-**Description:** Get all hierarchies. This endpoint is publicly accessible to allow clients (e.g., the frontend) to list available hierarchies for user selection.
+**Description:** Get all hierarchies available to the current tenant.
 **Authentication:** None
 **Response (200 OK):** Array of hierarchy objects (`{id, name}`).
-
-**Admin-Protected Hierarchy Endpoints:**
-All other hierarchy management endpoints listed below (for creating, updating, deleting hierarchies, levels, and assignments, and fetching specific hierarchy details) require a valid admin API key via the `X-Admin-API-Key` header.
 
 ### POST /api/hierarchy
 
 **Path:** `/api/hierarchy`  
 **Description:** Create a new hierarchy.  
+**Authentication:** None
 **Request Body:** `{ "id": "h1", "name": "Primary Hierarchy" }`  
 **Response (201 Created):** Created hierarchy object.
 
@@ -329,12 +329,14 @@ All other hierarchy management endpoints listed below (for creating, updating, d
 
 **Path:** `/api/hierarchy/:id`  
 **Description:** Get a specific hierarchy by ID.  
+**Authentication:** None
 **Response (200 OK):** Hierarchy object. (404 if not found)
 
 ### PUT /api/hierarchy/:id
 
 **Path:** `/api/hierarchy/:id`  
 **Description:** Update an existing hierarchy's name.  
+**Authentication:** None
 **Request Body:** `{ "name": "Updated Name" }`  
 **Response (200 OK):** Updated hierarchy object.
 
@@ -342,12 +344,14 @@ All other hierarchy management endpoints listed below (for creating, updating, d
 
 **Path:** `/api/hierarchy/:id`  
 **Description:** Delete a hierarchy.  
+**Authentication:** None
 **Response (200 OK):** Dgraph deletion status message.
 
 ### POST /api/hierarchy/level
 
 **Path:** `/api/hierarchy/level`  
 **Description:** Create a new level within a hierarchy.  
+**Authentication:** None
 **Request Body:** `{ "hierarchyId": "h1", "levelNumber": 1, "label": "Domain" }`  
 **Response (201 Created):** Created hierarchy level object.
 
@@ -355,6 +359,7 @@ All other hierarchy management endpoints listed below (for creating, updating, d
 
 **Path:** `/api/hierarchy/level/:id`  
 **Description:** Update an existing hierarchy level's label.  
+**Authentication:** None
 **Request Body:** `{ "label": "Updated Level Label" }`  
 **Response (200 OK):** Updated hierarchy level object.
 
@@ -362,12 +367,14 @@ All other hierarchy management endpoints listed below (for creating, updating, d
 
 **Path:** `/api/hierarchy/level/:id`  
 **Description:** Delete a hierarchy level.  
+**Authentication:** None
 **Response (200 OK):** Dgraph deletion status message.
 
 ### POST /api/hierarchy/assignment
 
 **Path:** `/api/hierarchy/assignment`  
 **Description:** Assign a node to a specific level in a hierarchy.  
+**Authentication:** None
 **Request Body:** `{ "nodeId": "node1", "hierarchyId": "h1", "levelId": "level_abc" }`  
 **Response (201 Created):** Created hierarchy assignment object.
 
@@ -375,6 +382,7 @@ All other hierarchy management endpoints listed below (for creating, updating, d
 
 **Path:** `/api/hierarchy/assignment/:id`  
 **Description:** Delete a hierarchy assignment.  
+**Authentication:** None
 **Response (200 OK):** Dgraph deletion status message.
 
 ---

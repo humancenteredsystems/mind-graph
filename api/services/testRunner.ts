@@ -44,10 +44,13 @@ export class TestRunner extends EventEmitter {
 
     // Build Jest command arguments
     const args = this.buildJestArgs(options);
+    const workingDir = process.cwd().endsWith('/api') ? process.cwd() : `${process.cwd()}/api`;
     
-    // Spawn Jest process
+    console.log(`[TEST_RUNNER] Jest command: npm test -- ${args.join(' ')}`);
+    
+    // Spawn Jest process - ensure we're in the api directory
     const testProcess = spawn('npm', ['test', '--', ...args], {
-      cwd: process.cwd(),
+      cwd: workingDir,
       env: {
         ...process.env,
         NODE_ENV: 'test',
@@ -72,6 +75,9 @@ export class TestRunner extends EventEmitter {
       const output = data.toString();
       result.output.push(`[STDERR] ${output}`);
       this.emit('output', runId, `[STDERR] ${output}`);
+      
+      // Also try parsing stderr for test results
+      this.parseTestOutput(result, output);
     });
 
     // Handle process completion
@@ -80,7 +86,16 @@ export class TestRunner extends EventEmitter {
       result.endTime = new Date();
       result.exitCode = code || 0;
       
+      // If we don't have a summary yet, try parsing the complete output
+      if (!result.summary) {
+        console.log(`[TEST_RUNNER] No summary found during streaming, parsing complete output...`);
+        const completeOutput = result.output.join('');
+        console.log(`[TEST_RUNNER] Complete output length: ${completeOutput.length} chars`);
+        this.parseTestOutput(result, completeOutput);
+      }
+      
       console.log(`[TEST_RUNNER] Test run ${runId} completed with exit code ${code}`);
+      console.log(`[TEST_RUNNER] Final summary for ${runId}:`, result.summary);
       this.emit('completed', runId, result);
       
       // Clean up after a delay
@@ -143,7 +158,7 @@ export class TestRunner extends EventEmitter {
   private buildJestArgs(options: TestRunOptions): string[] {
     const args: string[] = [];
 
-    // Test type patterns
+    // Test type patterns and configurations
     switch (options.type) {
       case 'unit':
         args.push('--testPathPattern=unit');
@@ -153,6 +168,8 @@ export class TestRunner extends EventEmitter {
         args.push('--testPathIgnorePatterns=integration-real');
         break;
       case 'integration-real':
+        // Use the specific integration-real Jest config
+        args.push('--config=jest.integration-real.config.js');
         args.push('--testPathPattern=integration-real');
         break;
       case 'all':
@@ -175,6 +192,12 @@ export class TestRunner extends EventEmitter {
     
     // Disable watch mode
     args.push('--watchAll=false');
+    
+    // Force exit to prevent hanging
+    args.push('--forceExit');
+    
+    // Use JSON output for reliable parsing
+    args.push('--json');
 
     return args;
   }
@@ -183,22 +206,43 @@ export class TestRunner extends EventEmitter {
    * Parse test output to extract summary information
    */
   private parseTestOutput(result: TestRunResult, output: string): void {
-    // Parse Jest test summary
-    const summaryMatch = output.match(/Test Suites:\s*(\d+)\s*failed,\s*(\d+)\s*passed,\s*(\d+)\s*total/);
-    if (summaryMatch) {
-      const [, failedSuites, passedSuites, totalSuites] = summaryMatch;
-      
-      const testsMatch = output.match(/Tests:\s*(\d+)\s*failed,\s*(\d+)\s*passed,\s*(\d+)\s*total/);
-      if (testsMatch) {
-        const [, failedTests, passedTests, totalTests] = testsMatch;
+    // Try to parse Jest JSON output first
+    try {
+      // Look for JSON output in the chunk
+      const jsonMatch = output.match(/\{[\s\S]*"success":\s*(true|false)[\s\S]*\}/);
+      if (jsonMatch) {
+        const jestResults = JSON.parse(jsonMatch[0]);
         
         result.summary = {
-          passed: parseInt(passedTests, 10),
-          failed: parseInt(failedTests, 10),
-          total: parseInt(totalTests, 10),
-          suites: parseInt(totalSuites, 10)
+          passed: jestResults.numPassedTests || 0,
+          failed: jestResults.numFailedTests || 0,
+          total: jestResults.numTotalTests || 0,
+          suites: jestResults.numTotalTestSuites || 0
         };
+        
+        console.log(`[TEST_RUNNER] Parsed JSON summary:`, result.summary);
+        return;
       }
+    } catch (error) {
+      // JSON parsing failed, continue with fallback
+    }
+    
+    // Fallback: Look for human-readable summary (for debugging/logging)
+    if (output.includes('Tests:')) {
+      console.log(`[TEST_RUNNER] Found human-readable summary: ${output.trim()}`);
+    }
+    
+    // Additional fallback: Try to parse human-readable format if JSON fails
+    const testsMatch = output.match(/Tests:\s+(\d+)\s+failed,\s+(\d+)\s+skipped,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
+    if (testsMatch) {
+      const [, failed, skipped, passed, total] = testsMatch;
+      result.summary = {
+        passed: parseInt(passed, 10),
+        failed: parseInt(failed, 10),
+        total: parseInt(total, 10),
+        suites: 1
+      };
+      console.log(`[TEST_RUNNER] Parsed fallback summary:`, result.summary);
     }
   }
 }
