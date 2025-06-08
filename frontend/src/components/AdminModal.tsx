@@ -166,6 +166,19 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
 
   const generateTestId = (type: string) => `${type}-${Date.now()}`;
 
+  // Reusable function to render test summary for all test types
+  const renderTestSummary = (result: TestResult) => {
+    if (result.status === 'running' || result.total === 0) {
+      return null;
+    }
+
+    return (
+      <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
+        <strong>{result.passed} passed, {result.failed} failed</strong> ({result.total} total)
+      </div>
+    );
+  };
+
 
   const startLinting = async () => {
     if (runningTests.has('linting')) {
@@ -463,11 +476,8 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
                   Started: {result.startTime.toLocaleTimeString()}
                   {result.endTime && ` • Completed: ${result.endTime.toLocaleTimeString()}`}
                 </div>
-                {result.status !== 'running' && result.type !== 'linting' && result.total > 0 && (
-                  <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
-                    <strong>{result.passed} passed, {result.failed} failed</strong> ({result.total} total)
-                  </div>
-                )}
+                {/* Display detailed summary for all test types (unit, integration, integration-real) */}
+                {result.type !== 'linting' && renderTestSummary(result)}
                 
                 {/* Special display for linting results */}
                 {result.type === 'linting' && result.status !== 'running' && result.lintResults && (

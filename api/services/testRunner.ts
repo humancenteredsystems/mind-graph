@@ -91,6 +91,7 @@ export class TestRunner extends EventEmitter {
         console.log(`[TEST_RUNNER] No summary found during streaming, parsing complete output...`);
         const completeOutput = result.output.join('');
         console.log(`[TEST_RUNNER] Complete output length: ${completeOutput.length} chars`);
+        console.log(`[TEST_RUNNER] Last 500 chars of output:`, completeOutput.slice(-500));
         this.parseTestOutput(result, completeOutput);
       }
       
@@ -206,12 +207,17 @@ export class TestRunner extends EventEmitter {
    * Parse test output to extract summary information
    */
   private parseTestOutput(result: TestRunResult, output: string): void {
-    // Try to parse Jest JSON output first
+    // Try to parse Jest JSON output first - look for complete JSON objects
     try {
-      // Look for JSON output in the chunk
-      const jsonMatch = output.match(/\{[\s\S]*"success":\s*(true|false)[\s\S]*\}/);
-      if (jsonMatch) {
-        const jestResults = JSON.parse(jsonMatch[0]);
+      // Look for JSON output that contains the test results
+      // More robust regex to find JSON objects with test results
+      const jsonMatches = output.match(/\{[^{}]*"numTotalTests"\s*:\s*\d+[^{}]*\}/g) || 
+                         output.match(/\{[\s\S]*?"success"\s*:\s*(true|false)[\s\S]*?\}/g);
+      
+      if (jsonMatches && jsonMatches.length > 0) {
+        // Use the last (most complete) JSON match
+        const jsonString = jsonMatches[jsonMatches.length - 1];
+        const jestResults = JSON.parse(jsonString);
         
         result.summary = {
           passed: jestResults.numPassedTests || 0,
@@ -220,29 +226,66 @@ export class TestRunner extends EventEmitter {
           suites: jestResults.numTotalTestSuites || 0
         };
         
-        console.log(`[TEST_RUNNER] Parsed JSON summary:`, result.summary);
+        console.log(`[TEST_RUNNER] Parsed JSON summary for ${result.id}:`, result.summary);
         return;
       }
     } catch (error) {
+      console.log(`[TEST_RUNNER] JSON parsing failed for ${result.id}:`, error);
       // JSON parsing failed, continue with fallback
     }
     
-    // Fallback: Look for human-readable summary (for debugging/logging)
-    if (output.includes('Tests:')) {
-      console.log(`[TEST_RUNNER] Found human-readable summary: ${output.trim()}`);
+    // Enhanced fallback: Try multiple patterns for human-readable output
+    try {
+      // Pattern 1: Standard Jest output format
+      let testsMatch = output.match(/Tests:\s+(\d+)\s+failed,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
+      if (!testsMatch) {
+        // Pattern 2: With skipped tests
+        testsMatch = output.match(/Tests:\s+(\d+)\s+failed,\s+(\d+)\s+skipped,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
+        if (testsMatch) {
+          const [, failed, skipped, passed, total] = testsMatch;
+          result.summary = {
+            passed: parseInt(passed, 10),
+            failed: parseInt(failed, 10),
+            total: parseInt(total, 10),
+            suites: 1
+          };
+          console.log(`[TEST_RUNNER] Parsed fallback summary (with skipped) for ${result.id}:`, result.summary);
+          return;
+        }
+      } else {
+        const [, failed, passed, total] = testsMatch;
+        result.summary = {
+          passed: parseInt(passed, 10),
+          failed: parseInt(failed, 10),
+          total: parseInt(total, 10),
+          suites: 1
+        };
+        console.log(`[TEST_RUNNER] Parsed fallback summary for ${result.id}:`, result.summary);
+        return;
+      }
+      
+      // Pattern 3: Test Suites summary
+      const suitesMatch = output.match(/Test Suites:\s+(\d+)\s+failed,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
+      if (suitesMatch) {
+        const [, failedSuites, passedSuites, totalSuites] = suitesMatch;
+        // If we have suites info but no test info, estimate
+        if (!result.summary) {
+          result.summary = {
+            passed: 0,
+            failed: parseInt(failedSuites, 10) > 0 ? 1 : 0,
+            total: 1,
+            suites: parseInt(totalSuites, 10)
+          };
+          console.log(`[TEST_RUNNER] Parsed suites-only summary for ${result.id}:`, result.summary);
+        }
+      }
+    } catch (error) {
+      console.log(`[TEST_RUNNER] Fallback parsing failed for ${result.id}:`, error);
     }
     
-    // Additional fallback: Try to parse human-readable format if JSON fails
-    const testsMatch = output.match(/Tests:\s+(\d+)\s+failed,\s+(\d+)\s+skipped,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
-    if (testsMatch) {
-      const [, failed, skipped, passed, total] = testsMatch;
-      result.summary = {
-        passed: parseInt(passed, 10),
-        failed: parseInt(failed, 10),
-        total: parseInt(total, 10),
-        suites: 1
-      };
-      console.log(`[TEST_RUNNER] Parsed fallback summary:`, result.summary);
+    // Log for debugging if we still don't have a summary
+    if (!result.summary && output.includes('Tests:')) {
+      console.log(`[TEST_RUNNER] Found test output but couldn't parse for ${result.id}:`, output.slice(-500));
     }
   }
 }
