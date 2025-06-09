@@ -8,6 +8,7 @@ import graphqlRoutes from './routes/graphql';
 import schemaRoutes from './routes/schema';
 import adminRoutes from './routes/admin';
 import adminTestRoutes from './routes/adminTest';
+import adminGitHubRoutes from './routes/adminGitHub';
 import diagnosticRoutes from './routes/diagnostic';
 import hierarchyRoutes from './routes/hierarchy';
 import tenantRoutes from './routes/tenants';
@@ -89,6 +90,7 @@ app.use('/api', tenantRoutes);
 // Mount admin routes last to prevent conflicts with public endpoints
 app.use('/api', adminRoutes);
 app.use('/api', adminTestRoutes);
+app.use('/api/admin/github', adminGitHubRoutes);
 
 export default app;
 

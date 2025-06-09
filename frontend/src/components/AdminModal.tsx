@@ -125,6 +125,11 @@ interface TestResult {
   passed: number;
   failed: number;
   total: number;
+  compilationErrors?: {
+    count: number;
+    files: string[];
+    hasErrors: boolean;
+  };
   lintResults?: {
     frontend: LintProjectResult;
     backend: LintProjectResult;
@@ -292,7 +297,8 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
               endTime: new Date(),
               passed: testRun.summary?.passed || 0,
               failed: testRun.summary?.failed || 0,
-              total: testRun.summary?.total || 0
+              total: testRun.summary?.total || 0,
+              compilationErrors: testRun.compilationErrors
             };
             
             setTestResults(prev => 
@@ -479,6 +485,27 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
                 {/* Display detailed summary for all test types (unit, integration, integration-real) */}
                 {result.type !== 'linting' && renderTestSummary(result)}
                 
+                {/* Display compilation errors if present */}
+                {result.type !== 'linting' && result.compilationErrors?.hasErrors && (
+                  <div style={{ color: '#f59e0b', fontSize: 12, marginTop: 4 }}>
+                    ⚠️ <strong>{result.compilationErrors.count} test files skipped due to compilation errors</strong>
+                    {result.compilationErrors.files.length > 0 && (
+                      <div style={{ marginLeft: 16, marginTop: 2, fontSize: 11 }}>
+                        {result.compilationErrors.files.slice(0, 3).map((file, index) => (
+                          <div key={index} style={{ color: '#6b7280' }}>
+                            📄 {file.replace(/^.*\/__tests__\//, '')}
+                          </div>
+                        ))}
+                        {result.compilationErrors.files.length > 3 && (
+                          <div style={{ color: '#6b7280', fontStyle: 'italic' }}>
+                            ... and {result.compilationErrors.files.length - 3} more files
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 {/* Special display for linting results */}
                 {result.type === 'linting' && result.status !== 'running' && result.lintResults && (
                   <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
@@ -660,6 +687,370 @@ interface SystemStatus {
   detectionError?: string;
   namespacesSupported?: boolean;
 }
+
+interface IssuesTabProps {
+  adminKey: string;
+}
+
+interface GitHubIssue {
+  id: number;
+  number: number;
+  title: string;
+  body: string | null;
+  state: 'open' | 'closed';
+  labels: Array<{
+    id: number;
+    name: string;
+    color: string;
+    description: string | null;
+  }>;
+  user: {
+    login: string;
+    avatar_url: string;
+  };
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+  comments: number;
+}
+
+interface IssueAnalysis {
+  affectedFiles: string[];
+  relatedTests: string[];
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  complexity: 'simple' | 'moderate' | 'complex';
+  category: 'bug' | 'enhancement' | 'documentation' | 'maintenance';
+}
+
+const IssuesTab: React.FC<IssuesTabProps> = ({ adminKey }) => {
+  const [issues, setIssues] = useState<GitHubIssue[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
+  const [issueAnalysis, setIssueAnalysis] = useState<IssueAnalysis | null>(null);
+  const [analyzingIssue, setAnalyzingIssue] = useState<number | null>(null);
+  const [creatingTask, setCreatingTask] = useState<number | null>(null);
+
+  const loadIssues = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const result = await ApiService.listGitHubIssues(adminKey, 'open');
+      setIssues(result);
+    } catch (error) {
+      setError('Failed to load GitHub issues. Make sure the GitHub MCP server is configured.');
+      console.error('Error loading issues:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [adminKey]);
+
+  const analyzeIssue = async (issue: GitHubIssue) => {
+    try {
+      setAnalyzingIssue(issue.number);
+      setError(null);
+      const analysis = await ApiService.analyzeIssue(issue.number, adminKey);
+      setIssueAnalysis(analysis);
+      setSelectedIssue(issue);
+    } catch (error) {
+      setError(`Failed to analyze issue #${issue.number}`);
+      console.error('Error analyzing issue:', error);
+    } finally {
+      setAnalyzingIssue(null);
+    }
+  };
+
+  const createClineTask = async (issue: GitHubIssue) => {
+    try {
+      setCreatingTask(issue.number);
+      setError(null);
+      
+      const result = await ApiService.createClineTaskForIssue(issue.number, adminKey);
+      
+      if (result.success && result.taskContext) {
+        // Copy task context to clipboard
+        try {
+          await navigator.clipboard.writeText(result.taskContext);
+          
+          // Show success message with instructions
+          const message = `✅ Task context copied to clipboard!\n\nNext steps:\n1. Click the "New Task" button in Cline (+ icon)\n2. Paste the task context (Ctrl+V / Cmd+V)\n3. Cline will start working on issue #${issue.number}\n\nThe task includes:\n• Issue details and analysis\n• Project context\n• Affected files\n• Step-by-step instructions`;
+          
+          alert(message);
+        } catch (clipboardError) {
+          // Fallback: show the task context in a modal for manual copying
+          console.error('Clipboard access failed:', clipboardError);
+          
+          // Create a temporary textarea for manual copying
+          const textarea = document.createElement('textarea');
+          textarea.value = result.taskContext;
+          textarea.style.position = 'fixed';
+          textarea.style.left = '-9999px';
+          document.body.appendChild(textarea);
+          textarea.select();
+          
+          try {
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            alert(`✅ Task context copied!\n\nNext steps:\n1. Click "New Task" in Cline\n2. Paste the context (Ctrl+V / Cmd+V)\n3. Start working on issue #${issue.number}`);
+          } catch (fallbackError) {
+            document.body.removeChild(textarea);
+            // Show the context in a prompt for manual copying
+            prompt(
+              `Copy this task context and paste it into a new Cline task:\n\n(Select all text and copy)`,
+              result.taskContext
+            );
+          }
+        }
+      } else {
+        setError(`Failed to create Cline task: ${result.message}`);
+      }
+    } catch (error) {
+      setError(`Failed to create Cline task for issue #${issue.number}`);
+      console.error('Error creating Cline task:', error);
+    } finally {
+      setCreatingTask(null);
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'critical': return '#dc2626';
+      case 'high': return '#ea580c';
+      case 'medium': return '#d97706';
+      case 'low': return '#65a30d';
+      default: return '#6b7280';
+    }
+  };
+
+  const getComplexityColor = (complexity: string) => {
+    switch (complexity) {
+      case 'complex': return '#dc2626';
+      case 'moderate': return '#d97706';
+      case 'simple': return '#16a34a';
+      default: return '#6b7280';
+    }
+  };
+
+  useEffect(() => {
+    loadIssues();
+  }, [loadIssues]);
+
+  return (
+    <div style={{ padding: 20 }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h4 style={{ margin: 0, color: '#374151' }}>GitHub Issues</h4>
+          <button
+            onClick={loadIssues}
+            disabled={isLoading}
+            style={{
+              padding: '6px 12px',
+              background: 'transparent',
+              border: '1px solid #d1d5db',
+              borderRadius: 4,
+              fontSize: 12,
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isLoading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
+        
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>
+          Open issues from your GitHub repository. Click "Analyze" to see affected files, then "Fix in Cline" to create a pre-populated task.
+        </div>
+      </div>
+
+      {error && (
+        <div style={{
+          marginBottom: 16,
+          padding: 12,
+          background: '#fef2f2',
+          border: '1px solid #fecaca',
+          borderRadius: 4,
+          color: '#dc2626',
+          fontSize: 14,
+        }}>
+          {error}
+        </div>
+      )}
+
+      {isLoading && issues.length === 0 ? (
+        <p style={{ color: '#6b7280', fontSize: 14, textAlign: 'center' }}>Loading issues...</p>
+      ) : issues.length === 0 ? (
+        <p style={{ color: '#6b7280', fontSize: 14, textAlign: 'center' }}>No open issues found</p>
+      ) : (
+        <div style={{ maxHeight: 400, overflow: 'auto' }}>
+          {issues.map((issue) => (
+            <div
+              key={issue.id}
+              style={{
+                padding: 16,
+                border: '1px solid #e5e7eb',
+                borderRadius: 6,
+                marginBottom: 12,
+                background: selectedIssue?.id === issue.id ? '#f8fafc' : 'white',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div style={{ flex: 1, marginRight: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontWeight: 500, fontSize: 14 }}>#{issue.number}</span>
+                    <span style={{ fontSize: 14, color: '#374151' }}>{issue.title}</span>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    {issue.labels.map((label) => (
+                      <span
+                        key={label.id}
+                        style={{
+                          padding: '2px 6px',
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          background: `#${label.color}20`,
+                          color: `#${label.color}`,
+                          border: `1px solid #${label.color}40`,
+                        }}
+                      >
+                        {label.name}
+                      </span>
+                    ))}
+                  </div>
+                  
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>
+                    Created by {issue.user.login} • {new Date(issue.created_at).toLocaleDateString()}
+                    {issue.comments > 0 && ` • ${issue.comments} comments`}
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button
+                    onClick={() => analyzeIssue(issue)}
+                    disabled={analyzingIssue === issue.number}
+                    style={{
+                      padding: '6px 12px',
+                      background: analyzingIssue === issue.number ? '#9ca3af' : '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      cursor: analyzingIssue === issue.number ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {analyzingIssue === issue.number ? 'Analyzing...' : 'Analyze'}
+                  </button>
+                  
+                  <button
+                    onClick={() => createClineTask(issue)}
+                    disabled={creatingTask === issue.number}
+                    style={{
+                      padding: '6px 12px',
+                      background: creatingTask === issue.number ? '#9ca3af' : '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      cursor: creatingTask === issue.number ? 'not-allowed' : 'pointer',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {creatingTask === issue.number ? 'Creating...' : '🔧 Fix in Cline'}
+                  </button>
+                </div>
+              </div>
+              
+              {/* Show analysis results if this issue is selected */}
+              {selectedIssue?.id === issue.id && issueAnalysis && (
+                <div style={{
+                  marginTop: 12,
+                  padding: 12,
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 4,
+                  fontSize: 12,
+                }}>
+                  <div style={{ marginBottom: 8 }}>
+                    <strong style={{ color: '#374151' }}>Analysis Results:</strong>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
+                    <div>
+                      <span style={{ color: '#6b7280' }}>Priority: </span>
+                      <span style={{ 
+                        color: getPriorityColor(issueAnalysis.priority),
+                        fontWeight: 500,
+                        textTransform: 'capitalize'
+                      }}>
+                        {issueAnalysis.priority}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6b7280' }}>Complexity: </span>
+                      <span style={{ 
+                        color: getComplexityColor(issueAnalysis.complexity),
+                        fontWeight: 500,
+                        textTransform: 'capitalize'
+                      }}>
+                        {issueAnalysis.complexity}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#6b7280' }}>Category: </span>
+                      <span style={{ color: '#374151', fontWeight: 500, textTransform: 'capitalize' }}>
+                        {issueAnalysis.category}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {issueAnalysis.affectedFiles.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontWeight: 500, color: '#374151', marginBottom: 4 }}>
+                        Affected Files ({issueAnalysis.affectedFiles.length}):
+                      </div>
+                      <div style={{ marginLeft: 8 }}>
+                        {issueAnalysis.affectedFiles.slice(0, 5).map((file, index) => (
+                          <div key={index} style={{ color: '#6b7280', fontSize: 11 }}>
+                            📄 {file}
+                          </div>
+                        ))}
+                        {issueAnalysis.affectedFiles.length > 5 && (
+                          <div style={{ color: '#6b7280', fontSize: 11, fontStyle: 'italic' }}>
+                            ... and {issueAnalysis.affectedFiles.length - 5} more files
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {issueAnalysis.relatedTests.length > 0 && (
+                    <div>
+                      <div style={{ fontWeight: 500, color: '#374151', marginBottom: 4 }}>
+                        Related Tests ({issueAnalysis.relatedTests.length}):
+                      </div>
+                      <div style={{ marginLeft: 8 }}>
+                        {issueAnalysis.relatedTests.slice(0, 3).map((test, index) => (
+                          <div key={index} style={{ color: '#6b7280', fontSize: 11 }}>
+                            🧪 {test}
+                          </div>
+                        ))}
+                        {issueAnalysis.relatedTests.length > 3 && (
+                          <div style={{ color: '#6b7280', fontSize: 11, fontStyle: 'italic' }}>
+                            ... and {issueAnalysis.relatedTests.length - 3} more tests
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
@@ -1492,6 +1883,20 @@ const AdminModal: React.FC = () => {
                 Tests
               </button>
               <button
+                onClick={() => setActiveTab('issues')}
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  border: 'none',
+                  background: activeTab === 'issues' ? '#f3f4f6' : 'transparent',
+                  cursor: 'pointer',
+                  fontWeight: activeTab === 'issues' ? 600 : 400,
+                  borderBottom: activeTab === 'issues' ? '2px solid #3b82f6' : '2px solid transparent',
+                }}
+              >
+                Issues
+              </button>
+              <button
                 onClick={() => setActiveTab('tenants')}
                 style={{
                   flex: 1,
@@ -1518,6 +1923,10 @@ const AdminModal: React.FC = () => {
             >
               {activeTab === 'tests' && adminKey && (
                 <TestsTab adminKey={adminKey} />
+              )}
+              
+              {activeTab === 'issues' && adminKey && (
+                <IssuesTab adminKey={adminKey} />
               )}
               
               {activeTab === 'tenants' && adminKey && (

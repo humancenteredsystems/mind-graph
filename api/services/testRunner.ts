@@ -21,6 +21,11 @@ export interface TestRunResult {
     total: number;
     suites: number;
   };
+  compilationErrors?: {
+    count: number;
+    files: string[];
+    hasErrors: boolean;
+  };
 }
 
 export class TestRunner extends EventEmitter {
@@ -82,7 +87,6 @@ export class TestRunner extends EventEmitter {
 
     // Handle process completion
     testProcess.on('close', (code: number | null) => {
-      result.status = code === 0 ? 'completed' : 'failed';
       result.endTime = new Date();
       result.exitCode = code || 0;
       
@@ -95,8 +99,25 @@ export class TestRunner extends EventEmitter {
         this.parseTestOutput(result, completeOutput);
       }
       
+      // Parse compilation errors from complete output
+      this.parseCompilationErrors(result, result.output.join(''));
+      
+      // Determine status based on actual test results, not just exit code
+      if (result.summary && result.summary.total > 0) {
+        // We have test results - use them to determine status
+        result.status = result.summary.failed === 0 ? 'completed' : 'failed';
+        console.log(`[TEST_RUNNER] Status determined by test results: ${result.status} (${result.summary.failed} failed out of ${result.summary.total} total)`);
+      } else {
+        // No test results available - fall back to exit code
+        result.status = code === 0 ? 'completed' : 'failed';
+        console.log(`[TEST_RUNNER] Status determined by exit code: ${result.status} (exit code: ${code})`);
+      }
+      
       console.log(`[TEST_RUNNER] Test run ${runId} completed with exit code ${code}`);
       console.log(`[TEST_RUNNER] Final summary for ${runId}:`, result.summary);
+      if (result.compilationErrors?.hasErrors) {
+        console.log(`[TEST_RUNNER] Compilation errors detected: ${result.compilationErrors.count} files`);
+      }
       this.emit('completed', runId, result);
       
       // Clean up after a delay
@@ -201,6 +222,48 @@ export class TestRunner extends EventEmitter {
     args.push('--json');
 
     return args;
+  }
+
+  /**
+   * Parse compilation errors from test output
+   */
+  private parseCompilationErrors(result: TestRunResult, output: string): void {
+    const compilationErrorFiles: string[] = [];
+    
+    // Look for TypeScript compilation errors
+    const tsErrorPattern = /([^:\s]+\.test\.ts):\d+:\d+\s+-\s+error\s+TS\d+:/g;
+    let match;
+    
+    while ((match = tsErrorPattern.exec(output)) !== null) {
+      const filePath = match[1];
+      if (!compilationErrorFiles.includes(filePath)) {
+        compilationErrorFiles.push(filePath);
+      }
+    }
+    
+    // Also look for "Test suite failed to run" patterns
+    const failedSuitePattern = /Test suite failed to run[\s\S]*?([^:\s]+\.test\.ts)/g;
+    while ((match = failedSuitePattern.exec(output)) !== null) {
+      const filePath = match[1];
+      if (!compilationErrorFiles.includes(filePath)) {
+        compilationErrorFiles.push(filePath);
+      }
+    }
+    
+    if (compilationErrorFiles.length > 0) {
+      result.compilationErrors = {
+        count: compilationErrorFiles.length,
+        files: compilationErrorFiles,
+        hasErrors: true
+      };
+      console.log(`[TEST_RUNNER] Found compilation errors in ${compilationErrorFiles.length} files:`, compilationErrorFiles);
+    } else {
+      result.compilationErrors = {
+        count: 0,
+        files: [],
+        hasErrors: false
+      };
+    }
   }
 
   /**
