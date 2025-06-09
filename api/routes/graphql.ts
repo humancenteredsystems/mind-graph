@@ -110,14 +110,24 @@ router.post('/mutate', async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     const err = error as Error;
     console.error('[GRAPHQL] Failed to execute mutation:', error);
+    
+    // Handle validation errors with 400 status
     if (error instanceof InvalidLevelError || error instanceof NodeTypeNotAllowedError) {
       res.status(400).json({ error: err.message });
+    } else if (err.message.includes('X-Hierarchy-Id header is required') ||
+               err.message.includes('Invalid hierarchyId in header') ||
+               err.message.includes('Hierarchy not found') ||
+               err.message.includes('Invalid level or node type constraint violation') ||
+               err.message.includes('Node type') && err.message.includes('is not allowed')) {
+      // Handle enrichment validation errors as 400 Bad Request
+      res.status(400).json({ error: err.message });
+    } else if (err.message.includes('GraphQL query failed:')) {
+      // Handle GraphQL-specific errors as 400 Bad Request
+      const errorMessage = `GraphQL error: ${err.message.replace('GraphQL query failed: ', '')}`;
+      res.status(400).json({ error: errorMessage, details: err.message });
     } else {
-      const errorMessage = err.message.includes('GraphQL query failed:')
-        ? `GraphQL error: ${err.message.replace('GraphQL query failed: ', '')}`
-        : 'Server error executing mutation';
-      const statusCode = err.message.includes('GraphQL query failed:') ? 400 : 500;
-      res.status(statusCode).json({ error: errorMessage, details: err.message });
+      // Handle genuine server errors as 500 Internal Server Error
+      res.status(500).json({ error: 'Server error executing mutation', details: err.message });
     }
   }
 });

@@ -13,18 +13,30 @@ import * as validation from '../../../services/validation';
 // Type the mocked validation functions
 const mockValidation = validation as jest.Mocked<typeof validation>;
 
+// Mock tenant client interface
+interface MockTenantClient {
+  executeGraphQL<T = any>(query: string, variables?: Record<string, any>): Promise<T>;
+}
+
 describe('nodeEnrichment service', () => {
+  let mockTenantClient: MockTenantClient;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    
+    // Create mock tenant client
+    mockTenantClient = {
+      executeGraphQL: jest.fn()
+    };
   });
 
   describe('enrichNodeInputs', () => {
-    it('should return variables unchanged for non-AddNodeWithHierarchy mutations', async () => {
+    it('should return variables unchanged for non-addNode mutations', async () => {
       const variables = { input: [createMockAddNodeInput()] };
       const hierarchyId = 'hierarchy1';
-      const mutation = 'mutation AddNode($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
+      const mutation = 'mutation AddEdge($input: [AddEdgeInput!]!) { addEdge(input: $input) { edge { id } } }';
 
-      const result = await enrichNodeInputs(variables, hierarchyId, mutation);
+      const result = await enrichNodeInputs(variables, hierarchyId, mutation, mockTenantClient);
 
       expect(result).toEqual(variables);
     });
@@ -42,9 +54,10 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
+      mockValidation.validateHierarchyId.mockResolvedValueOnce(true);
       mockValidation.validateLevelIdAndAllowedType.mockResolvedValueOnce({} as any);
 
-      const result = await enrichNodeInputs(variables, hierarchyId, mutation);
+      const result = await enrichNodeInputs(variables, hierarchyId, mutation, mockTenantClient);
 
       expect(result.input).toHaveLength(1);
       expect(result.input[0]).toHaveProperty('hierarchyAssignments');
@@ -69,11 +82,12 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
+      mockValidation.validateHierarchyId.mockResolvedValueOnce(true);
       mockValidation.validateLevelIdAndAllowedType.mockRejectedValueOnce(
         new Error('Node type "invalid-type" is not allowed at level "Domain"')
       );
 
-      await expect(enrichNodeInputs(variables, hierarchyId, mutation))
+      await expect(enrichNodeInputs(variables, hierarchyId, mutation, mockTenantClient))
         .rejects
         .toThrow('Node type "invalid-type" is not allowed at level "Domain"');
     });
@@ -87,9 +101,10 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
+      mockValidation.validateHierarchyId.mockResolvedValueOnce(true);
       mockValidation.validateLevelIdAndAllowedType.mockResolvedValueOnce({} as any);
 
-      const result = await enrichNodeInputs(variables, hierarchyId, mutation);
+      const result = await enrichNodeInputs(variables, hierarchyId, mutation, mockTenantClient);
 
       expect(result.input[0]).toHaveProperty('hierarchyAssignments');
       expect(result.input[0].hierarchyAssignments![0]).toEqual({
@@ -107,12 +122,13 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
+      mockValidation.validateHierarchyId.mockResolvedValueOnce(true);
       mockValidation.getLevelIdForNode.mockResolvedValueOnce('level2');
       mockValidation.validateLevelIdAndAllowedType.mockResolvedValueOnce({} as any);
 
-      const result = await enrichNodeInputs(variables, hierarchyId, mutation);
+      const result = await enrichNodeInputs(variables, hierarchyId, mutation, mockTenantClient);
 
-      expect(mockValidation.getLevelIdForNode).toHaveBeenCalledWith('parent-node', 'hierarchy1');
+      expect(mockValidation.getLevelIdForNode).toHaveBeenCalledWith('parent-node', 'hierarchy1', mockTenantClient);
       expect(result.input[0]).toHaveProperty('hierarchyAssignments');
       expect(result.input[0].hierarchyAssignments![0]).toEqual({
         hierarchy: { id: 'hierarchy1' },
@@ -129,9 +145,10 @@ describe('nodeEnrichment service', () => {
       const hierarchyId = 'hierarchy1';
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
+      mockValidation.validateHierarchyId.mockResolvedValue(true);
       mockValidation.validateLevelIdAndAllowedType.mockResolvedValue({} as any);
 
-      const result = await enrichNodeInputs(variables, hierarchyId, mutation);
+      const result = await enrichNodeInputs(variables, hierarchyId, mutation, mockTenantClient);
 
       expect(result.input).toHaveLength(2);
       expect(result.input[0].id).toBe('node1');
@@ -140,19 +157,19 @@ describe('nodeEnrichment service', () => {
       expect(result.input[1]).toHaveProperty('hierarchyAssignments');
     });
 
-    it('should create node without assignment when no hierarchy info provided', async () => {
+    it('should require hierarchy header for node creation', async () => {
       const input = [createMockAddNodeInput({ 
         hierarchyAssignments: undefined,
         levelId: undefined,
         parentId: undefined
       })];
       const variables = { input };
-      const hierarchyId = 'hierarchy1';
+      const hierarchyId = null; // No hierarchy header provided
       const mutation = 'mutation AddNodeWithHierarchy($input: [AddNodeInput!]!) { addNode(input: $input) { node { id } } }';
 
-      const result = await enrichNodeInputs(variables, hierarchyId, mutation);
-
-      expect(result.input[0]).not.toHaveProperty('hierarchyAssignments');
+      await expect(enrichNodeInputs(variables, hierarchyId, mutation, mockTenantClient))
+        .rejects
+        .toThrow('X-Hierarchy-Id header is required for node creation mutations');
     });
   });
 });

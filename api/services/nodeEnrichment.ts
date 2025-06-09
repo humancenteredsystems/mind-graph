@@ -62,6 +62,17 @@ export async function enrichNodeInputs(
     return variables;
   }
 
+  // MANDATORY: X-Hierarchy-Id header is required for node creation
+  if (!hierarchyIdFromHeader) {
+    throw new Error('X-Hierarchy-Id header is required for node creation mutations');
+  }
+
+  // Validate the hierarchy ID from header exists
+  const isHeaderHierarchyValid = await validateHierarchyId(hierarchyIdFromHeader, tenantClient);
+  if (!isHeaderHierarchyValid) {
+    throw new Error(`Invalid hierarchyId in header: ${hierarchyIdFromHeader}. Hierarchy not found.`);
+  }
+
   const enrichedInputs: EnrichedNodeInput[] = [];
   
   for (const inputObj of variables.input) {
@@ -128,12 +139,26 @@ export async function enrichNodeInputs(
           { hierarchy: { id: itemHierarchyId }, level: { id: finalLevelId } }
         ];
       }
+    } else if (itemHierarchyId) {
+      // Auto-assign to appropriate level when hierarchy header provided but no specific assignment info
+      console.log(`[MUTATE] Auto-assigning node ${inputObj.id} (${inputObj.type}) to hierarchy ${itemHierarchyId}`);
+      try {
+        // Use null as parentId to assign to level 1 (root level)
+        const autoLevelId = await getLevelIdForNode(null, itemHierarchyId, tenantClient);
+        console.log(`[MUTATE] Validating auto-assigned levelId: ${autoLevelId} for node type ${inputObj.type}`);
+        await validateLevelIdAndAllowedType(autoLevelId, inputObj.type, itemHierarchyId, tenantClient);
+        
+        nodeInput.hierarchyAssignments = [
+          { hierarchy: { id: itemHierarchyId }, level: { id: autoLevelId } }
+        ];
+        console.log(`[MUTATE] Auto-assigned node ${inputObj.id} to level ${autoLevelId} in hierarchy ${itemHierarchyId}`);
+      } catch (error) {
+        console.error(`[MUTATE] Failed to auto-assign node ${inputObj.id} to hierarchy ${itemHierarchyId}:`, error);
+        throw error; // Re-throw validation errors
+      }
     } else {
-      // If no specific hierarchy assignment info is provided, create node without assignment
-      // This includes cases where:
-      // - No hierarchy header is provided
-      // - Hierarchy header is provided but no specific assignment instructions
-      console.log(`[MUTATE] Node ${inputObj.id} (${inputObj.type}) will be created without hierarchy assignment.`);
+      // This case should not happen due to header validation above, but keeping for safety
+      throw new Error('Hierarchy context is required for node creation');
     }
 
     enrichedInputs.push(nodeInput);
