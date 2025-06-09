@@ -147,10 +147,30 @@ describe('Real Integration: Hierarchy Operations', () => {
 
   describe('Hierarchy Assignments', () => {
     it('should create hierarchy assignment for existing node', async () => {
+      // Get the actual level ID for level 1 from the seeded hierarchy
+      const hierarchyQuery = await verifyInTestTenant(`
+        query {
+          getHierarchy(id: "test-hierarchy-1") {
+            id
+            name
+            levels {
+              id
+              levelNumber
+              label
+            }
+          }
+        }
+      `);
+
+      const level1 = hierarchyQuery.getHierarchy?.levels?.find((l: any) => l.levelNumber === 1);
+      if (!level1) {
+        throw new Error('Level 1 not found in test hierarchy');
+      }
+
       const assignment = {
         nodeId: 'test-concept-1',
         hierarchyId: 'test-hierarchy-1',
-        levelId: 'test-level-1'
+        levelId: level1.id  // Use the actual level ID from seeded data
       };
 
       const response = await testRequest(app)
@@ -184,10 +204,26 @@ describe('Real Integration: Hierarchy Operations', () => {
     });
 
     it('should validate node existence for assignment', async () => {
+      // Get a real level ID first
+      const hierarchyQuery = await verifyInTestTenant(`
+        query {
+          getHierarchy(id: "test-hierarchy-1") {
+            levels {
+              id
+              levelNumber
+            }
+          }
+        }
+      `);
+      const level1 = hierarchyQuery.getHierarchy?.levels?.find((l: any) => l.levelNumber === 1);
+      if (!level1) {
+        throw new Error('Level 1 not found in test hierarchy');
+      }
+
       const invalidAssignment = {
         nodeId: 'non-existent-node',
         hierarchyId: 'test-hierarchy-1',
-        levelId: 'test-level-1'
+        levelId: level1.id  // Use real level ID
       };
 
       const response = await testRequest(app)
