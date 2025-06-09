@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
 import { Hierarchy, HierarchyLevel, HierarchyAssignment } from '../src/types/domain';
+import { authenticateAdmin } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -177,19 +178,43 @@ router.post('/hierarchy/level', async (req: Request, res: Response): Promise<voi
     res.status(400).json({ error: 'Missing required fields: hierarchyId, levelNumber, and label' });
     return;
   }
-  const mutation = `
-    mutation ($input: [AddHierarchyLevelInput!]!) {
-      addHierarchyLevel(input: $input) {
-        hierarchyLevel {
+
+  // Validate level number uniqueness within the hierarchy
+  const checkLevelQuery = `
+    query CheckLevelUniqueness($hierarchyId: String!, $levelNumber: Int!) {
+      queryHierarchy(filter: { id: { eq: $hierarchyId } }) {
+        levels(filter: { levelNumber: { eq: $levelNumber } }) {
           id
           levelNumber
-          label
         }
       }
     }
   `;
+
   try {
     const tenantClient = await getTenantClient(req);
+    
+    // Check if level number already exists
+    const checkResult = await tenantClient.executeGraphQL(checkLevelQuery, { hierarchyId, levelNumber });
+    const existingLevels = checkResult.queryHierarchy[0]?.levels || [];
+    
+    if (existingLevels.length > 0) {
+      res.status(500).json({ error: `Level number ${levelNumber} already exists in hierarchy ${hierarchyId}` });
+      return;
+    }
+
+    const mutation = `
+      mutation ($input: [AddHierarchyLevelInput!]!) {
+        addHierarchyLevel(input: $input) {
+          hierarchyLevel {
+            id
+            levelNumber
+            label
+          }
+        }
+      }
+    `;
+    
     const data = await tenantClient.executeGraphQL(mutation, { input: [{ hierarchy: { id: hierarchyId }, levelNumber, label }] });
     const level = data.addHierarchyLevel.hierarchyLevel[0];
     res.status(201).json(level);
@@ -273,20 +298,40 @@ router.post('/hierarchy/assignment', async (req: Request, res: Response): Promis
     res.status(400).json({ error: 'Missing required fields: nodeId, hierarchyId, and levelId' });
     return;
   }
-  const mutation = `
-    mutation ($input: [AddHierarchyAssignmentInput!]!) {
-      addHierarchyAssignment(input: $input) {
-        hierarchyAssignment {
-          id
-          node { id label }
-          hierarchy { id name }
-          level { id label levelNumber }
-        }
+
+  // Validate node existence
+  const checkNodeQuery = `
+    query CheckNodeExists($nodeId: String!) {
+      getNode(id: $nodeId) {
+        id
+        label
       }
     }
   `;
+
   try {
     const tenantClient = await getTenantClient(req);
+    
+    // Check if node exists
+    const nodeResult = await tenantClient.executeGraphQL(checkNodeQuery, { nodeId });
+    if (!nodeResult.getNode) {
+      res.status(500).json({ error: `Node with ID '${nodeId}' does not exist` });
+      return;
+    }
+
+    const mutation = `
+      mutation ($input: [AddHierarchyAssignmentInput!]!) {
+        addHierarchyAssignment(input: $input) {
+          hierarchyAssignment {
+            id
+            node { id label }
+            hierarchy { id name }
+            level { id label levelNumber }
+          }
+        }
+      }
+    `;
+    
     const data = await tenantClient.executeGraphQL(mutation, { input: [{ node: { id: nodeId }, hierarchy: { id: hierarchyId }, level: { id: levelId } }] });
     const assignment = data.addHierarchyAssignment.hierarchyAssignment[0];
     res.status(201).json(assignment);

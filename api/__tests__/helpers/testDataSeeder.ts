@@ -365,6 +365,39 @@ export class TestDataSeeder {
       }
       console.log('[TEST_SEED] ✅ Created assignments:', assignmentsResult.addHierarchyAssignment.hierarchyAssignment);
       
+      // 6. CRITICAL: Verify all data exists after seeding
+      console.log('[TEST_SEED] Verifying all seeded data exists...');
+      
+      // Wait a moment for data to be fully persisted
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const verifyHierarchy = await testClient.executeGraphQL(`
+        query {
+          queryHierarchy {
+            id
+            name
+          }
+        }
+      `);
+      
+      const verifyNodes = await testClient.executeGraphQL(`
+        query {
+          queryNode {
+            id
+            label
+            type
+          }
+        }
+      `);
+      
+      console.log('[TEST_SEED] Verification - Hierarchies:', JSON.stringify(verifyHierarchy, null, 2));
+      console.log('[TEST_SEED] Verification - Nodes:', JSON.stringify(verifyNodes, null, 2));
+      
+      if (!verifyHierarchy?.queryHierarchy?.length || !verifyNodes?.queryNode?.length) {
+        throw new Error('Seeded data verification failed - data not found after seeding');
+      }
+      
+      console.log('[TEST_SEED] ✅ All seeded data verified successfully');
       console.log('[TEST_SEED] Test data seeded successfully');
       return true;
     } catch (error) {

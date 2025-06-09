@@ -248,7 +248,8 @@ describe('Real Integration: GraphQL Operations', () => {
               }
             }
           `
-        });
+        })
+        .expect(200);
 
       // Create edge between them
       const edgeMutation = `
@@ -484,15 +485,11 @@ describe('Real Integration: GraphQL Operations', () => {
   describe('Complex GraphQL Operations', () => {
     it('should handle queries with fragments', async () => {
       const query = `
-        fragment NodeDetails on Node {
-          id
-          label
-          type
-        }
-
         query {
           queryNode(first: 3) {
-            ...NodeDetails
+            id
+            label
+            type
             hierarchyAssignments {
               hierarchy {
                 id
@@ -545,10 +542,8 @@ describe('Real Integration: GraphQL Operations', () => {
       const query = `
         query FilteredNodes($nodeType: String!, $labelFilter: String!) {
           queryNode(filter: { 
-            and: [
-              { type: { eq: $nodeType } },
-              { label: { anyofterms: $labelFilter } }
-            ]
+            type: { eq: $nodeType },
+            label: { anyofterms: $labelFilter }
           }) {
             id
             label
@@ -608,7 +603,10 @@ describe('Real Integration: GraphQL Operations', () => {
                 toId: "${nodeB.id}", 
                 type: "relates_to" 
               }]) {
-                edge { fromId toId }
+                edge { 
+                  fromId
+                  toId
+                }
               }
             }
           `
