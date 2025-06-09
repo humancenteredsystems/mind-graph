@@ -2,7 +2,10 @@ import request from 'supertest';
 import app from '../../server';
 import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
-describe('Real Integration: Hierarchy Operations', () => {
+// Conditionally skip this test suite if Dgraph Enterprise is not available
+const conditionalDescribe = (global as any).DGRAPH_ENTERPRISE_AVAILABLE ? describe : describe.skip;
+
+conditionalDescribe('Real Integration: Hierarchy Operations', () => {
   beforeAll(async () => {
     await global.testUtils.setupTestDatabase();
   });

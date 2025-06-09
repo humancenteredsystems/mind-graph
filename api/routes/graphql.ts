@@ -13,6 +13,7 @@ import {
   GraphQLOperation 
 } from '../src/types/graphql';
 import { Node } from '../src/types/domain';
+import { validateNamespaceParam } from '../utils/namespaceValidator';
 
 const router = express.Router();
 
@@ -222,6 +223,10 @@ router.get('/schema', async (req: Request, res: Response): Promise<void> => {
     try {
         // Build namespace-aware admin URL
         const namespace = req.tenantContext?.namespace;
+        
+        // Validate namespace parameter before making request
+        validateNamespaceParam(namespace, 'Schema fetch');
+        
         const adminUrl = namespace 
           ? `${DGRAPH_ADMIN_SCHEMA_URL}?namespace=${namespace}`
           : DGRAPH_ADMIN_SCHEMA_URL;

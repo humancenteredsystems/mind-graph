@@ -3,7 +3,10 @@ import app from '../../server';
 import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 import { TestArrayUtils } from '../helpers/graphqlTestUtils';
 
-describe('Real Integration: GraphQL Operations', () => {
+// Conditionally skip this test suite if Dgraph Enterprise is not available
+const conditionalDescribe = (global as any).DGRAPH_ENTERPRISE_AVAILABLE ? describe : describe.skip;
+
+conditionalDescribe('Real Integration: GraphQL Operations', () => {
   beforeAll(async () => {
     await global.testUtils.setupTestDatabase();
   });

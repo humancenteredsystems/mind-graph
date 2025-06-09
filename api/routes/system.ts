@@ -1,40 +1,37 @@
 import express, { Request, Response } from 'express';
 import { dgraphCapabilityDetector } from '../services/dgraphCapabilities';
 import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
+import { capabilityHelpers, ensureCapabilitiesDetected } from '../utils/capabilityHelpers';
 
 const router = express.Router();
 
 // System status endpoint
 router.get('/system/status', async (req: Request, res: Response): Promise<void> => {
   try {
-    // Get current capabilities
-    const capabilities = await dgraphCapabilityDetector.detectCapabilities();
+    // Ensure capabilities are detected using standardized helper
+    const capabilities = await ensureCapabilitiesDetected();
     
     // Manually parse tenant header since system routes run before tenant middleware
     const tenantId = req.headers['x-tenant-id'] as string || 'default';
     const tenantContext = req.tenantContext || { tenantId, namespace: null, isTestTenant: false, isDefaultTenant: true };
     
-    // Determine if multi-tenant operations are verified
-    // Multi-tenant is verified if namespace support is available (regardless of current tenant)
-    const multiTenantVerified = capabilities.namespacesSupported;
+    // Use standardized capability helpers
+    const dgraphEnterprise = capabilityHelpers.isEnterpriseAvailable();
+    const multiTenantVerified = capabilityHelpers.isMultiTenantSupported();
+    const deploymentMode = capabilityHelpers.getDeploymentMode();
     
     const systemStatus = {
-      dgraphEnterprise: capabilities.enterpriseDetected,
+      dgraphEnterprise,
       multiTenantVerified,
       currentTenant: tenantContext.tenantId || 'default',
       namespace: tenantContext.namespace || null,
-      mode: capabilities.namespacesSupported ? 'multi-tenant' : 'single-tenant',
+      mode: deploymentMode,
       detectedAt: capabilities.detectedAt,
       version: 'unknown', // Version detection not implemented yet
       licenseType: capabilities.licenseType || 'unknown',
       licenseExpiry: capabilities.licenseExpiry ? capabilities.licenseExpiry.toISOString() : null,
-      detectionError: undefined as string | undefined
+      detectionError: capabilityHelpers.getCapabilityDetectionError()
     };
-    
-    // Add error info if detection failed
-    if (capabilities.error) {
-      systemStatus.detectionError = capabilities.error;
-    }
     
     console.log(`[SYSTEM_STATUS] Status requested for tenant ${systemStatus.currentTenant}:`, systemStatus);
     
@@ -58,8 +55,8 @@ router.post('/system/refresh', async (req: Request, res: Response): Promise<void
     await dgraphCapabilityDetector.refreshCapabilities();
     await adaptiveTenantFactory.refresh();
     
-    // Get fresh status
-    const capabilities = dgraphCapabilityDetector.getCachedCapabilities();
+    // Get fresh status using standardized helper
+    const capabilities = capabilityHelpers.getCapabilitiesSync();
     
     res.json({
       message: 'System capabilities refreshed successfully',
@@ -79,15 +76,17 @@ router.post('/system/refresh', async (req: Request, res: Response): Promise<void
 // Health check with capability info
 router.get('/system/health', async (req: Request, res: Response): Promise<void> => {
   try {
-    const capabilities = dgraphCapabilityDetector.getCachedCapabilities();
-    const isMultiTenantSupported = adaptiveTenantFactory.isMultiTenantSupported();
+    // Use standardized capability helpers
+    const capabilities = capabilityHelpers.getCapabilitiesSync();
+    const isMultiTenantSupported = capabilityHelpers.isMultiTenantSupported();
+    const deploymentMode = capabilityHelpers.getDeploymentMode();
     
     res.json({
       status: 'healthy',
       timestamp: new Date(),
       capabilities: capabilities || 'not-detected',
       multiTenantSupported: isMultiTenantSupported,
-      mode: isMultiTenantSupported ? 'multi-tenant' : 'single-tenant'
+      mode: deploymentMode
     });
   } catch (error) {
     const err = error as Error;

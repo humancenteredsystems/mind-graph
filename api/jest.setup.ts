@@ -69,6 +69,7 @@ import { TestDataSeeder } from './__tests__/helpers/testDataSeeder';
 import { DgraphTenantFactory } from './services/dgraphTenant';
 import { TenantManager } from './services/tenantManager';
 import { dgraphCapabilityDetector } from './services/dgraphCapabilities';
+import { capabilityHelpers } from './utils/capabilityHelpers';
 
 const TEST_NAMESPACE = '0x1';
 const tenantManager = new TenantManager();
@@ -335,10 +336,11 @@ afterEach(async () => {
   ...overrides
 });
 
-// Dgraph Enterprise detection for conditional test execution using our capability detector
+// Dgraph Enterprise detection for conditional test execution using standardized capability helpers
 (global as any).testUtils.checkDgraphEnterprise = async () => {
   try {
-    const capabilities = await dgraphCapabilityDetector.detectCapabilities();
+    // Use standardized capability detection via ensureCapabilitiesDetected
+    const capabilities = await capabilityHelpers.ensureCapabilitiesDetected();
     
     // Check if Enterprise features are active and license is valid
     const isEnterprise = capabilities.enterpriseDetected && 

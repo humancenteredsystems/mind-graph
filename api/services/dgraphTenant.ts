@@ -1,11 +1,12 @@
 import axios, { AxiosResponse } from 'axios';
 import config from '../config';
 import { DgraphQueryResponse } from '../src/types';
+import { withNamespaceValidationConstructor } from '../utils/namespaceValidator';
 
 /**
- * DgraphTenant - A tenant-aware Dgraph client that handles namespace-specific operations
+ * Internal DgraphTenant class (without validation)
  */
-export class DgraphTenant {
+class DgraphTenantInternal {
   private namespace: string | null;
   private baseUrl: string;
   private endpoint: string;
@@ -91,6 +92,18 @@ export class DgraphTenant {
     return this.namespace === null || this.namespace === '0x0';
   }
 }
+
+/**
+ * DgraphTenant - A tenant-aware Dgraph client that handles namespace-specific operations
+ * with Enterprise capability validation
+ */
+export const DgraphTenant = withNamespaceValidationConstructor(
+  DgraphTenantInternal,
+  'Tenant client creation',
+  0
+);
+
+export type DgraphTenant = DgraphTenantInternal;
 
 /**
  * DgraphTenantFactory - Factory for creating tenant-specific Dgraph clients

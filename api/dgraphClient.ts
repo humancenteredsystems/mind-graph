@@ -1,6 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 import config from './config';
 import { GraphQLRequest, GraphQLResponse, DgraphQueryResponse } from './src/types';
+import { withNamespaceValidationAt } from './utils/namespaceValidator';
 
 // Log the configuration values for debugging
 console.log('[DGRAPHCLIENT DEBUG] Using DGRAPH_BASE_URL from config:', config.dgraphBaseUrl);
@@ -8,14 +9,9 @@ const DGRAPH_ENDPOINT = config.dgraphGraphqlUrl;
 console.log('[DGRAPHCLIENT DEBUG] Final DGRAPH_ENDPOINT:', DGRAPH_ENDPOINT);
 
 /**
- * Executes a GraphQL query or mutation against the Dgraph endpoint.
- * @param query - The GraphQL query string.
- * @param variables - An object containing variables for the query.
- * @param namespace - Optional namespace for multi-tenant support.
- * @returns A promise that resolves with the 'data' part of the GraphQL response.
- * @throws Error if the request fails or if GraphQL errors are returned.
+ * Internal GraphQL execution function (without validation)
  */
-export async function executeGraphQL<T = any>(
+async function executeGraphQLInternal<T = any>(
   query: string, 
   variables: Record<string, any> = {}, 
   namespace: string | null = null
@@ -69,5 +65,19 @@ export async function executeGraphQL<T = any>(
     throw new Error('Failed to communicate with Dgraph.'); // Keep this for network issues not caught by error.response/request
   }
 }
+
+/**
+ * Executes a GraphQL query or mutation against the Dgraph endpoint.
+ * @param query - The GraphQL query string.
+ * @param variables - An object containing variables for the query.
+ * @param namespace - Optional namespace for multi-tenant support.
+ * @returns A promise that resolves with the 'data' part of the GraphQL response.
+ * @throws Error if the request fails or if GraphQL errors are returned.
+ */
+export const executeGraphQL = withNamespaceValidationAt(
+  executeGraphQLInternal,
+  'GraphQL execution',
+  2
+);
 
 export { executeGraphQL as default };

@@ -1,5 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 import config from '../config';
+import { withNamespaceValidationAt } from './namespaceValidator';
 
 // Schema push response types
 interface SchemaPushResponse {
@@ -21,13 +22,9 @@ interface PushSchemaResult {
 }
 
 /**
- * Push schema to Dgraph admin endpoint with optional namespace support
- * @param schema - The GraphQL schema content
- * @param namespace - Optional namespace (e.g., '0x1')
- * @param customAdminUrl - Optional custom admin URL
- * @returns Result object with success status
+ * Internal schema push function (without validation)
  */
-export async function pushSchemaViaHttp(
+async function pushSchemaViaHttpInternal(
   schema: string, 
   namespace: string | null = null, 
   customAdminUrl: string | null = null
@@ -92,6 +89,19 @@ export async function pushSchemaViaHttp(
     return { success: false, error: errorDetails, namespace };
   }
 }
+
+/**
+ * Push schema to Dgraph admin endpoint with optional namespace support
+ * @param schema - The GraphQL schema content
+ * @param namespace - Optional namespace (e.g., '0x1')
+ * @param customAdminUrl - Optional custom admin URL
+ * @returns Result object with success status
+ */
+export const pushSchemaViaHttp = withNamespaceValidationAt(
+  pushSchemaViaHttpInternal,
+  'Schema push',
+  1
+);
 
 /**
  * Legacy function for backwards compatibility

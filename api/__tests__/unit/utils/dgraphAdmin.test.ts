@@ -95,5 +95,21 @@ describe('dgraphAdmin utils', () => {
         { headers: { 'Content-Type': 'application/json' } }
       );
     });
+
+    it('should handle namespace parameter', async () => {
+      const mockResponse = {
+        status: 200,
+        data: { message: 'Success' }
+      };
+      mockedAxios.post.mockResolvedValueOnce(mockResponse);
+
+      await sendDgraphAdminRequest('http://localhost:8080/admin/schema', { schema: 'test' }, '0x1');
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'http://localhost:8080/admin/schema?namespace=0x1',
+        { schema: 'test' },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    });
   });
 });

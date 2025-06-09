@@ -1,5 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 import { TenantCapabilities } from '../src/types';
+import { bypassNamespaceValidation } from '../utils/namespaceValidator';
 
 // License information interface
 interface LicenseInfo {
@@ -256,6 +257,9 @@ export class DgraphCapabilityDetector {
     console.log('[DGRAPH_CAPABILITIES] Testing namespace support...');
     
     try {
+      // Bypass namespace validation for capability testing
+      bypassNamespaceValidation(true);
+      
       // Test namespace support by trying to access admin schema with namespace parameter
       const testUrl = `${this.baseUrl}/admin/schema?namespace=0x1`;
       console.log(`[DGRAPH_CAPABILITIES] Testing namespace parameter: ${testUrl}`);
@@ -301,6 +305,9 @@ export class DgraphCapabilityDetector {
     } catch (error: any) {
       console.log('[DGRAPH_CAPABILITIES] Namespace test failed:', error.message);
       return false;
+    } finally {
+      // Always reset bypass validation
+      bypassNamespaceValidation(false);
     }
   }
 
