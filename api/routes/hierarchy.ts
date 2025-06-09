@@ -2,6 +2,8 @@ import express, { Request, Response } from 'express';
 import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
 import { Hierarchy, HierarchyLevel, HierarchyAssignment } from '../src/types/domain';
 import { authenticateAdmin } from '../middleware/auth';
+import { sendErrorResponse, ErrorType } from '../utils/errorResponse';
+import { validateRequiredFields, validateId, validateEntityExists } from '../utils/validationHelpers';
 
 const router = express.Router();
 
@@ -199,7 +201,7 @@ router.post('/hierarchy/level', async (req: Request, res: Response): Promise<voi
     const existingLevels = checkResult.queryHierarchy[0]?.levels || [];
     
     if (existingLevels.length > 0) {
-      res.status(500).json({ error: `Level number ${levelNumber} already exists in hierarchy ${hierarchyId}` });
+      sendErrorResponse(res, ErrorType.CONFLICT, `Level number ${levelNumber} already exists in hierarchy ${hierarchyId}`);
       return;
     }
 
@@ -315,7 +317,7 @@ router.post('/hierarchy/assignment', async (req: Request, res: Response): Promis
     // Check if node exists
     const nodeResult = await tenantClient.executeGraphQL(checkNodeQuery, { nodeId });
     if (!nodeResult.getNode) {
-      res.status(500).json({ error: `Node with ID '${nodeId}' does not exist` });
+      sendErrorResponse(res, ErrorType.NOT_FOUND, `Node with ID '${nodeId}' does not exist`);
       return;
     }
 
