@@ -41,7 +41,10 @@ describe('pushSchema Utility', () => {
       expect(mockedAxiosPost).toHaveBeenCalledWith(
         adminUrl,
         mockSchema,
-        { headers: { 'Content-Type': 'application/graphql' } }
+        { 
+          headers: { 'Content-Type': 'application/graphql' },
+          timeout: 30000
+        }
       );
     });
 
@@ -66,7 +69,12 @@ describe('pushSchema Utility', () => {
       const result = await pushSchemaViaHttp(mockSchema, null, adminUrl);
 
       expect(result.success).toBe(false);
-      expect(result.error).toEqual({ error: 'Invalid schema syntax' });
+      expect(result.error).toEqual({
+        status: 400,
+        statusText: undefined,
+        data: { error: 'Invalid schema syntax' },
+        originalError: 'Schema validation failed'
+      });
     });
 
     it('should handle timeout errors', async () => {
@@ -92,7 +100,10 @@ describe('pushSchema Utility', () => {
       expect(mockedAxiosPost).toHaveBeenCalledWith(
         adminUrl,
         mockSchema,
-        { headers: { 'Content-Type': 'application/graphql' } }
+        { 
+          headers: { 'Content-Type': 'application/graphql' },
+          timeout: 30000
+        }
       );
     });
 
@@ -146,7 +157,10 @@ describe('pushSchema Utility', () => {
       expect(mockedAxiosPost).toHaveBeenCalledWith(
         'http://localhost:8080/admin/schema',
         mockSchema,
-        { headers: { 'Content-Type': 'application/graphql' } }
+        { 
+          headers: { 'Content-Type': 'application/graphql' },
+          timeout: 30000
+        }
       );
     });
 
@@ -162,7 +176,10 @@ describe('pushSchema Utility', () => {
       expect(mockedAxiosPost).toHaveBeenCalledWith(
         `${adminUrl}?namespace=0x1`,
         mockSchema,
-        { headers: { 'Content-Type': 'application/graphql' } }
+        { 
+          headers: { 'Content-Type': 'application/graphql' },
+          timeout: 30000
+        }
       );
     });
   });

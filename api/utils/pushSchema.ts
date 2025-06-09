@@ -4,9 +4,13 @@ import config from '../config';
 // Schema push response types
 interface SchemaPushResponse {
   data?: {
-    code: string;
-    message: string;
+    code?: string;
+    message?: string;
+    error?: string;
   };
+  code?: string;
+  message?: string;
+  error?: string;
 }
 
 interface PushSchemaResult {
@@ -34,20 +38,57 @@ export async function pushSchemaViaHttp(
     const adminUrl = namespace ? `${baseAdminUrl}?namespace=${namespace}` : baseAdminUrl;
     
     console.log(`[PUSH_SCHEMA] Pushing schema to ${adminUrl}`);
+    console.log(`[PUSH_SCHEMA] Schema content preview: ${schema.substring(0, 200)}...`);
     
     const response: AxiosResponse<SchemaPushResponse> = await axios.post(adminUrl, schema, {
       headers: { 'Content-Type': 'application/graphql' },
+      timeout: 30000, // 30 second timeout for schema push
     });
 
     // Dgraph admin schema push returns {"data":{"code":"Success","message":"Done"}} on success
     // Extract the actual data from the nested response structure
     const responseData = response.data?.data || response.data;
-    console.log(`[PUSH_SCHEMA] Schema pushed successfully to namespace ${namespace || 'default'}`);
-    return { success: true, response: responseData, namespace };
+    
+    // Validate the response indicates success
+    const isSuccess = response.status === 200 && 
+                     (responseData?.code === 'Success' || 
+                      responseData?.message === 'Done' ||
+                      !responseData?.error);
+    
+    if (isSuccess) {
+      console.log(`[PUSH_SCHEMA] ✅ Schema pushed successfully to namespace ${namespace || 'default'}: ${JSON.stringify(responseData)}`);
+      return { success: true, response: responseData, namespace };
+    } else {
+      console.error(`[PUSH_SCHEMA] ❌ Schema push returned non-success response: ${JSON.stringify(responseData)}`);
+      return { 
+        success: false, 
+        error: `Schema push failed: ${responseData?.message || 'Unknown error'}`, 
+        namespace 
+      };
+    }
   } catch (err: any) {
-    console.error(`[PUSH_SCHEMA] Error pushing schema to ${namespace || 'default'}:`, err.message);
-    // Provide more details if available in the response
-    const errorDetails = err.response?.data || err.message;
+    console.error(`[PUSH_SCHEMA] ❌ Error pushing schema to ${namespace || 'default'}:`, err.message);
+    
+    // Enhanced error reporting
+    let errorDetails = err.message;
+    if (err.response) {
+      console.error(`[PUSH_SCHEMA] HTTP Status: ${err.response.status}`);
+      console.error(`[PUSH_SCHEMA] Response Headers:`, err.response.headers);
+      console.error(`[PUSH_SCHEMA] Response Data:`, err.response.data);
+      
+      errorDetails = {
+        status: err.response.status,
+        statusText: err.response.statusText,
+        data: err.response.data,
+        originalError: err.message
+      };
+    } else if (err.request) {
+      console.error(`[PUSH_SCHEMA] No response received:`, err.request);
+      const baseAdminUrl = customAdminUrl || config.dgraphAdminUrl;
+      const targetUrl = namespace ? `${baseAdminUrl}?namespace=${namespace}` : baseAdminUrl;
+      errorDetails = `No response received from ${targetUrl}`;
+    }
+    
     return { success: false, error: errorDetails, namespace };
   }
 }

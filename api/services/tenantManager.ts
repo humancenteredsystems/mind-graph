@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import config from '../config';
 import { DgraphTenantFactory } from './dgraphTenant';
 import { pushSchemaViaHttp } from '../utils/pushSchema';
+import { SchemaValidator } from '../utils/schemaValidator';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { TenantInfo, CreateTenantResponse, TenantHealthStatus } from '../src/types';
@@ -123,15 +124,49 @@ export class TenantManager {
   }
 
   /**
-   * Initialize schema in a tenant's namespace
+   * Initialize schema in a tenant's namespace with comprehensive validation
    * @param namespace - The namespace to initialize
    */
   async initializeTenantSchema(namespace: string): Promise<void> {
     try {
       const schemaContent = await this.getDefaultSchema();
       
+      // Pre-push validation
+      console.log(`[TENANT_MANAGER] Validating schema content before push to namespace ${namespace}`);
+      const validation = SchemaValidator.validateSchemaContent(schemaContent);
+      
+      if (!validation.valid) {
+        throw new Error(`Schema validation failed: ${validation.errors.join(', ')}`);
+      }
+      
+      if (validation.warnings.length > 0) {
+        console.warn(`[TENANT_MANAGER] Schema validation warnings: ${validation.warnings.join(', ')}`);
+      }
+      
+      // Push schema with enhanced error handling
       console.log(`[TENANT_MANAGER] Pushing schema to namespace ${namespace}`);
-      await this.pushSchema(schemaContent, namespace);
+      const pushResult = await this.pushSchema(schemaContent, namespace);
+      
+      if (!pushResult.success) {
+        throw new Error(`Schema push failed: ${JSON.stringify(pushResult.error)}`);
+      }
+      
+      console.log(`[TENANT_MANAGER] Schema push completed, waiting for availability in namespace ${namespace}`);
+      
+      // Wait for schema to be available with polling
+      const availabilityResult = await SchemaValidator.waitForSchemaAvailability(namespace, 15000, 1000);
+      
+      if (!availabilityResult.success) {
+        console.error(`[TENANT_MANAGER] Schema availability check failed: ${availabilityResult.details}`);
+        
+        // Try one more comprehensive verification to get detailed error info
+        const detailedVerification = await SchemaValidator.verifySchemaInNamespace(namespace);
+        console.error(`[TENANT_MANAGER] Detailed schema verification: ${JSON.stringify(detailedVerification, null, 2)}`);
+        
+        throw new Error(`Schema not available after push: ${availabilityResult.details}. Detailed verification: ${detailedVerification.details}`);
+      }
+      
+      console.log(`[TENANT_MANAGER] ✅ Schema successfully initialized and verified in namespace ${namespace} (${availabilityResult.waitedMs}ms)`);
       
     } catch (error) {
       console.error(`[TENANT_MANAGER] Failed to initialize schema for namespace ${namespace}:`, error);
