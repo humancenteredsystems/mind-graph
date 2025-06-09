@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "taskmaster-ai": {
+      "command": "npx",
+      "args": ["-y", "--package=task-master-ai", "task-master-ai"],
+      "env": {
+        "ANTHROPIC_API_KEY": "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",
+        "OPENAI_API_KEY": "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",
+        "GOOGLE_API_KEY": "YOUR_GOOGLE_KEY_HERE",
+        "OPENROUTER_API_KEY": "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"
+      },
+      "type": "stdio"
+    }
+  }
+}

@@ -137,9 +137,11 @@ describe('Real Integration: Hierarchy Operations', () => {
       const response = await testRequest(app)
         .post('/api/hierarchy/level')
         .send(duplicateLevel)
-        .expect(500);
+        .expect(409);
 
       expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toBe('CONFLICT');
+      expect(response.body.message).toContain('Level number 1 already exists in hierarchy test-hierarchy-1');
     });
   });
 
@@ -191,9 +193,11 @@ describe('Real Integration: Hierarchy Operations', () => {
       const response = await testRequest(app)
         .post('/api/hierarchy/assignment')
         .send(invalidAssignment)
-        .expect(500);
+        .expect(404);
 
       expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toBe('NOT_FOUND');
+      expect(response.body.message).toContain('Node with ID \'non-existent-node\' does not exist');
     });
   });
 
@@ -209,12 +213,8 @@ describe('Real Integration: Hierarchy Operations', () => {
         .set('X-Hierarchy-Id', 'test-hierarchy-1')
         .send({
           mutation: `
-            mutation {
-              addNode(input: [{ 
-                id: "${nodeData.id}", 
-                label: "${nodeData.label}", 
-                type: "${nodeData.type}" 
-              }]) {
+            mutation AddNode($input: [AddNodeInput!]!) {
+              addNode(input: $input) {
                 node {
                   id
                   label
@@ -231,7 +231,14 @@ describe('Real Integration: Hierarchy Operations', () => {
                 }
               }
             }
-          `
+          `,
+          variables: {
+            input: [{
+              id: nodeData.id,
+              label: nodeData.label,
+              type: nodeData.type
+            }]
+          }
         })
         .expect(200);
 
@@ -251,20 +258,24 @@ describe('Real Integration: Hierarchy Operations', () => {
         // Intentionally omit X-Hierarchy-Id header
         .send({
           mutation: `
-            mutation {
-              addNode(input: [{ 
-                id: "${nodeData.id}", 
-                label: "${nodeData.label}", 
-                type: "${nodeData.type}" 
-              }]) {
+            mutation AddNode($input: [AddNodeInput!]!) {
+              addNode(input: $input) {
                 node { id }
               }
             }
-          `
+          `,
+          variables: {
+            input: [{
+              id: nodeData.id,
+              label: nodeData.label,
+              type: nodeData.type
+            }]
+          }
         })
-        .expect(500);
+        .expect(400);
 
       expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('X-Hierarchy-Id header is required for node creation mutations');
     });
 
     it('should respect level type constraints', async () => {
@@ -279,16 +290,19 @@ describe('Real Integration: Hierarchy Operations', () => {
         .set('X-Hierarchy-Id', 'test-hierarchy-1')
         .send({
           mutation: `
-            mutation {
-              addNode(input: [{ 
-                id: "${nodeData.id}", 
-                label: "${nodeData.label}", 
-                type: "${nodeData.type}" 
-              }]) {
+            mutation AddNode($input: [AddNodeInput!]!) {
+              addNode(input: $input) {
                 node { id }
               }
             }
-          `
+          `,
+          variables: {
+            input: [{
+              id: nodeData.id,
+              label: nodeData.label,
+              type: nodeData.type
+            }]
+          }
         })
         .expect(500);
 
@@ -308,16 +322,19 @@ describe('Real Integration: Hierarchy Operations', () => {
         .set('X-Hierarchy-Id', 'test-hierarchy-1')
         .send({
           mutation: `
-            mutation {
-              addNode(input: [{ 
-                id: "${conceptNode.id}", 
-                label: "${conceptNode.label}", 
-                type: "${conceptNode.type}" 
-              }]) {
+            mutation AddNode($input: [AddNodeInput!]!) {
+              addNode(input: $input) {
                 node { id }
               }
             }
-          `
+          `,
+          variables: {
+            input: [{
+              id: conceptNode.id,
+              label: conceptNode.label,
+              type: conceptNode.type
+            }]
+          }
         });
 
       // Create example node (should go to level 2)
@@ -326,16 +343,19 @@ describe('Real Integration: Hierarchy Operations', () => {
         .set('X-Hierarchy-Id', 'test-hierarchy-1')
         .send({
           mutation: `
-            mutation {
-              addNode(input: [{ 
-                id: "${exampleNode.id}", 
-                label: "${exampleNode.label}", 
-                type: "${exampleNode.type}" 
-              }]) {
+            mutation AddNode($input: [AddNodeInput!]!) {
+              addNode(input: $input) {
                 node { id }
               }
             }
-          `
+          `,
+          variables: {
+            input: [{
+              id: exampleNode.id,
+              label: exampleNode.label,
+              type: exampleNode.type
+            }]
+          }
         });
 
       // Query nodes by level

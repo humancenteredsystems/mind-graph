@@ -1,9 +1,9 @@
 # Integration-Real Test Failure Categories
 
 ## Summary
-**8 failing tests** out of 55 total (31 passed, 16 skipped) - **3 tests fixed!** ✅
+**7 failing tests** out of 55 total (32 passed, 16 skipped) - **4 tests fixed!** ✅
 
-**Latest Progress**: Fixed GraphQL multiple filters query - now using implicit AND syntax instead of explicit `and` operator.
+**Latest Progress**: ✅ **FIXED Issue #10** - GraphQL multiple filters query now works by adding `@search(by: [exact])` directive to Node.type field in schema.
 
 ## 📊 Current Test Results
 - **Test Suites**: 2 failed, 2 skipped, 1 passed (5 total)

@@ -128,24 +128,12 @@ export async function enrichNodeInputs(
           { hierarchy: { id: itemHierarchyId }, level: { id: finalLevelId } }
         ];
       }
-    } else if (!inputObj.hierarchyAssignments && !inputObj.levelId && !inputObj.parentId && itemHierarchyId) {
-      // If hierarchy header is provided but no specific assignment info, auto-assign to appropriate level
-      console.log(`[MUTATE] Auto-assigning node ${inputObj.id} (${inputObj.type}) to hierarchy ${itemHierarchyId}`);
-      try {
-        const autoLevelId = await getLevelIdForNode(null, itemHierarchyId, tenantClient); // null parent = level 1
-        await validateLevelIdAndAllowedType(autoLevelId, inputObj.type, itemHierarchyId, tenantClient);
-        nodeInput.hierarchyAssignments = [
-          { hierarchy: { id: itemHierarchyId }, level: { id: autoLevelId } }
-        ];
-        console.log(`[MUTATE] Auto-assigned node ${inputObj.id} to level ${autoLevelId}`);
-      } catch (error) {
-        console.error(`[MUTATE] Failed to auto-assign node ${inputObj.id} to hierarchy ${itemHierarchyId}:`, error);
-        // Re-throw validation errors instead of continuing
-        throw error;
-      }
-    } else if (!inputObj.hierarchyAssignments && !inputObj.levelId && !inputObj.parentId && !itemHierarchyId) {
-      // If no hierarchy assignment information provided and no header, create without assignment
-      console.log(`[MUTATE] Node ${inputObj.id} (${inputObj.type}) will be created without an initial hierarchy assignment.`);
+    } else {
+      // If no specific hierarchy assignment info is provided, create node without assignment
+      // This includes cases where:
+      // - No hierarchy header is provided
+      // - Hierarchy header is provided but no specific assignment instructions
+      console.log(`[MUTATE] Node ${inputObj.id} (${inputObj.type}) will be created without hierarchy assignment.`);
     }
 
     enrichedInputs.push(nodeInput);

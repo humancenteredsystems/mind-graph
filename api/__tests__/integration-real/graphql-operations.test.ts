@@ -234,20 +234,29 @@ describe('Real Integration: GraphQL Operations', () => {
       const toNode = createTestNodeData({ label: 'To Node', type: 'example' });
 
       // Create the nodes
+      const nodeCreationMutation = `
+        mutation CreateNodes($input: [AddNodeInput!]!) {
+          addNode(input: $input) {
+            node {
+              id
+              label
+              type
+            }
+          }
+        }
+      `;
+
       await testRequest(app)
         .post('/api/mutate')
         .set('X-Hierarchy-Id', 'test-hierarchy-1')
         .send({
-          mutation: `
-            mutation {
-              addNode(input: [
-                { id: "${fromNode.id}", label: "${fromNode.label}", type: "${fromNode.type}" },
-                { id: "${toNode.id}", label: "${toNode.label}", type: "${toNode.type}" }
-              ]) {
-                node { id }
-              }
-            }
-          `
+          mutation: nodeCreationMutation,
+          variables: {
+            input: [
+              { id: fromNode.id, label: fromNode.label, type: fromNode.type },
+              { id: toNode.id, label: toNode.label, type: toNode.type }
+            ]
+          }
         })
         .expect(200);
 
@@ -265,8 +274,8 @@ describe('Real Integration: GraphQL Operations', () => {
       `;
 
       const edgeData = {
-        fromId: fromNode.id,
-        toId: toNode.id,
+        from: { id: fromNode.id },
+        to: { id: toNode.id },
         type: 'relates_to'
       };
 
@@ -599,8 +608,8 @@ describe('Real Integration: GraphQL Operations', () => {
           mutation: `
             mutation {
               addEdge(input: [{ 
-                fromId: "${nodeA.id}", 
-                toId: "${nodeB.id}", 
+                from: { id: "${nodeA.id}" }, 
+                to: { id: "${nodeB.id}" }, 
                 type: "relates_to" 
               }]) {
                 edge { 

@@ -1,7 +1,7 @@
 type Node {
   id: String! @id
   label: String! @search(by: [term])
-  type: String!
+  type: String! @search(by: [exact])
   status: String
   branch: String
   outgoing: [Edge] @hasInverse(field: "from")
