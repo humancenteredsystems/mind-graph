@@ -72,13 +72,32 @@ export const createTestNodeData = (overrides: any = {}) => ({
 
 /**
  * Create test hierarchy assignment data
+ * 
+ * IMPORTANT: levelId must be a real, dynamic ID obtained from Dgraph.
+ * Do NOT use hardcoded values like 'test-level-1' - these will not exist.
+ * 
+ * Get actual level IDs from test seeder or query results like:
+ * const levelId = levelsResult.addHierarchyLevel.hierarchyLevel.find(l => l.levelNumber === 1)?.id;
+ * 
+ * @param nodeId - The node ID to assign
+ * @param hierarchyId - The hierarchy ID (defaults to 'test-hierarchy-1')
+ * @param levelId - REQUIRED: Real level ID from Dgraph (no hardcoded defaults)
+ * 
+ * @throws Error if levelId is not provided
+ * 
+ * Related: Issues #6, #13 - Fixed hardcoded level ID assumptions
  */
 export const createTestHierarchyAssignment = (
   nodeId: string, 
   hierarchyId: string = 'test-hierarchy-1', 
-  levelId: string = 'test-level-1'
-) => ({
-  nodeId,
-  hierarchyId,
-  levelId
-});
+  levelId: string  // No default - require explicit level ID
+) => {
+  if (!levelId) {
+    throw new Error('levelId is required and must be a real Dgraph-generated ID. Do not use hardcoded values like "test-level-1". See Issues #6/#13 for context.');
+  }
+  return {
+    nodeId,
+    hierarchyId,
+    levelId
+  };
+};
