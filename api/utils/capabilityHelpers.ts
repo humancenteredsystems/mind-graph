@@ -48,9 +48,16 @@ export function getCapabilitiesSync(): TenantCapabilities | null {
  */
 export function requiresEnterprise(operation: string): void {
   if (!isEnterpriseAvailable()) {
-    throw new Error(
-      `Operation '${operation}' requires Dgraph Enterprise features which are not available. ` +
-      'Please ensure you are running Dgraph Enterprise with a valid license.'
+    const capabilities = getCapabilitiesSync();
+    const { EnterpriseFeatureNotAvailableError } = require('./errorResponse');
+    
+    throw new EnterpriseFeatureNotAvailableError(
+      `Enterprise features (${operation})`,
+      {
+        operation,
+        currentMode: capabilities?.enterpriseDetected ? 'enterprise-single-tenant' : 'oss-single-tenant',
+        suggestion: 'Please ensure you are running Dgraph Enterprise with a valid license'
+      }
     );
   }
 }
@@ -63,14 +70,13 @@ export function requiresEnterprise(operation: string): void {
 export function requiresMultiTenant(operation: string): void {
   if (!isMultiTenantSupported()) {
     const capabilities = getCapabilitiesSync();
-    const reason = capabilities?.enterpriseDetected 
-      ? 'namespace isolation is not functional'
-      : 'Dgraph Enterprise is not available';
+    const { MultiTenantNotSupportedError } = require('./errorResponse');
+    
+    const suggestion = capabilities?.enterpriseDetected 
+      ? 'Check namespace isolation configuration - Enterprise detected but namespace operations not functional'
+      : 'Upgrade to Dgraph Enterprise with namespace support';
       
-    throw new Error(
-      `Operation '${operation}' requires multi-tenant support which is not available. ` +
-      `Reason: ${reason}. Please ensure you are running Dgraph Enterprise with namespace support.`
-    );
+    throw new MultiTenantNotSupportedError(operation, suggestion);
   }
 }
 

@@ -224,8 +224,17 @@ router.get('/schema', async (req: Request, res: Response): Promise<void> => {
         // Build namespace-aware admin URL
         const namespace = req.tenantContext?.namespace;
         
-        // Validate namespace parameter before making request
-        validateNamespaceParam(namespace, 'Schema fetch');
+        // Validate namespace parameter before making request (ADMIN operation - FAIL WITH CONTEXT)
+        try {
+          validateNamespaceParam(namespace, 'Schema fetch');
+        } catch (error: any) {
+          const { createNamespaceErrorResponse } = require('../utils/errorResponse');
+          const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
+          const capabilities = adaptiveTenantFactory.getCapabilities();
+          const errorResponse = createNamespaceErrorResponse('Schema fetch', namespace || 'non-default', capabilities);
+          res.status(400).json(errorResponse);
+          return;
+        }
         
         const adminUrl = namespace 
           ? `${DGRAPH_ADMIN_SCHEMA_URL}?namespace=${namespace}`

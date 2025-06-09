@@ -74,7 +74,18 @@ class DgraphTenantInternal {
         console.error(`[DGRAPH_TENANT] No response received:`, error.request);
       }
 
-      throw new Error(`Failed to communicate with Dgraph in namespace ${this.namespace || 'default'}: ${error.message}`);
+      // If this is a namespace operation and we're in OSS mode, provide Enterprise-specific error
+      if (this.namespace && this.namespace !== '0x0') {
+        const { NamespaceNotSupportedError } = require('../utils/errorResponse');
+        throw new NamespaceNotSupportedError(
+          'GraphQL execution',
+          this.namespace,
+          'Verify Dgraph Enterprise license and namespace configuration'
+        );
+      }
+
+      // For default namespace operations, provide generic connection error without internal details
+      throw new Error(`Failed to execute GraphQL operation. Please check Dgraph connectivity and configuration.`);
     }
   }
 

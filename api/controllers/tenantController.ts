@@ -24,13 +24,12 @@ export class TenantController {
         return;
       }
       
-      // Check if multi-tenant mode is supported
+      // Check if multi-tenant mode is supported (CREATE operation - FAIL HARD)
       const capabilities = adaptiveTenantFactory.getCapabilities();
       if (!capabilities?.namespacesSupported) {
-        res.status(400).json({
-          error: 'Multi-tenant mode not supported in OSS deployment',
-          mode: 'oss-single-tenant'
-        });
+        const { createMultiTenantErrorResponse } = require('../utils/errorResponse');
+        const errorResponse = createMultiTenantErrorResponse('tenant creation', capabilities);
+        res.status(400).json(errorResponse);
         return;
       }
       
@@ -103,13 +102,12 @@ export class TenantController {
         return;
       }
       
-      // Check if multi-tenant mode is supported
+      // Check if multi-tenant mode is supported (CREATE operation - FAIL HARD)
       const capabilities = adaptiveTenantFactory.getCapabilities();
       if (!capabilities?.namespacesSupported) {
-        res.status(400).json({
-          error: 'Multi-tenant mode not supported in OSS deployment',
-          mode: 'oss-single-tenant'
-        });
+        const { createMultiTenantErrorResponse } = require('../utils/errorResponse');
+        const errorResponse = createMultiTenantErrorResponse('tenant deletion', capabilities);
+        res.status(400).json(errorResponse);
         return;
       }
       
