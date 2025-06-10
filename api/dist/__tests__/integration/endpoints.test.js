@@ -85,14 +85,18 @@ describe('API Endpoints', () => {
     });
     describe('POST /api/mutate', () => {
         it('should execute GraphQL mutation and return results', async () => {
-            const mockResponse = {
+            // Mock hierarchy validation first
+            mockExecuteGraphQL
+                .mockResolvedValueOnce({ getHierarchy: { id: 'test-hierarchy' } }) // validateHierarchyId
+                .mockResolvedValueOnce({ queryHierarchy: [{ levels: [{ id: 'level1', levelNumber: 1 }] }] }) // getLevelIdForNode
+                .mockResolvedValueOnce({ getHierarchyLevel: { id: 'level1', levelNumber: 1, hierarchy: { id: 'test-hierarchy' }, allowedTypes: [] } }) // validateLevelIdAndAllowedType
+                .mockResolvedValueOnce({
                 addNode: {
                     node: [
                         { id: 'new-node', label: 'New Node', type: 'concept' }
                     ]
                 }
-            };
-            mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
+            });
             const mutation = `
         mutation AddNode($input: [AddNodeInput!]!) {
           addNode(input: $input) {
@@ -115,7 +119,13 @@ describe('API Endpoints', () => {
                 .send({ mutation, variables })
                 .expect('Content-Type', /json/)
                 .expect(200);
-            expect(res.body).toEqual(mockResponse);
+            expect(res.body).toHaveProperty('addNode');
+            expect(res.body.addNode.node).toHaveLength(1);
+            expect(res.body.addNode.node[0]).toMatchObject({
+                id: 'new-node',
+                label: 'New Node',
+                type: 'concept'
+            });
         });
         it('should return 400 when mutation is missing', async () => {
             const res = await (0, supertest_1.default)(server_1.default)

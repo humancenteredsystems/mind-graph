@@ -3,22 +3,25 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// Mock config
+// Mock config before any imports
 jest.mock('../../../config', () => ({
-    __esModule: true,
     default: {
         dgraphAdminUrl: 'http://localhost:8080/admin/schema',
         dgraphBaseUrl: 'http://localhost:8080',
         port: 3001
     }
 }));
-const axios_1 = __importDefault(require("axios"));
 const pushSchema_1 = require("../../../utils/pushSchema");
-// Get the mocked axios (manual mock will be used automatically)
-const mockedAxios = axios_1.default;
+const axios_1 = __importDefault(require("axios"));
 describe('pushSchema Utility', () => {
+    let mockedAxiosPost;
     beforeEach(() => {
         jest.clearAllMocks();
+        // Set up the spy in beforeEach to ensure it's applied after module loading
+        mockedAxiosPost = jest.spyOn(axios_1.default, 'post').mockImplementation();
+    });
+    afterEach(() => {
+        mockedAxiosPost.mockRestore();
     });
     describe('pushSchemaViaHttp', () => {
         const mockSchema = 'type Node { id: String! @id label: String! }';
@@ -28,15 +31,18 @@ describe('pushSchema Utility', () => {
                 status: 200,
                 data: { code: 'Success', message: 'Done' }
             };
-            mockedAxios.post.mockResolvedValueOnce(mockResponse);
+            mockedAxiosPost.mockResolvedValueOnce(mockResponse);
             const result = await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, null, adminUrl);
             expect(result.success).toBe(true);
             expect(result.response).toEqual({ code: 'Success', message: 'Done' });
-            expect(mockedAxios.post).toHaveBeenCalledWith(adminUrl, mockSchema, { headers: { 'Content-Type': 'application/graphql' } });
+            expect(mockedAxiosPost).toHaveBeenCalledWith(adminUrl, mockSchema, {
+                headers: { 'Content-Type': 'application/graphql' },
+                timeout: 30000
+            });
         });
         it('should handle network errors', async () => {
             const networkError = new Error('Network Error');
-            mockedAxios.post.mockRejectedValueOnce(networkError);
+            mockedAxiosPost.mockRejectedValueOnce(networkError);
             const result = await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, null, adminUrl);
             expect(result.success).toBe(false);
             expect(result.error).toBe('Network Error');
@@ -47,15 +53,20 @@ describe('pushSchema Utility', () => {
                 status: 400,
                 data: { error: 'Invalid schema syntax' }
             };
-            mockedAxios.post.mockRejectedValueOnce(dgraphError);
+            mockedAxiosPost.mockRejectedValueOnce(dgraphError);
             const result = await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, null, adminUrl);
             expect(result.success).toBe(false);
-            expect(result.error).toEqual({ error: 'Invalid schema syntax' });
+            expect(result.error).toEqual({
+                status: 400,
+                statusText: undefined,
+                data: { error: 'Invalid schema syntax' },
+                originalError: 'Schema validation failed'
+            });
         });
         it('should handle timeout errors', async () => {
             const timeoutError = new Error('timeout of 5000ms exceeded');
             timeoutError.code = 'ECONNABORTED';
-            mockedAxios.post.mockRejectedValueOnce(timeoutError);
+            mockedAxiosPost.mockRejectedValueOnce(timeoutError);
             const result = await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, null, adminUrl);
             expect(result.success).toBe(false);
             expect(result.error).toBe('timeout of 5000ms exceeded');
@@ -65,23 +76,26 @@ describe('pushSchema Utility', () => {
                 status: 200,
                 data: { code: 'Success', message: 'Done' }
             };
-            mockedAxios.post.mockResolvedValueOnce(mockResponse);
+            mockedAxiosPost.mockResolvedValueOnce(mockResponse);
             await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, null, adminUrl);
-            expect(mockedAxios.post).toHaveBeenCalledWith(adminUrl, mockSchema, { headers: { 'Content-Type': 'application/graphql' } });
+            expect(mockedAxiosPost).toHaveBeenCalledWith(adminUrl, mockSchema, {
+                headers: { 'Content-Type': 'application/graphql' },
+                timeout: 30000
+            });
         });
         it('should handle successful response with different data format', async () => {
             const mockResponse = {
                 status: 200,
                 data: { code: 'Success', message: 'Done' }
             };
-            mockedAxios.post.mockResolvedValueOnce(mockResponse);
+            mockedAxiosPost.mockResolvedValueOnce(mockResponse);
             const result = await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, null, adminUrl);
             expect(result.success).toBe(true);
             expect(result.response).toEqual({ code: 'Success', message: 'Done' });
         });
         it('should handle errors without response data', async () => {
             const error = new Error('Connection refused');
-            mockedAxios.post.mockRejectedValueOnce(error);
+            mockedAxiosPost.mockRejectedValueOnce(error);
             const result = await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, null, adminUrl);
             expect(result.success).toBe(false);
             expect(result.error).toBe('Connection refused');
@@ -93,7 +107,7 @@ describe('pushSchema Utility', () => {
                     data: { code: 'Success', message: 'Done' }
                 }
             };
-            mockedAxios.post.mockResolvedValueOnce(mockResponse);
+            mockedAxiosPost.mockResolvedValueOnce(mockResponse);
             const result = await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, null, adminUrl);
             expect(result.success).toBe(true);
             expect(result.response).toEqual({ code: 'Success', message: 'Done' });
@@ -103,18 +117,24 @@ describe('pushSchema Utility', () => {
                 status: 200,
                 data: { code: 'Success', message: 'Done' }
             };
-            mockedAxios.post.mockResolvedValueOnce(mockResponse);
+            mockedAxiosPost.mockResolvedValueOnce(mockResponse);
             await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, null, null);
-            expect(mockedAxios.post).toHaveBeenCalledWith('http://localhost:8080/admin/schema', mockSchema, { headers: { 'Content-Type': 'application/graphql' } });
+            expect(mockedAxiosPost).toHaveBeenCalledWith('http://localhost:8080/admin/schema', mockSchema, {
+                headers: { 'Content-Type': 'application/graphql' },
+                timeout: 30000
+            });
         });
         it('should handle namespace parameter', async () => {
             const mockResponse = {
                 status: 200,
                 data: { code: 'Success', message: 'Done' }
             };
-            mockedAxios.post.mockResolvedValueOnce(mockResponse);
+            mockedAxiosPost.mockResolvedValueOnce(mockResponse);
             await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, '0x1', adminUrl);
-            expect(mockedAxios.post).toHaveBeenCalledWith(`${adminUrl}?namespace=0x1`, mockSchema, { headers: { 'Content-Type': 'application/graphql' } });
+            expect(mockedAxiosPost).toHaveBeenCalledWith(`${adminUrl}?namespace=0x1`, mockSchema, {
+                headers: { 'Content-Type': 'application/graphql' },
+                timeout: 30000
+            });
         });
     });
 });

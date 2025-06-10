@@ -9,6 +9,7 @@ const adaptiveTenantFactory_1 = require("../services/adaptiveTenantFactory");
 const nodeEnrichment_1 = require("../services/nodeEnrichment");
 const validation_1 = require("../services/validation");
 const axios_1 = __importDefault(require("axios"));
+const namespaceValidator_1 = require("../utils/namespaceValidator");
 const router = express_1.default.Router();
 // Use admin URL from config
 const DGRAPH_ADMIN_SCHEMA_URL = config_1.default.dgraphAdminUrl;
@@ -62,13 +63,16 @@ router.post('/mutate', async (req, res) => {
         res.status(400).json({ error: 'Missing required field: mutation' });
         return;
     }
+    // Check if this is a node creation mutation
+    const isNodeCreation = mutation.includes('addNode') && variables && variables.input;
+    const hierarchyIdFromHeader = req.headers['x-hierarchy-id'];
     try {
         // Enrich addNode inputs with nested hierarchyAssignments
         // Focus on the operation being performed rather than specific mutation names
-        const hierarchyIdFromHeader = req.headers['x-hierarchy-id'];
         // Only call enrichNodeInputs if variables has the expected structure
         if (variables && typeof variables === 'object' && 'input' in variables) {
-            variables = await (0, nodeEnrichment_1.enrichNodeInputs)(variables, hierarchyIdFromHeader, mutation);
+            const tenantClient = await getTenantClient(req);
+            variables = await (0, nodeEnrichment_1.enrichNodeInputs)(variables, hierarchyIdFromHeader, mutation, tenantClient);
         }
         // For mutations that don't need transformation, or for addNode after input enrichment, execute normally
         // Log the input being sent to Dgraph for addNode mutations
@@ -87,15 +91,26 @@ router.post('/mutate', async (req, res) => {
     catch (error) {
         const err = error;
         console.error('[GRAPHQL] Failed to execute mutation:', error);
+        // Handle validation errors with 400 status
         if (error instanceof validation_1.InvalidLevelError || error instanceof validation_1.NodeTypeNotAllowedError) {
             res.status(400).json({ error: err.message });
         }
+        else if (err.message.includes('X-Hierarchy-Id header is required') ||
+            err.message.includes('Invalid hierarchyId in header') ||
+            err.message.includes('Hierarchy not found') ||
+            err.message.includes('Invalid level or node type constraint violation') ||
+            err.message.includes('Node type') && err.message.includes('is not allowed')) {
+            // Handle enrichment validation errors as 400 Bad Request
+            res.status(400).json({ error: err.message });
+        }
+        else if (err.message.includes('GraphQL query failed:')) {
+            // Handle GraphQL-specific errors as 400 Bad Request
+            const errorMessage = `GraphQL error: ${err.message.replace('GraphQL query failed: ', '')}`;
+            res.status(400).json({ error: errorMessage, details: err.message });
+        }
         else {
-            const errorMessage = err.message.includes('GraphQL query failed:')
-                ? `GraphQL error: ${err.message.replace('GraphQL query failed: ', '')}`
-                : 'Server error executing mutation';
-            const statusCode = err.message.includes('GraphQL query failed:') ? 400 : 500;
-            res.status(statusCode).json({ error: errorMessage, details: err.message });
+            // Handle genuine server errors as 500 Internal Server Error
+            res.status(500).json({ error: 'Server error executing mutation', details: err.message });
         }
     }
 });
@@ -182,6 +197,18 @@ router.get('/schema', async (req, res) => {
     try {
         // Build namespace-aware admin URL
         const namespace = req.tenantContext?.namespace;
+        // Validate namespace parameter before making request (ADMIN operation - FAIL WITH CONTEXT)
+        try {
+            (0, namespaceValidator_1.validateNamespaceParam)(namespace, 'Schema fetch');
+        }
+        catch (error) {
+            const { createNamespaceErrorResponse } = require('../utils/errorResponse');
+            const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
+            const capabilities = adaptiveTenantFactory.getCapabilities();
+            const errorResponse = createNamespaceErrorResponse('Schema fetch', namespace || 'non-default', capabilities);
+            res.status(400).json(errorResponse);
+            return;
+        }
         const adminUrl = namespace
             ? `${DGRAPH_ADMIN_SCHEMA_URL}?namespace=${namespace}`
             : DGRAPH_ADMIN_SCHEMA_URL;

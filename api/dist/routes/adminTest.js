@@ -122,9 +122,15 @@ router.get('/test', auth_1.authenticateAdmin, async (req, res) => {
 /**
  * Stream test output via Server-Sent Events
  *
- * GET /api/admin/test/:runId/stream
+ * GET /api/admin/test/:runId/stream?adminKey=<key>
  */
-router.get('/test/:runId/stream', auth_1.authenticateAdmin, async (req, res) => {
+router.get('/test/:runId/stream', async (req, res) => {
+    // For SSE, we need to check admin key from query params since EventSource doesn't support custom headers
+    const adminKey = req.query.adminKey;
+    if (!adminKey || adminKey !== process.env.ADMIN_API_KEY) {
+        res.status(401).json({ error: 'Unauthorized: Invalid or missing admin key' });
+        return;
+    }
     const { runId } = req.params;
     if (!runId) {
         res.status(400).json({ error: 'Missing runId parameter' });

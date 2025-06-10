@@ -17,7 +17,7 @@ exports.updateSchema = updateSchema;
 const fs_1 = require("fs");
 const path_1 = __importDefault(require("path"));
 // Path to the schema registry file (relative to project root)
-const REGISTRY_PATH = path_1.default.join(__dirname, '../schemas/schema_registry.json');
+const REGISTRY_PATH = path_1.default.join(__dirname, '../../schemas/schema_registry.json');
 /**
  * Get all schemas from the registry
  * @returns Array of schema objects
@@ -73,7 +73,7 @@ async function getSchemaContent(schemaId) {
         if (!schema) {
             throw new Error(`Schema not found: ${schemaId}`);
         }
-        const schemaPath = path_1.default.join(__dirname, '..', schema.path);
+        const schemaPath = path_1.default.join(__dirname, '../..', schema.path);
         const schemaContent = await fs_1.promises.readFile(schemaPath, 'utf8');
         return schemaContent;
     }
@@ -122,10 +122,10 @@ async function addSchema(schemaInfo, schemaContent) {
         // Write the updated registry
         await fs_1.promises.writeFile(REGISTRY_PATH, JSON.stringify(registry, null, 2), 'utf8');
         // Create directories if needed
-        const dirPath = path_1.default.dirname(path_1.default.join(__dirname, '..', newSchema.path));
+        const dirPath = path_1.default.dirname(path_1.default.join(__dirname, '../..', newSchema.path));
         await fs_1.promises.mkdir(dirPath, { recursive: true });
         // Write the schema content
-        await fs_1.promises.writeFile(path_1.default.join(__dirname, '..', newSchema.path), schemaContent, 'utf8');
+        await fs_1.promises.writeFile(path_1.default.join(__dirname, '../..', newSchema.path), schemaContent, 'utf8');
         return newSchema;
     }
     catch (error) {
@@ -169,7 +169,7 @@ async function updateSchema(schemaId, updates, newContent) {
         await fs_1.promises.writeFile(REGISTRY_PATH, JSON.stringify(registry, null, 2), 'utf8');
         // Update schema content if provided
         if (newContent) {
-            await fs_1.promises.writeFile(path_1.default.join(__dirname, '..', updatedSchema.path), newContent, 'utf8');
+            await fs_1.promises.writeFile(path_1.default.join(__dirname, '../..', updatedSchema.path), newContent, 'utf8');
         }
         return updatedSchema;
     }

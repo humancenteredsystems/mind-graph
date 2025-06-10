@@ -59,7 +59,7 @@ describe('Hierarchy API Integration', () => {
         });
     });
     describe('POST /api/hierarchy', () => {
-        it('should create new hierarchy with admin key', async () => {
+        it('should create new hierarchy', async () => {
             const newHierarchy = {
                 id: 'new-hierarchy',
                 name: 'New Hierarchy'
@@ -71,25 +71,13 @@ describe('Hierarchy API Integration', () => {
             });
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/hierarchy')
-                .set('X-Admin-API-Key', process.env.ADMIN_API_KEY)
                 .send(newHierarchy)
                 .expect(201);
             expect(response.body).toEqual(newHierarchy);
         });
-        it('should reject creation without admin key', async () => {
-            const newHierarchy = {
-                id: 'new-hierarchy',
-                name: 'New Hierarchy'
-            };
-            await (0, supertest_1.default)(server_1.default)
-                .post('/api/hierarchy')
-                .send(newHierarchy)
-                .expect(401);
-        });
         it('should validate required fields', async () => {
             await (0, supertest_1.default)(server_1.default)
                 .post('/api/hierarchy')
-                .set('X-Admin-API-Key', process.env.ADMIN_API_KEY)
                 .send({ name: 'Missing ID' })
                 .expect(400);
         });
@@ -101,6 +89,13 @@ describe('Hierarchy API Integration', () => {
                 levelNumber: 3,
                 label: 'New Level'
             };
+            // First mock the uniqueness check (no existing levels)
+            mockExecuteGraphQL.mockResolvedValueOnce({
+                queryHierarchy: [{
+                        levels: [] // No existing levels with this number
+                    }]
+            });
+            // Then mock the creation
             mockExecuteGraphQL.mockResolvedValueOnce({
                 addHierarchyLevel: {
                     hierarchyLevel: [{ id: 'new-level', ...newLevel }]
@@ -108,7 +103,6 @@ describe('Hierarchy API Integration', () => {
             });
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/hierarchy/level')
-                .set('X-Admin-API-Key', process.env.ADMIN_API_KEY)
                 .send(newLevel)
                 .expect(201);
             expect(response.body.hierarchyId).toBe('hierarchy1');
@@ -120,13 +114,19 @@ describe('Hierarchy API Integration', () => {
                 levelNumber: 1, // Already exists
                 label: 'Duplicate Level'
             };
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('Level number already exists'));
-            // Server returns 500 for GraphQL errors, not 400
-            await (0, supertest_1.default)(server_1.default)
+            // Mock the validation query to return existing levels
+            mockExecuteGraphQL.mockResolvedValueOnce({
+                queryHierarchy: [{
+                        levels: [{ id: 'existing-level', levelNumber: 1 }]
+                    }]
+            });
+            // Server returns 409 for conflict errors
+            const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/hierarchy/level')
-                .set('X-Admin-API-Key', process.env.ADMIN_API_KEY)
                 .send(duplicateLevel)
-                .expect(500);
+                .expect(409);
+            expect(response.body.error).toBe('CONFLICT');
+            expect(response.body.message).toContain('Level number 1 already exists in hierarchy hierarchy1');
         });
     });
     describe('POST /api/hierarchy/assignment', () => {
@@ -136,6 +136,20 @@ describe('Hierarchy API Integration', () => {
                 hierarchyId: 'hierarchy1',
                 levelId: 'level1'
             };
+            // First mock the node existence check (node exists with type)
+            mockExecuteGraphQL.mockResolvedValueOnce({
+                getNode: { id: 'node1', label: 'Test Node', type: 'concept' }
+            });
+            // Second mock the level validation check (level exists and allows concept type)
+            mockExecuteGraphQL.mockResolvedValueOnce({
+                getHierarchyLevel: {
+                    id: 'level1',
+                    levelNumber: 1,
+                    hierarchy: { id: 'hierarchy1' },
+                    allowedTypes: [{ typeName: 'concept' }]
+                }
+            });
+            // Then mock the assignment creation
             mockExecuteGraphQL.mockResolvedValueOnce({
                 addHierarchyAssignment: {
                     hierarchyAssignment: [{ id: 'new-assignment', ...assignment }]
@@ -143,7 +157,6 @@ describe('Hierarchy API Integration', () => {
             });
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/hierarchy/assignment')
-                .set('X-Admin-API-Key', process.env.ADMIN_API_KEY)
                 .send(assignment)
                 .expect(201);
             expect(response.body.nodeId).toBe('node1');
@@ -155,13 +168,17 @@ describe('Hierarchy API Integration', () => {
                 hierarchyId: 'hierarchy1',
                 levelId: 'level1'
             };
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('Node not found'));
-            // Server returns 500 for GraphQL errors, not 400
-            await (0, supertest_1.default)(server_1.default)
+            // Mock the node existence query to return null (node not found)
+            mockExecuteGraphQL.mockResolvedValueOnce({
+                getNode: null
+            });
+            // Server returns 404 for not found errors
+            const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/hierarchy/assignment')
-                .set('X-Admin-API-Key', process.env.ADMIN_API_KEY)
                 .send(invalidAssignment)
-                .expect(500);
+                .expect(404);
+            expect(response.body.error).toBe('NOT_FOUND');
+            expect(response.body.message).toContain('Node with ID \'nonexistent-node\' does not exist');
         });
     });
 });

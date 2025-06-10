@@ -176,7 +176,12 @@ describe('GraphQL Integration Tests', () => {
                         type: 'ConceptNode'
                     }]
             };
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            // Mock hierarchy validation first
+            mockExecuteGraphQL
+                .mockResolvedValueOnce({ getHierarchy: { id: 'default-hierarchy' } }) // validateHierarchyId
+                .mockResolvedValueOnce({ queryHierarchy: [{ levels: [{ id: 'level1', levelNumber: 1 }] }] }) // getLevelIdForNode
+                .mockResolvedValueOnce({ getHierarchyLevel: { id: 'level1', levelNumber: 1, hierarchy: { id: 'default-hierarchy' }, allowedTypes: [] } }) // validateLevelIdAndAllowedType
+                .mockResolvedValueOnce({
                 addNode: {
                     node: [{
                             id: variables.input[0].id,
@@ -255,13 +260,15 @@ describe('GraphQL Integration Tests', () => {
                             }]
                     }]
             };
-            // Mock a validation error from the node enrichment service
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('Invalid level or node type constraint violation'));
+            // Mock hierarchy validation then a validation error from the node enrichment service
+            mockExecuteGraphQL
+                .mockResolvedValueOnce({ getHierarchy: { id: 'test-hierarchy' } }) // validateHierarchyId
+                .mockRejectedValueOnce(new Error('Invalid level or node type constraint violation'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/mutate')
                 .set('X-Hierarchy-Id', 'test-hierarchy')
                 .send({ mutation, variables })
-                .expect(500); // Server returns 500 for enrichment errors
+                .expect(500); // Server returns 500 for enrichment errors in this specific mock scenario
             expect(response.body).toHaveProperty('error');
         });
         it('should return error for mutation without required hierarchy header', async () => {
@@ -282,13 +289,12 @@ describe('GraphQL Integration Tests', () => {
                         type: 'ConceptNode'
                     }]
             };
-            // Mock an enrichment error (no hierarchy header)
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('Hierarchy header required for node creation'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/mutate')
                 .send({ mutation, variables })
-                .expect(500); // Server returns 500 for enrichment errors
+                .expect(400); // Server returns 400 for validation errors
             expect(response.body).toHaveProperty('error');
+            expect(response.body.error).toContain('X-Hierarchy-Id header is required');
         });
         it('should return 400 when mutation is missing', async () => {
             const response = await (0, supertest_1.default)(server_1.default)

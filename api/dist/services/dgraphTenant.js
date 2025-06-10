@@ -6,10 +6,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DgraphTenantFactory = exports.DgraphTenant = void 0;
 const axios_1 = __importDefault(require("axios"));
 const config_1 = __importDefault(require("../config"));
+const namespaceValidator_1 = require("../utils/namespaceValidator");
 /**
- * DgraphTenant - A tenant-aware Dgraph client that handles namespace-specific operations
+ * Internal DgraphTenant class (without validation)
  */
-class DgraphTenant {
+class DgraphTenantInternal {
     constructor(namespace = null) {
         this.namespace = namespace;
         this.baseUrl = config_1.default.dgraphBaseUrl;
@@ -40,8 +41,10 @@ class DgraphTenant {
                 variables,
             }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 10000,
-                validateStatus: (status) => status < 500
+                timeout: 10000, // Request timeout
+                validateStatus: (status) => status < 500,
+                signal: AbortSignal.timeout(12000), // Total operation timeout (includes connection)
+                maxRedirects: 0 // Prevent redirect loops that could cause hangs
             });
             console.log(`[DGRAPH_TENANT] Response status: ${response.status}`);
             console.log(`[DGRAPH_TENANT] Response headers:`, response.headers);
@@ -64,7 +67,13 @@ class DgraphTenant {
             else if (error.request) {
                 console.error(`[DGRAPH_TENANT] No response received:`, error.request);
             }
-            throw new Error(`Failed to communicate with Dgraph in namespace ${this.namespace || 'default'}: ${error.message}`);
+            // If this is a namespace operation and we're in OSS mode, provide Enterprise-specific error
+            if (this.namespace && this.namespace !== '0x0') {
+                const { NamespaceNotSupportedError } = require('../utils/errorResponse');
+                throw new NamespaceNotSupportedError('GraphQL execution', this.namespace, 'Verify Dgraph Enterprise license and namespace configuration');
+            }
+            // For default namespace operations, provide generic connection error without internal details
+            throw new Error(`Failed to execute GraphQL operation. Please check Dgraph connectivity and configuration.`);
         }
     }
     /**
@@ -80,7 +89,11 @@ class DgraphTenant {
         return this.namespace === null || this.namespace === '0x0';
     }
 }
-exports.DgraphTenant = DgraphTenant;
+/**
+ * DgraphTenant - A tenant-aware Dgraph client that handles namespace-specific operations
+ * with Enterprise capability validation
+ */
+exports.DgraphTenant = (0, namespaceValidator_1.withNamespaceValidationConstructor)(DgraphTenantInternal, 'Tenant client creation', 0);
 /**
  * DgraphTenantFactory - Factory for creating tenant-specific Dgraph clients
  */
@@ -91,7 +104,7 @@ class DgraphTenantFactory {
      * @returns A new tenant client instance
      */
     static createTenant(namespace = null) {
-        return new DgraphTenant(namespace);
+        return new exports.DgraphTenant(namespace);
     }
     /**
      * Create a tenant client from a user context object
@@ -100,21 +113,21 @@ class DgraphTenantFactory {
      */
     static createTenantFromContext(userContext) {
         const namespace = userContext?.namespace || null;
-        return new DgraphTenant(namespace);
+        return new exports.DgraphTenant(namespace);
     }
     /**
      * Create a tenant client for the default namespace
      * @returns A new tenant client for default namespace
      */
     static createDefaultTenant() {
-        return new DgraphTenant(null);
+        return new exports.DgraphTenant(null);
     }
     /**
      * Create a tenant client for the test namespace
      * @returns A new tenant client for test namespace
      */
     static createTestTenant() {
-        return new DgraphTenant(config_1.default.testNamespace);
+        return new exports.DgraphTenant(config_1.default.testNamespace);
     }
 }
 exports.DgraphTenantFactory = DgraphTenantFactory;

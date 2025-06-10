@@ -5,7 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const adaptiveTenantFactory_1 = require("../services/adaptiveTenantFactory");
-const auth_1 = require("../middleware/auth");
+const errorResponse_1 = require("../utils/errorResponse");
+const validation_1 = require("../services/validation");
 const router = express_1.default.Router();
 // Helper function to get tenant-aware Dgraph client from request context
 async function getTenantClient(req) {
@@ -38,9 +39,9 @@ router.get('/hierarchy', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch hierarchies', details: err.message });
     }
 });
-// --- ADMIN-PROTECTED HIERARCHY ROUTES ---
+// --- PUBLIC HIERARCHY ROUTES ---
 // Create a new hierarchy
-router.post('/hierarchy', auth_1.authenticateAdmin, async (req, res) => {
+router.post('/hierarchy', async (req, res) => {
     const { id, name } = req.body;
     if (!id || !name) {
         res.status(400).json({ error: 'Missing required fields: id and name' });
@@ -69,7 +70,7 @@ router.post('/hierarchy', auth_1.authenticateAdmin, async (req, res) => {
     }
 });
 // Get hierarchy by ID
-router.get('/hierarchy/:id', auth_1.authenticateAdmin, async (req, res) => {
+router.get('/hierarchy/:id', async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     // Basic validation for non-empty string ID
@@ -102,7 +103,7 @@ router.get('/hierarchy/:id', auth_1.authenticateAdmin, async (req, res) => {
     }
 });
 // Update an existing hierarchy
-router.put('/hierarchy/:id', auth_1.authenticateAdmin, async (req, res) => {
+router.put('/hierarchy/:id', async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     const { name } = req.body;
@@ -137,7 +138,7 @@ router.put('/hierarchy/:id', auth_1.authenticateAdmin, async (req, res) => {
     }
 });
 // Delete a hierarchy
-router.delete('/hierarchy/:id', auth_1.authenticateAdmin, async (req, res) => {
+router.delete('/hierarchy/:id', async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     if (typeof id !== 'string' || !id.trim()) {
@@ -165,25 +166,43 @@ router.delete('/hierarchy/:id', auth_1.authenticateAdmin, async (req, res) => {
 });
 // --- Hierarchy Level CRUD ---
 // Create a new hierarchy level
-router.post('/hierarchy/level', auth_1.authenticateAdmin, async (req, res) => {
+router.post('/hierarchy/level', async (req, res) => {
     const { hierarchyId, levelNumber, label } = req.body;
     if (!hierarchyId || !levelNumber || !label) {
         res.status(400).json({ error: 'Missing required fields: hierarchyId, levelNumber, and label' });
         return;
     }
-    const mutation = `
-    mutation ($input: [AddHierarchyLevelInput!]!) {
-      addHierarchyLevel(input: $input) {
-        hierarchyLevel {
+    // Validate level number uniqueness within the hierarchy
+    const checkLevelQuery = `
+    query CheckLevelUniqueness($hierarchyId: String!, $levelNumber: Int!) {
+      queryHierarchy(filter: { id: { eq: $hierarchyId } }) {
+        levels(filter: { levelNumber: { eq: $levelNumber } }) {
           id
           levelNumber
-          label
         }
       }
     }
   `;
     try {
         const tenantClient = await getTenantClient(req);
+        // Check if level number already exists
+        const checkResult = await tenantClient.executeGraphQL(checkLevelQuery, { hierarchyId, levelNumber });
+        const existingLevels = checkResult.queryHierarchy[0]?.levels || [];
+        if (existingLevels.length > 0) {
+            (0, errorResponse_1.sendErrorResponse)(res, errorResponse_1.ErrorType.CONFLICT, `Level number ${levelNumber} already exists in hierarchy ${hierarchyId}`);
+            return;
+        }
+        const mutation = `
+      mutation ($input: [AddHierarchyLevelInput!]!) {
+        addHierarchyLevel(input: $input) {
+          hierarchyLevel {
+            id
+            levelNumber
+            label
+          }
+        }
+      }
+    `;
         const data = await tenantClient.executeGraphQL(mutation, { input: [{ hierarchy: { id: hierarchyId }, levelNumber, label }] });
         const level = data.addHierarchyLevel.hierarchyLevel[0];
         res.status(201).json(level);
@@ -195,7 +214,7 @@ router.post('/hierarchy/level', auth_1.authenticateAdmin, async (req, res) => {
     }
 });
 // Update an existing hierarchy level
-router.put('/hierarchy/level/:id', auth_1.authenticateAdmin, async (req, res) => {
+router.put('/hierarchy/level/:id', async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     const { label } = req.body;
@@ -230,7 +249,7 @@ router.put('/hierarchy/level/:id', auth_1.authenticateAdmin, async (req, res) =>
     }
 });
 // Delete a hierarchy level
-router.delete('/hierarchy/level/:id', auth_1.authenticateAdmin, async (req, res) => {
+router.delete('/hierarchy/level/:id', async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     if (typeof id !== 'string' || !id.trim()) {
@@ -258,26 +277,54 @@ router.delete('/hierarchy/level/:id', auth_1.authenticateAdmin, async (req, res)
 });
 // --- Hierarchy Assignment CRUD ---
 // Create a new hierarchy assignment
-router.post('/hierarchy/assignment', auth_1.authenticateAdmin, async (req, res) => {
+router.post('/hierarchy/assignment', async (req, res) => {
     const { nodeId, hierarchyId, levelId } = req.body;
     if (!nodeId || !hierarchyId || !levelId) {
         res.status(400).json({ error: 'Missing required fields: nodeId, hierarchyId, and levelId' });
         return;
     }
-    const mutation = `
-    mutation ($input: [AddHierarchyAssignmentInput!]!) {
-      addHierarchyAssignment(input: $input) {
-        hierarchyAssignment {
-          id
-          node { id label }
-          hierarchy { id name }
-          level { id label levelNumber }
-        }
+    // Validate node existence and get node type
+    const checkNodeQuery = `
+    query CheckNodeExists($nodeId: String!) {
+      getNode(id: $nodeId) {
+        id
+        label
+        type
       }
     }
   `;
     try {
         const tenantClient = await getTenantClient(req);
+        // Check if node exists
+        const nodeResult = await tenantClient.executeGraphQL(checkNodeQuery, { nodeId });
+        if (!nodeResult.getNode) {
+            (0, errorResponse_1.sendErrorResponse)(res, errorResponse_1.ErrorType.NOT_FOUND, `Node with ID '${nodeId}' does not exist`);
+            return;
+        }
+        // Validate type constraints for the level
+        const nodeType = nodeResult.getNode.type;
+        try {
+            await (0, validation_1.validateLevelIdAndAllowedType)(levelId, nodeType, hierarchyId, tenantClient);
+        }
+        catch (validationError) {
+            if (validationError instanceof validation_1.NodeTypeNotAllowedError) {
+                res.status(400).json({ error: validationError.message });
+                return;
+            }
+            throw validationError; // Re-throw other errors
+        }
+        const mutation = `
+      mutation ($input: [AddHierarchyAssignmentInput!]!) {
+        addHierarchyAssignment(input: $input) {
+          hierarchyAssignment {
+            id
+            node { id label }
+            hierarchy { id name }
+            level { id label levelNumber }
+          }
+        }
+      }
+    `;
         const data = await tenantClient.executeGraphQL(mutation, { input: [{ node: { id: nodeId }, hierarchy: { id: hierarchyId }, level: { id: levelId } }] });
         const assignment = data.addHierarchyAssignment.hierarchyAssignment[0];
         res.status(201).json(assignment);
@@ -289,7 +336,7 @@ router.post('/hierarchy/assignment', auth_1.authenticateAdmin, async (req, res) 
     }
 });
 // Delete a hierarchy assignment
-router.delete('/hierarchy/assignment/:id', auth_1.authenticateAdmin, async (req, res) => {
+router.delete('/hierarchy/assignment/:id', async (req, res) => {
     const idParam = req.params.id;
     const id = idParam; // ID is now a string
     if (typeof id !== 'string' || !id.trim()) {

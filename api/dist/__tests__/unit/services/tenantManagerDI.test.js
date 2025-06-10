@@ -51,9 +51,9 @@ describe('TenantManager Dependency Injection', () => {
             expect(result).toBe('mocked schema content');
         });
         it('should use injected pushSchema for initializeTenantSchema', async () => {
-            const mockPushSchema = jest.fn().mockResolvedValue(true);
+            const mockPushSchema = jest.fn().mockResolvedValue({ success: true });
             const mockFileSystem = {
-                readFile: jest.fn().mockResolvedValue('schema content')
+                readFile: jest.fn().mockResolvedValue('test schema')
             };
             const tenantManager = new TenantManager({
                 pushSchema: mockPushSchema,
@@ -61,7 +61,7 @@ describe('TenantManager Dependency Injection', () => {
             });
             await tenantManager.initializeTenantSchema('0x1');
             expect(mockFileSystem.readFile).toHaveBeenCalled();
-            expect(mockPushSchema).toHaveBeenCalledWith('schema content', '0x1');
+            expect(mockPushSchema).toHaveBeenCalledWith('test schema', '0x1');
         });
         it('should use injected tenant factory for creating tenants', async () => {
             const mockTenant = {

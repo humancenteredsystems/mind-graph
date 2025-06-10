@@ -7,9 +7,14 @@ const supertest_1 = __importDefault(require("supertest"));
 const server_1 = __importDefault(require("../../server"));
 const realTestHelpers_1 = require("../helpers/realTestHelpers");
 // Conditionally skip this test suite if Dgraph Enterprise is not available
-const describeIfEnterprise = global.DGRAPH_ENTERPRISE_AVAILABLE ? describe : describe.skip;
-describeIfEnterprise('Real Integration: Namespace Isolation', () => {
+describe('Real Integration: Namespace Isolation', () => {
     beforeAll(async () => {
+        // Check at runtime and skip if Enterprise not available
+        if (!global.DGRAPH_ENTERPRISE_AVAILABLE) {
+            console.warn('Skipping namespace isolation tests - Dgraph Enterprise not available');
+            pending('Dgraph Enterprise not available');
+            return;
+        }
         await global.testUtils.setupTestDatabase();
     });
     afterAll(async () => {
