@@ -45,8 +45,10 @@ class DgraphTenantInternal {
         variables,
       }, {
         headers: { 'Content-Type': 'application/json' },
-        timeout: 10000,
-        validateStatus: (status) => status < 500
+        timeout: 10000, // Request timeout
+        validateStatus: (status) => status < 500,
+        signal: AbortSignal.timeout(12000), // Total operation timeout (includes connection)
+        maxRedirects: 0 // Prevent redirect loops that could cause hangs
       });
       
       console.log(`[DGRAPH_TENANT] Response status: ${response.status}`);

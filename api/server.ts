@@ -19,11 +19,15 @@ import { setTenantContext, ensureTenant, validateTenantAccess } from './middlewa
 process.on('uncaughtException', (err, origin) => {
   console.error('[GLOBAL] Uncaught Exception:', err);
   console.error('[GLOBAL] Origin:', origin);
+  console.error('[GLOBAL] Process will exit to prevent hung state');
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[GLOBAL] Unhandled Rejection at:', promise);
   console.error('[GLOBAL] Reason:', reason);
+  console.error('[GLOBAL] Process will exit to prevent hung state');
+  process.exit(1);
 });
 // --- End Global Error Handlers ---
 
