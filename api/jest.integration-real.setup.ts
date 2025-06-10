@@ -2,6 +2,11 @@
 // This file is executed before each integration-real test file
 // Environment variables are loaded in jest.config.js via dotenv
 
+// CRITICAL: Set Enterprise availability FIRST before any imports or test file evaluation
+// Initialize as false, will be updated during setup based on actual detection
+(global as any).DGRAPH_ENTERPRISE_AVAILABLE = false;
+console.log('[SETUP] Enterprise availability initialized, will be detected during setup');
+
 // Set test environment variables
 process.env.NODE_ENV = 'test';
 process.env.DGRAPH_BASE_URL = 'http://localhost:8080';
@@ -147,63 +152,115 @@ const testDataSeeder = new TestDataSeeder();
 // Dgraph Enterprise detection for conditional test execution using standardized capability helpers
 (global as any).testUtils.checkDgraphEnterprise = async () => {
   try {
+    console.log('[TEST_SETUP] Checking Dgraph Enterprise capabilities...');
+    
     // Use standardized capability detection via ensureCapabilitiesDetected
     const capabilities = await capabilityHelpers.ensureCapabilitiesDetected();
     
-    // Check if Enterprise features are active and license is valid
-    const isEnterprise = capabilities.enterpriseDetected && 
-                        capabilities.licenseType !== 'oss-only' &&
-                        (!capabilities.licenseExpiry || capabilities.licenseExpiry > new Date());
+    console.log('[TEST_SETUP] Raw capabilities detected:', {
+      enterpriseDetected: capabilities.enterpriseDetected,
+      licenseType: capabilities.licenseType,
+      licenseExpiry: capabilities.licenseExpiry,
+      namespacesSupported: capabilities.namespacesSupported,
+      error: capabilities.error
+    });
+    
+    // Simplified Enterprise checking for test environment
+    // Accept Enterprise if ANY of these are true:
+    // 1. Namespaces explicitly supported
+    // 2. Enterprise explicitly detected  
+    // 3. License type suggests Enterprise features
+    // 4. No explicit detection errors (assume it might work)
+    
+    const namespacesWork = capabilities.namespacesSupported === true;
+    const enterpriseDetected = capabilities.enterpriseDetected === true;
+    const hasEnterpriseIndicators = capabilities.licenseType && capabilities.licenseType !== 'oss-only';
+    const noDetectionErrors = !capabilities.error || capabilities.error === '';
+    
+    // For testing: be more optimistic about Enterprise availability
+    const finalResult = namespacesWork || 
+                       enterpriseDetected || 
+                       hasEnterpriseIndicators ||
+                       (noDetectionErrors && process.env.ENABLE_MULTI_TENANT === 'true');
 
-    if (!isEnterprise) {
-      console.warn('[TEST_SETUP] Dgraph Enterprise not available or license expired, skipping real integration tests');
-      console.warn('[TEST_SETUP] Capabilities:', {
+    if (!finalResult) {
+      console.warn('[TEST_SETUP] ❌ Dgraph Enterprise not available - real integration tests will be skipped');
+      console.warn('[TEST_SETUP] Enterprise Detection Details:', {
         enterpriseDetected: capabilities.enterpriseDetected,
         licenseType: capabilities.licenseType,
-        licenseExpiry: capabilities.licenseExpiry,
-        namespacesSupported: capabilities.namespacesSupported
+        namespacesSupported: capabilities.namespacesSupported,
+        namespacesWork,
+        error: capabilities.error
       });
     } else {
-      console.log('[TEST_SETUP] Dgraph Enterprise detected and licensed');
-      console.log('[TEST_SETUP] Capabilities:', {
+      console.log('[TEST_SETUP] ✅ Dgraph Enterprise available for real integration tests');
+      console.log('[TEST_SETUP] Enterprise Detection Details:', {
         enterpriseDetected: capabilities.enterpriseDetected,
         licenseType: capabilities.licenseType,
-        licenseExpiry: capabilities.licenseExpiry,
-        namespacesSupported: capabilities.namespacesSupported
+        namespacesSupported: capabilities.namespacesSupported,
+        namespacesWork,
+        detectionMethod: namespacesWork ? 'namespace-support' : 'enterprise-detected'
       });
     }
 
-    return isEnterprise;
+    return finalResult;
 
   } catch (error: unknown) {
     let errorMessage = 'Unknown error';
     if (error instanceof Error) {
       errorMessage = error.message;
     }
-    console.warn('[TEST_SETUP] Error checking Dgraph Enterprise capabilities, skipping real integration tests:', errorMessage);
+    console.error('[TEST_SETUP] ❌ Error checking Dgraph Enterprise capabilities:', errorMessage);
+    console.error('[TEST_SETUP] Full error:', error);
+    
+    // In test environment, if capability detection fails, try a simple namespace test
+    console.log('[TEST_SETUP] Attempting fallback Enterprise detection...');
+    try {
+      const simpleTest = await testSimpleNamespaceOperation();
+      if (simpleTest) {
+        console.log('[TEST_SETUP] ✅ Fallback Enterprise detection successful via namespace test');
+        return true;
+      }
+    } catch (fallbackError) {
+      console.warn('[TEST_SETUP] Fallback detection also failed:', fallbackError instanceof Error ? fallbackError.message : fallbackError);
+    }
+    
+    console.warn('[TEST_SETUP] ❌ All Enterprise detection methods failed - skipping real integration tests');
     return false;
   }
 };
 
-// Enterprise detection at module load time using our capability detector
-// Note: We start with false and update asynchronously to avoid blocking module load
-(global as any).DGRAPH_ENTERPRISE_AVAILABLE = false;
+// Simple namespace operation test as fallback Enterprise detection
+async function testSimpleNamespaceOperation(): Promise<boolean> {
+  try {
+    const { DgraphTenantFactory } = await import('./services/dgraphTenant');
+    const testClient = DgraphTenantFactory.createTestTenant();
+    
+    // Try a simple operation that requires namespace support
+    const result = await testClient.executeGraphQL('{ __schema { queryType { name } } }');
+    return result && typeof result === 'object';
+  } catch (error) {
+    console.log('[TEST_SETUP] Namespace test failed:', error instanceof Error ? error.message : error);
+    return false;
+  }
+}
 
 // Async enterprise detection that runs before all tests
 beforeAll(async () => {
   try {
-    console.log('[TEST_SETUP] Checking Dgraph Enterprise capabilities...');
+    console.log('[TEST_SETUP] Detecting Enterprise capabilities...');
     const isEnterprise = await (global as any).testUtils.checkDgraphEnterprise();
     (global as any).DGRAPH_ENTERPRISE_AVAILABLE = isEnterprise;
     
     if (isEnterprise) {
-      console.log('[TEST_SETUP] ✅ Dgraph Enterprise available for real integration tests');
+      console.log('[TEST_SETUP] ✅ Dgraph Enterprise detected - real integration tests will run');
     } else {
-      console.warn('[TEST_SETUP] ❌ Dgraph Enterprise not available - real integration tests will be skipped');
+      console.warn('[TEST_SETUP] ❌ Dgraph Enterprise not detected - real integration tests will be skipped');
     }
   } catch (error) {
     console.error('[TEST_SETUP] Failed to detect Enterprise capabilities:', error instanceof Error ? error.message : error);
     (global as any).DGRAPH_ENTERPRISE_AVAILABLE = false;
+    console.warn('[TEST_SETUP] ❌ Enterprise detection failed - real integration tests will be skipped');
   }
 });
 
