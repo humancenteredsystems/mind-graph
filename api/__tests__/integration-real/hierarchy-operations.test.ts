@@ -241,6 +241,47 @@ describe('Real Integration: Hierarchy Operations', () => {
       expect(response.body.error).toBe('NOT_FOUND');
       expect(response.body.message).toContain('Node with ID \'non-existent-node\' does not exist');
     });
+
+    it('should validate type constraints for hierarchy assignment', async () => {
+      // Create a node with wrong type for testing - use a real existing node with wrong type
+      // instead of creating a new one to avoid hierarchy validation during creation
+      // Let's try to assign test-example-1 (type: example) to level 1 (which only allows concept)
+      
+      // Get level 1 ID (which only allows 'concept' type)
+      const hierarchyQuery = await verifyInTestTenant(`
+        query {
+          getHierarchy(id: "test-hierarchy-1") {
+            levels {
+              id
+              levelNumber
+              allowedTypes {
+                typeName
+              }
+            }
+          }
+        }
+      `);
+      const level1 = hierarchyQuery.getHierarchy?.levels?.find((l: any) => l.levelNumber === 1);
+      if (!level1) {
+        throw new Error('Level 1 not found in test hierarchy');
+      }
+
+      // Try to assign test-example-1 (type: example) to level 1 (which only allows concept)
+      const invalidAssignment = {
+        nodeId: 'test-example-1',  // This has type 'example' but level 1 only allows 'concept'
+        hierarchyId: 'test-hierarchy-1',
+        levelId: level1.id
+      };
+
+      const response = await testRequest(app)
+        .post('/api/hierarchy/assignment')
+        .send(invalidAssignment)
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Node type');
+      expect(response.body.error).toContain('is not allowed');
+    });
   });
 
   describe('Node Creation with Hierarchy Context', () => {
@@ -346,9 +387,11 @@ describe('Real Integration: Hierarchy Operations', () => {
             }]
           }
         })
-        .expect(500);
+        .expect(400);
 
       expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Node type');
+      expect(response.body.error).toContain('is not allowed');
     });
   });
 
@@ -359,7 +402,7 @@ describe('Real Integration: Hierarchy Operations', () => {
       const exampleNode = createTestNodeData({ label: 'Level 2 Example', type: 'example' });
 
       // Create concept node (should go to level 1)
-      await testRequest(app)
+      const conceptResponse = await testRequest(app)
         .post('/api/mutate')
         .set('X-Hierarchy-Id', 'test-hierarchy-1')
         .send({
@@ -378,6 +421,20 @@ describe('Real Integration: Hierarchy Operations', () => {
             }]
           }
         });
+
+      // Debug: Log the actual error if creation fails
+      if (conceptResponse.status !== 200) {
+        console.error('[DEBUG] Concept node creation failed:', {
+          status: conceptResponse.status,
+          body: conceptResponse.body,
+          error: conceptResponse.error,
+          text: conceptResponse.text
+        });
+        // Don't throw error yet, let's see what we can get from the response
+      }
+      
+      // Expect success but capture detailed error info
+      expect(conceptResponse.status).toBe(200);
 
       // Create example node (should go to level 2)
       await testRequest(app)
@@ -400,17 +457,14 @@ describe('Real Integration: Hierarchy Operations', () => {
           }
         });
 
-      // Query nodes by level
+      // Query nodes by level - Use working approach: query all nodes then filter
+      // The complex nested filter syntax doesn't work with Dgraph GraphQL
       const levelQuery = await testRequest(app)
         .post('/api/query')
         .send({
           query: `
             query {
-              queryNode(filter: {
-                hierarchyAssignments: {
-                  level: { levelNumber: { eq: 1 } }
-                }
-              }) {
+              queryNode {
                 id
                 label
                 type
@@ -425,10 +479,29 @@ describe('Real Integration: Hierarchy Operations', () => {
         })
         .expect(200);
 
+      // Filter nodes by level in code since GraphQL nested filtering is broken
+      const allNodes = levelQuery.body.queryNode;
+      const level1Nodes = allNodes.filter((node: any) => 
+        node.hierarchyAssignments && 
+        node.hierarchyAssignments.some((assignment: any) => 
+          assignment.level && assignment.level.levelNumber === 1
+        )
+      );
+      
       // Should find concept nodes at level 1
-      const level1Nodes = levelQuery.body.queryNode;
       const level1NodeIds = level1Nodes.map((n: any) => n.id);
       expect(level1NodeIds).toContain(conceptNode.id);
+      
+      // Verify level 2 nodes exist but are not in level 1 results
+      const level2Nodes = allNodes.filter((node: any) => 
+        node.hierarchyAssignments && 
+        node.hierarchyAssignments.some((assignment: any) => 
+          assignment.level && assignment.level.levelNumber === 2
+        )
+      );
+      expect(level2Nodes.length).toBeGreaterThan(0);
+      
+      console.log(`[TEST] Found ${level1Nodes.length} level 1 nodes and ${level2Nodes.length} level 2 nodes`);
     });
 
     it('should query hierarchy structure', async () => {

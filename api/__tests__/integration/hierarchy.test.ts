@@ -158,9 +158,19 @@ describe('Hierarchy API Integration', () => {
         levelId: 'level1'
       };
 
-      // First mock the node existence check (node exists)
+      // First mock the node existence check (node exists with type)
       mockExecuteGraphQL.mockResolvedValueOnce({
-        getNode: { id: 'node1', label: 'Test Node' }
+        getNode: { id: 'node1', label: 'Test Node', type: 'concept' }
+      });
+
+      // Second mock the level validation check (level exists and allows concept type)
+      mockExecuteGraphQL.mockResolvedValueOnce({
+        getHierarchyLevel: {
+          id: 'level1',
+          levelNumber: 1,
+          hierarchy: { id: 'hierarchy1' },
+          allowedTypes: [{ typeName: 'concept' }]
+        }
       });
 
       // Then mock the assignment creation

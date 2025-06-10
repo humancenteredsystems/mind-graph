@@ -4,6 +4,7 @@ import { Hierarchy, HierarchyLevel, HierarchyAssignment } from '../src/types/dom
 import { authenticateAdmin } from '../middleware/auth';
 import { sendErrorResponse, ErrorType } from '../utils/errorResponse';
 import { validateRequiredFields, validateId, validateEntityExists } from '../utils/validationHelpers';
+import { validateLevelIdAndAllowedType, NodeTypeNotAllowedError } from '../services/validation';
 
 const router = express.Router();
 
@@ -301,12 +302,13 @@ router.post('/hierarchy/assignment', async (req: Request, res: Response): Promis
     return;
   }
 
-  // Validate node existence
+  // Validate node existence and get node type
   const checkNodeQuery = `
     query CheckNodeExists($nodeId: String!) {
       getNode(id: $nodeId) {
         id
         label
+        type
       }
     }
   `;
@@ -319,6 +321,18 @@ router.post('/hierarchy/assignment', async (req: Request, res: Response): Promis
     if (!nodeResult.getNode) {
       sendErrorResponse(res, ErrorType.NOT_FOUND, `Node with ID '${nodeId}' does not exist`);
       return;
+    }
+
+    // Validate type constraints for the level
+    const nodeType = nodeResult.getNode.type;
+    try {
+      await validateLevelIdAndAllowedType(levelId, nodeType, hierarchyId, tenantClient);
+    } catch (validationError) {
+      if (validationError instanceof NodeTypeNotAllowedError) {
+        res.status(400).json({ error: validationError.message });
+        return;
+      }
+      throw validationError; // Re-throw other errors
     }
 
     const mutation = `
