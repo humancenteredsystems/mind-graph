@@ -24,14 +24,14 @@
     "types": ["node", "jest"]
   },
   "include": [
-    "**/*.ts",
-    "**/*.js"
+    "**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "__tests__/**/*.js",
     "**/*.test.js",
-    "**/*.spec.js"
+    "**/*.spec.js",
+    "../eslint-plugin-enterprise"
   ]
 }
