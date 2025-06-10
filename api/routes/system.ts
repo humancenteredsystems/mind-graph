@@ -1,36 +1,37 @@
 import express, { Request, Response } from 'express';
 import { dgraphCapabilityDetector } from '../services/dgraphCapabilities';
 import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
-import { capabilityHelpers, ensureCapabilitiesDetected } from '../utils/capabilityHelpers';
+import { EnterpriseGuards } from '../utils/enterpriseGuards';
 
 const router = express.Router();
 
 // System status endpoint
 router.get('/system/status', async (req: Request, res: Response): Promise<void> => {
   try {
-    // Ensure capabilities are detected using standardized helper
-    const capabilities = await ensureCapabilitiesDetected();
+    // Ensure capabilities are detected
+    if (!EnterpriseGuards.isCapabilityDetectionComplete()) {
+      await adaptiveTenantFactory.initialize();
+    }
     
     // Manually parse tenant header since system routes run before tenant middleware
     const tenantId = req.headers['x-tenant-id'] as string || 'default';
     const tenantContext = req.tenantContext || { tenantId, namespace: null, isTestTenant: false, isDefaultTenant: true };
     
-    // Use standardized capability helpers
-    const dgraphEnterprise = capabilityHelpers.isEnterpriseAvailable();
-    const multiTenantVerified = capabilityHelpers.isMultiTenantSupported();
-    const deploymentMode = capabilityHelpers.getDeploymentMode();
+    // Use centralized Enterprise guards
+    const summary = EnterpriseGuards.getCapabilitySummary();
+    const capabilities = EnterpriseGuards.getCapabilities();
     
     const systemStatus = {
-      dgraphEnterprise,
-      multiTenantVerified,
+      dgraphEnterprise: summary.enterpriseDetected,
+      multiTenantVerified: summary.namespacesSupported,
       currentTenant: tenantContext.tenantId || 'default',
       namespace: tenantContext.namespace || null,
-      mode: deploymentMode,
-      detectedAt: capabilities.detectedAt,
+      mode: summary.mode,
+      detectedAt: summary.detectedAt,
       version: 'unknown', // Version detection not implemented yet
-      licenseType: capabilities.licenseType || 'unknown',
-      licenseExpiry: capabilities.licenseExpiry ? capabilities.licenseExpiry.toISOString() : null,
-      detectionError: capabilityHelpers.getCapabilityDetectionError()
+      licenseType: summary.licenseType,
+      licenseExpiry: capabilities?.licenseExpiry ? capabilities.licenseExpiry.toISOString() : null,
+      detectionError: summary.error
     };
     
     console.log(`[SYSTEM_STATUS] Status requested for tenant ${systemStatus.currentTenant}:`, systemStatus);
@@ -55,8 +56,8 @@ router.post('/system/refresh', async (req: Request, res: Response): Promise<void
     await dgraphCapabilityDetector.refreshCapabilities();
     await adaptiveTenantFactory.refresh();
     
-    // Get fresh status using standardized helper
-    const capabilities = capabilityHelpers.getCapabilitiesSync();
+    // Get fresh status using Enterprise guards
+    const capabilities = EnterpriseGuards.getCapabilities();
     
     res.json({
       message: 'System capabilities refreshed successfully',
@@ -76,17 +77,16 @@ router.post('/system/refresh', async (req: Request, res: Response): Promise<void
 // Health check with capability info
 router.get('/system/health', async (req: Request, res: Response): Promise<void> => {
   try {
-    // Use standardized capability helpers
-    const capabilities = capabilityHelpers.getCapabilitiesSync();
-    const isMultiTenantSupported = capabilityHelpers.isMultiTenantSupported();
-    const deploymentMode = capabilityHelpers.getDeploymentMode();
+    // Use centralized Enterprise guards
+    const capabilities = EnterpriseGuards.getCapabilities();
+    const summary = EnterpriseGuards.getCapabilitySummary();
     
     res.json({
       status: 'healthy',
       timestamp: new Date(),
       capabilities: capabilities || 'not-detected',
-      multiTenantSupported: isMultiTenantSupported,
-      mode: deploymentMode
+      multiTenantSupported: summary.namespacesSupported,
+      mode: summary.mode
     });
   } catch (error) {
     const err = error as Error;

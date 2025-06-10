@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { TenantManager } from '../services/tenantManager';
-import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
+import { EnterpriseGuards } from '../utils/enterpriseGuards';
 
 /**
  * TenantController - Universal tenant management with OSS/Enterprise compatibility
@@ -24,23 +24,18 @@ export class TenantController {
         return;
       }
       
-      // Check if multi-tenant mode is supported (CREATE operation - FAIL HARD)
-      const capabilities = adaptiveTenantFactory.getCapabilities();
-      if (!capabilities?.namespacesSupported) {
-        const { createMultiTenantErrorResponse } = require('../utils/errorResponse');
-        const errorResponse = createMultiTenantErrorResponse('tenant creation', capabilities);
-        res.status(400).json(errorResponse);
-        return;
-      }
+      // Use centralized Enterprise guard for tenant creation
+      EnterpriseGuards.requireNamespaceSupport('tenant creation', tenantId);
       
       console.log(`[TENANT_CONTROLLER] Creating tenant: ${tenantId}`);
       const namespace = await this.tenantManager.createTenant(tenantId);
       
+      const deploymentMode = EnterpriseGuards.getDeploymentMode();
       res.status(201).json({
         tenantId,
         namespace,
         message: 'Tenant created successfully',
-        mode: 'enterprise-multi-tenant'
+        mode: deploymentMode
       });
     } catch (error) {
       console.error(`[TENANT_CONTROLLER] Error creating tenant:`, error);
@@ -64,15 +59,14 @@ export class TenantController {
 
   async listTenants(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const capabilities = adaptiveTenantFactory.getCapabilities();
-      
-      if (!capabilities?.namespacesSupported) {
+      if (!EnterpriseGuards.isNamespaceSupported()) {
         // OSS mode: return default tenant only
         console.log(`[TENANT_CONTROLLER] OSS mode - returning default tenant`);
+        const deploymentMode = EnterpriseGuards.getDeploymentMode();
         res.json([{
           tenantId: 'default',
           namespace: '0x0',
-          mode: 'oss-single-tenant',
+          mode: deploymentMode,
           exists: true,
           isDefaultTenant: true,
           isTestTenant: false
@@ -102,22 +96,17 @@ export class TenantController {
         return;
       }
       
-      // Check if multi-tenant mode is supported (CREATE operation - FAIL HARD)
-      const capabilities = adaptiveTenantFactory.getCapabilities();
-      if (!capabilities?.namespacesSupported) {
-        const { createMultiTenantErrorResponse } = require('../utils/errorResponse');
-        const errorResponse = createMultiTenantErrorResponse('tenant deletion', capabilities);
-        res.status(400).json(errorResponse);
-        return;
-      }
+      // Use centralized Enterprise guard for tenant deletion
+      EnterpriseGuards.requireNamespaceSupport('tenant deletion', tenantId);
       
       console.log(`[TENANT_CONTROLLER] Deleting tenant: ${tenantId}`);
       await this.tenantManager.deleteTenant(tenantId);
       
+      const deploymentMode = EnterpriseGuards.getDeploymentMode();
       res.json({ 
         message: 'Tenant deleted successfully',
         tenantId,
-        mode: 'enterprise-multi-tenant'
+        mode: deploymentMode
       });
     } catch (error) {
       console.error(`[TENANT_CONTROLLER] Error deleting tenant:`, error);
@@ -127,13 +116,14 @@ export class TenantController {
 
   async getCapabilities(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const capabilities = adaptiveTenantFactory.getCapabilities();
+      const summary = EnterpriseGuards.getCapabilitySummary();
+      const capabilities = EnterpriseGuards.getCapabilities();
       
       res.json({
-        multiTenantSupported: capabilities?.namespacesSupported || false,
-        enterpriseDetected: capabilities?.enterpriseDetected || false,
-        mode: capabilities?.namespacesSupported ? 'enterprise-multi-tenant' : 'oss-single-tenant',
-        detectedAt: capabilities?.detectedAt || new Date().toISOString(),
+        multiTenantSupported: summary.namespacesSupported,
+        enterpriseDetected: summary.enterpriseDetected,
+        mode: summary.mode,
+        detectedAt: summary.detectedAt,
         capabilities
       });
     } catch (error) {
