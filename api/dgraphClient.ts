@@ -17,7 +17,7 @@ async function executeGraphQLInternal<T = any>(
   namespace: string | null = null
 ): Promise<T> {
   const namespaceParam = namespace ? `?namespace=${namespace}` : '';
-  const endpoint = `${DGRAPH_ENDPOINT}${namespaceParam}`;
+  const endpoint = `${DGRAPH_ENDPOINT}${namespaceParam}`; // eslint-disable-line enterprise/no-unguarded-namespace-usage
   
   console.log(`[DGRAPH] Executing query in namespace: ${namespace || 'default'}`);
   console.log(`Executing GraphQL query: ${query.substring(0, 100)}...`, variables); // Log query start

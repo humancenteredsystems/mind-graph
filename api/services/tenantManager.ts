@@ -76,7 +76,7 @@ export class TenantManager {
       await this.initializeTenantSchema(namespace);
 
       // Verify schema initialization
-      const tenantClientForSchemaCheck = this.tenantFactory.createTenant(namespace);
+      const tenantClientForSchemaCheck = await this.tenantFactory.createTenant(namespace);
       try {
         // Try a simple query that should work if schema is applied, e.g., querying a non-existent node of a core type
         await tenantClientForSchemaCheck.executeGraphQL('query { getNode(id: "0x0") { id } }'); 
@@ -193,7 +193,7 @@ export class TenantManager {
    */
   async seedDefaultHierarchies(namespace: string): Promise<void> {
     try {
-      const tenant = this.tenantFactory.createTenant(namespace);
+      const tenant = await this.tenantFactory.createTenant(namespace);
       
       const defaultHierarchies: HierarchyData[] = [
         {
@@ -308,7 +308,7 @@ export class TenantManager {
     details?: string;
   }> {
     try {
-      const tenant = this.tenantFactory.createTenant(namespace);
+      const tenant = await this.tenantFactory.createTenant(namespace);
       
       // Stage 1: Basic connectivity test
       try {
@@ -414,7 +414,7 @@ export class TenantManager {
       const namespace = await this.getTenantNamespace(tenantId);
       console.log(`[TENANT_MANAGER] Deleting tenant ${tenantId} from namespace ${namespace}`);
       
-      const tenant = this.tenantFactory.createTenant(namespace);
+      const tenant = await this.tenantFactory.createTenant(namespace);
 
       /**
        * Critical deletion order to prevent GraphQL schema constraint violations.
@@ -467,7 +467,7 @@ export class TenantManager {
   async getTenantNodeCount(tenantId: string): Promise<number> {
     try {
       const namespace = await this.getTenantNamespace(tenantId);
-      const tenant = this.tenantFactory.createTenant(namespace);
+      const tenant = await this.tenantFactory.createTenant(namespace);
       
       const countQuery = `query { aggregateNode { count } }`;
       const result = await tenant.executeGraphQL(countQuery);
@@ -491,7 +491,7 @@ export class TenantManager {
   }> {
     try {
       const namespace = await this.getTenantNamespace(tenantId);
-      const tenant = this.tenantFactory.createTenant(namespace);
+      const tenant = await this.tenantFactory.createTenant(namespace);
       
       // Query the schema types to identify which schema is loaded
       const schemaQuery = `query { __schema { types { name } } }`;

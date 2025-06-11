@@ -142,7 +142,7 @@ export const ensureCapabilitiesDetected = (operation: string) => {
     try {
       if (!EnterpriseGuards.isCapabilityDetectionComplete()) {
         // Initialize capability detection if not yet done
-        const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
+        const { adaptiveTenantFactory } = await import('../services/adaptiveTenantFactory');
         await adaptiveTenantFactory.initialize();
       }
       

@@ -12,12 +12,12 @@ jest.mock('../../services/adaptiveTenantFactory', () => {
         isDefaultNamespace: jest.fn().mockReturnValue(true)
       })
     },
-    mockExecuteGraphQL
+    mockExecuteGraphQL // Export mockExecuteGraphQL
   };
 });
 
 // Import the mock after it's defined
-const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
+import { mockExecuteGraphQL } from '../../services/adaptiveTenantFactory';
 
 describe('API Endpoints', () => {
   beforeEach(() => {

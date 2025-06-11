@@ -1,6 +1,5 @@
 import request from 'supertest';
 import app from '../../server';
-import { adaptiveTenantFactory } from '../../services/adaptiveTenantFactory';
 import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
 // Conditionally skip this test suite if Dgraph Enterprise is not available
@@ -173,7 +172,7 @@ describe('Real Integration: Namespace Isolation', () => {
               }
             `
           });
-      } catch (error) {
+      } catch (e) {
         // Expected if default hierarchy doesn't exist
         console.log('Default namespace creation skipped - no default hierarchy');
       }
@@ -326,7 +325,7 @@ describe('Real Integration: Namespace Isolation', () => {
         .expect(200);
 
       // Attempt to update from different namespace context
-      const updateAttempt = await request(app)
+      await request(app)
         .post('/api/mutate')
         .send({
           mutation: `

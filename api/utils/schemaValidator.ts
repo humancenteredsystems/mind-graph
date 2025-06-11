@@ -18,7 +18,7 @@ export class SchemaValidator {
     hierarchyTypesPresent?: boolean;
   }> {
     try {
-      const client = DgraphTenantFactory.createTenant(namespace);
+      const client = await DgraphTenantFactory.createTenant(namespace);
       
       console.log(`[SCHEMA_VALIDATOR] Verifying schema in namespace ${namespace}`);
       

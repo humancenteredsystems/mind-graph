@@ -1,4 +1,4 @@
-const { TenantManager } = require('../../../services/tenantManager');
+import { TenantManager } from '../../../services/tenantManager';
 
 describe('TenantManager Dependency Injection', () => {
   describe('constructor with dependencies', () => {

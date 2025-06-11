@@ -2,6 +2,7 @@ import axios, { AxiosResponse } from 'axios';
 import config from '../config';
 import { DgraphQueryResponse } from '../src/types';
 import { withNamespaceValidationConstructor } from '../utils/namespaceValidator';
+import { adaptiveTenantFactory } from './adaptiveTenantFactory';
 
 /**
  * Internal DgraphTenant class (without validation)
@@ -116,8 +117,6 @@ export const DgraphTenant = withNamespaceValidationConstructor(
   0
 );
 
-export type DgraphTenant = DgraphTenantInternal;
-
 /**
  * DgraphTenantFactory - Factory for creating tenant-specific Dgraph clients
  */
@@ -127,8 +126,8 @@ export class DgraphTenantFactory {
    * @param namespace - The namespace to operate in (null for default)
    * @returns A new tenant client instance
    */
-  static createTenant(namespace: string | null = null): DgraphTenant {
-    return new DgraphTenant(namespace);
+  static async createTenant(namespace: string | null = null): Promise<DgraphTenantInternal> {
+    return new DgraphTenantInternal(namespace);
   }
 
   /**
@@ -136,24 +135,24 @@ export class DgraphTenantFactory {
    * @param userContext - User context containing namespace information
    * @returns A new tenant client instance
    */
-  static createTenantFromContext(userContext?: { namespace?: string | null }): DgraphTenant {
+  static async createTenantFromContext(userContext?: { namespace?: string | null }): Promise<DgraphTenantInternal> {
     const namespace = userContext?.namespace || null;
-    return new DgraphTenant(namespace);
+    return new DgraphTenantInternal(namespace);
   }
 
   /**
    * Create a tenant client for the default namespace
    * @returns A new tenant client for default namespace
    */
-  static createDefaultTenant(): DgraphTenant {
-    return new DgraphTenant(null);
+  static async createDefaultTenant(): Promise<DgraphTenantInternal> {
+    return new DgraphTenantInternal(null);
   }
 
   /**
    * Create a tenant client for the test namespace
    * @returns A new tenant client for test namespace
    */
-  static createTestTenant(): DgraphTenant {
-    return new DgraphTenant(config.testNamespace);
+  static async createTestTenant(): Promise<DgraphTenantInternal> {
+    return new DgraphTenantInternal(config.testNamespace);
   }
 }

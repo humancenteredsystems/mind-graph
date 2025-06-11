@@ -1,5 +1,6 @@
 import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
 import { TenantCapabilities } from '../src/types';
+import { EnterpriseFeatureNotAvailableError, MultiTenantNotSupportedError } from './errorResponse'; // Added import
 
 /**
  * Standardized capability checking utilities
@@ -49,7 +50,6 @@ export function getCapabilitiesSync(): TenantCapabilities | null {
 export function requiresEnterprise(operation: string): void {
   if (!isEnterpriseAvailable()) {
     const capabilities = getCapabilitiesSync();
-    const { EnterpriseFeatureNotAvailableError } = require('./errorResponse');
     
     throw new EnterpriseFeatureNotAvailableError(
       `Enterprise features (${operation})`,
@@ -70,7 +70,6 @@ export function requiresEnterprise(operation: string): void {
 export function requiresMultiTenant(operation: string): void {
   if (!isMultiTenantSupported()) {
     const capabilities = getCapabilitiesSync();
-    const { MultiTenantNotSupportedError } = require('./errorResponse');
     
     const suggestion = capabilities?.enterpriseDetected 
       ? 'Check namespace isolation configuration - Enterprise detected but namespace operations not functional'

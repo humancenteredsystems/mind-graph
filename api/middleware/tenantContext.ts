@@ -32,8 +32,8 @@ export async function setTenantContext(req: Request, res: Response, next: NextFu
     console.error('[TENANT_CONTEXT] Failed to resolve tenant context:', error);
     
     // DEGRADE_GRACEFULLY for READ operations - fallback to default tenant with context
-    const { createMultiTenantErrorResponse } = require('../utils/errorResponse');
-    const tenantManager = require('../services/tenantManager').TenantManager;
+    const { createMultiTenantErrorResponse } = await import('../utils/errorResponse');
+    const { TenantManager } = await import('../services/tenantManager');
     
     req.tenantContext = {
       tenantId: 'default',

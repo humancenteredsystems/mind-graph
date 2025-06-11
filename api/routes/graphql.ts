@@ -14,6 +14,8 @@ import {
 } from '../src/types/graphql';
 import { Node } from '../src/types/domain';
 import { validateNamespaceParam } from '../utils/namespaceValidator';
+import { createNamespaceErrorResponse } from '../utils/errorResponse'; // Added import
+import { adaptiveTenantFactory as adaptiveTenantFactoryForSchema } from '../services/adaptiveTenantFactory'; // Added import with alias
 
 const router = express.Router();
 
@@ -228,10 +230,12 @@ router.get('/schema', async (req: Request, res: Response): Promise<void> => {
         try {
           validateNamespaceParam(namespace, 'Schema fetch');
         } catch (error: any) {
-          const { createNamespaceErrorResponse } = require('../utils/errorResponse');
-          const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
-          const capabilities = adaptiveTenantFactory.getCapabilities();
-          const errorResponse = createNamespaceErrorResponse('Schema fetch', namespace || 'non-default', capabilities);
+          const capabilities = adaptiveTenantFactoryForSchema.getCapabilities();
+          const capabilitySubset = capabilities ? {
+            namespacesSupported: capabilities.namespacesSupported,
+            enterpriseDetected: capabilities.enterpriseDetected
+          } : undefined;
+          const errorResponse = createNamespaceErrorResponse('Schema fetch', namespace || 'non-default', capabilitySubset);
           res.status(400).json(errorResponse);
           return;
         }

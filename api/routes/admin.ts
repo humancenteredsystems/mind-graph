@@ -230,7 +230,7 @@ router.post('/admin/tenant/seed', authenticateAdmin, async (req: Request, res: R
     try {
       // Get tenant namespace and create client for seeding operations
       const namespace = await tenantManager.getTenantNamespace(tenantId);
-      const tenantClient = DgraphTenantFactory.createTenant(namespace);
+      const tenantClient = await DgraphTenantFactory.createTenant(namespace);
       
       // Create the primary hierarchy
       const hierarchyId = 'h1';
@@ -672,7 +672,7 @@ router.post('/admin/tenant/clear-data', authenticateAdmin, async (req: Request, 
     
     // Get tenant namespace and create client for namespace-scoped operations
     const namespace = await tenantManager.getTenantNamespace(tenantId);
-    const tenantClient = DgraphTenantFactory.createTenant(namespace);
+    const tenantClient = await DgraphTenantFactory.createTenant(namespace);
     
     // Step 1: Query all edges and delete them first
     console.log(`[ADMIN_TENANT] Querying edges for tenant ${tenantId}`);

@@ -1,6 +1,6 @@
 import request from 'supertest';
 import app from '../../server';
-import { mockNodes, mockHierarchies } from '../helpers/mockData';
+import { mockNodes } from '../helpers/mockData';
 
 // Mock the adaptive tenant factory
 jest.mock('../../services/adaptiveTenantFactory', () => {
@@ -15,11 +15,11 @@ jest.mock('../../services/adaptiveTenantFactory', () => {
       })
     },
     // Export the mock function so tests can access it
-    mockExecuteGraphQL
+    mockExecuteGraphQL // Export mockExecuteGraphQL
   };
 });
 
-const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
+import { mockExecuteGraphQL } from '../../services/adaptiveTenantFactory';
 
 describe('GraphQL Integration Tests', () => {
   beforeEach(() => {

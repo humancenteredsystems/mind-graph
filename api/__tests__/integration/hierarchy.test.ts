@@ -1,8 +1,6 @@
 import request from 'supertest';
 import app from '../../server';
 import { mockHierarchies } from '../helpers/mockData';
-import { TestMockFactory, TestDataBuilder } from '../helpers/mockFactory';
-import { MockedIntegrationTestBase } from '../helpers/testBase';
 
 // Create a shared mock for executeGraphQL
 const mockExecuteGraphQL = jest.fn();

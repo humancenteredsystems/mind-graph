@@ -1,4 +1,3 @@
-import request from 'supertest';
 import app from '../../server';
 import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
