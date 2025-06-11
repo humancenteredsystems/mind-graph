@@ -2,12 +2,11 @@ import axios, { AxiosResponse } from 'axios';
 import config from '../config';
 import { DgraphQueryResponse } from '../src/types';
 import { withNamespaceValidationConstructor } from '../utils/namespaceValidator';
-import { adaptiveTenantFactory } from './adaptiveTenantFactory';
 
 /**
  * Internal DgraphTenant class (without validation)
  */
-class DgraphTenantInternal {
+export class DgraphTenantInternal {
   private namespace: string | null;
   private baseUrl: string;
   private endpoint: string;

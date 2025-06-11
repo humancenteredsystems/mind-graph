@@ -1,5 +1,5 @@
 import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
-import { DgraphTenant } from '../services/dgraphTenant';
+import { DgraphTenantInternal } from '../services/dgraphTenant';
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -218,7 +218,7 @@ export class TenantMigration {
     }
   }
 
-  async restoreHierarchy(tenant: DgraphTenant, hierarchy: any): Promise<void> {
+  async restoreHierarchy(tenant: DgraphTenantInternal, hierarchy: any): Promise<void> {
     try {
       const mutation = `
         mutation RestoreHierarchy($input: [AddHierarchyInput!]!) {
@@ -245,7 +245,7 @@ export class TenantMigration {
     }
   }
 
-  async restoreNodes(tenant: DgraphTenant, nodes: any[]): Promise<void> {
+  async restoreNodes(tenant: DgraphTenantInternal, nodes: any[]): Promise<void> {
     try {
       const mutation = `
         mutation RestoreNodes($input: [AddNodeInput!]!) {
@@ -275,7 +275,7 @@ export class TenantMigration {
     }
   }
 
-  async restoreEdges(tenant: DgraphTenant, edges: any[]): Promise<void> {
+  async restoreEdges(tenant: DgraphTenantInternal, edges: any[]): Promise<void> {
     try {
       const mutation = `
         mutation RestoreEdges($input: [AddEdgeInput!]!) {

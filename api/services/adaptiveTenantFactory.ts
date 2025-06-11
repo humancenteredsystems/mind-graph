@@ -1,7 +1,4 @@
-import { DgraphTenantFactory } from './dgraphTenant';
-
-// Import the internal type for return types
-type DgraphTenantInternal = InstanceType<typeof DgraphTenantFactory>;
+import { DgraphTenantFactory, DgraphTenantInternal } from './dgraphTenant';
 import { dgraphCapabilityDetector } from './dgraphCapabilities';
 import { TenantCapabilities, AdaptiveTenantFactoryOptions } from '../src/types';
 
