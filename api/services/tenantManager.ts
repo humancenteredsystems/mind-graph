@@ -598,7 +598,12 @@ export class TenantManager {
     for (const tenantId of knownTenants) {
       try {
         const info = await this.getTenantInfo(tenantId);
-        tenantInfos.push(info);
+        // Only include accessible tenants to prevent 500 errors in OSS mode
+        if (info.health !== 'not-accessible') {
+          tenantInfos.push(info);
+        } else {
+          console.log(`[TENANT_MANAGER] Excluding tenant ${tenantId} - not accessible (health: ${info.health})`);
+        }
       } catch (error) {
         console.error(`[TENANT_MANAGER] Error getting info for tenant ${tenantId}:`, error);
       }

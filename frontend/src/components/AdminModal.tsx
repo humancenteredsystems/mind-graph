@@ -1099,29 +1099,84 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                     {tenant.health}
                   </span>
                   
-                  {/* Action buttons - only show if multi-tenant mode */}
-                  {isMultiTenantMode && (
-                    <>
+                  {/* Action buttons - show for all tenants, but limit multi-tenant operations */}
+                  <>
+                    <button
+                      onClick={() => clearTenantData(tenant.tenantId)}
+                      disabled={isLoading}
+                      style={{
+                        padding: '4px 8px',
+                        background: '#8b5cf6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        opacity: isLoading ? 0.6 : 1,
+                      }}
+                      title="Clear nodes & edges (safe deletion)"
+                    >
+                      Clear Data
+                    </button>
+                    
+                    <button
+                      onClick={() => clearTenantSchema(tenant.tenantId)}
+                      disabled={isLoading}
+                      style={{
+                        padding: '4px 8px',
+                        background: '#f59e0b',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        opacity: isLoading ? 0.6 : 1,
+                      }}
+                      title="Clear schema (push minimal schema)"
+                    >
+                      Clear Schema
+                    </button>
+                    
+                    <button
+                      onClick={() => pushFreshSchema(tenant.tenantId)}
+                      disabled={isLoading}
+                      style={{
+                        padding: '4px 8px',
+                        background: '#06b6d4',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        opacity: isLoading ? 0.6 : 1,
+                      }}
+                      title="Push fresh default schema"
+                    >
+                      Push Schema
+                    </button>
+                    
+                    <button
+                      onClick={() => ApiService.seedTenantData(tenant.tenantId, 'test', false, adminKey).then(() => loadTenants()).catch((error) => setError(`Failed to seed data: ${error.message}`))}
+                      disabled={isLoading}
+                      style={{
+                        padding: '4px 8px',
+                        background: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        opacity: isLoading ? 0.6 : 1,
+                      }}
+                      title="Seed hierarchy data and sample nodes"
+                    >
+                      Seed Data
+                    </button>
+
+                    {/* Multi-tenant specific operations */}
+                    {isMultiTenantMode && tenant.tenantId !== 'default' && (
                       <button
-                        onClick={() => clearTenantData(tenant.tenantId)}
-                        disabled={isLoading}
-                        style={{
-                          padding: '4px 8px',
-                          background: '#8b5cf6',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 4,
-                          fontSize: 11,
-                          cursor: isLoading ? 'not-allowed' : 'pointer',
-                          opacity: isLoading ? 0.6 : 1,
-                        }}
-                        title="Clear nodes & edges (safe namespace-scoped deletion)"
-                      >
-                        Clear Data
-                      </button>
-                      
-                      <button
-                        onClick={() => clearTenantSchema(tenant.tenantId)}
+                        onClick={() => resetTenant(tenant.tenantId)}
                         disabled={isLoading}
                         style={{
                           padding: '4px 8px',
@@ -1133,17 +1188,18 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                           cursor: isLoading ? 'not-allowed' : 'pointer',
                           opacity: isLoading ? 0.6 : 1,
                         }}
-                        title="Clear schema (push minimal schema)"
                       >
-                        Clear Schema
+                        Reset
                       </button>
-                      
+                    )}
+                    
+                    {isMultiTenantMode && tenant.tenantId !== 'default' && tenant.tenantId !== 'test-tenant' && (
                       <button
-                        onClick={() => pushFreshSchema(tenant.tenantId)}
+                        onClick={() => deleteTenant(tenant.tenantId)}
                         disabled={isLoading}
                         style={{
                           padding: '4px 8px',
-                          background: '#06b6d4',
+                          background: '#dc2626',
                           color: 'white',
                           border: 'none',
                           borderRadius: 4,
@@ -1151,68 +1207,11 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                           cursor: isLoading ? 'not-allowed' : 'pointer',
                           opacity: isLoading ? 0.6 : 1,
                         }}
-                        title="Push fresh default schema"
                       >
-                        Push Schema
+                        Delete
                       </button>
-                      
-                      <button
-                        onClick={() => ApiService.seedTenantData(tenant.tenantId, 'test', false, adminKey).then(() => loadTenants()).catch((error) => setError(`Failed to seed data: ${error.message}`))}
-                        disabled={isLoading}
-                        style={{
-                          padding: '4px 8px',
-                          background: '#10b981',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 4,
-                          fontSize: 11,
-                          cursor: isLoading ? 'not-allowed' : 'pointer',
-                          opacity: isLoading ? 0.6 : 1,
-                        }}
-                        title="Seed hierarchy data and sample nodes"
-                      >
-                        Seed Data
-                      </button>
-
-                      {tenant.tenantId !== 'default' && (
-                        <button
-                          onClick={() => resetTenant(tenant.tenantId)}
-                          disabled={isLoading}
-                          style={{
-                            padding: '4px 8px',
-                            background: '#f59e0b',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            cursor: isLoading ? 'not-allowed' : 'pointer',
-                            opacity: isLoading ? 0.6 : 1,
-                          }}
-                        >
-                          Reset
-                        </button>
-                      )}
-                      
-                      {tenant.tenantId !== 'default' && tenant.tenantId !== 'test-tenant' && (
-                        <button
-                          onClick={() => deleteTenant(tenant.tenantId)}
-                          disabled={isLoading}
-                          style={{
-                            padding: '4px 8px',
-                            background: '#dc2626',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            cursor: isLoading ? 'not-allowed' : 'pointer',
-                            opacity: isLoading ? 0.6 : 1,
-                          }}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </>
-                  )}
+                    )}
+                  </>
                 </div>
               </div>
               
@@ -1270,7 +1269,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                 {tenant.isTestTenant && <span>Test Tenant • </span>}
                 {tenant.isDefaultTenant && <span>Default Tenant • </span>}
                 {tenant.exists ? 'Accessible' : 'Not Accessible'}
-                {!isMultiTenantMode && <span> • Read-only (OSS mode)</span>}
+                {!isMultiTenantMode && <span> • OSS mode</span>}
               </div>
             </div>
           ))}
