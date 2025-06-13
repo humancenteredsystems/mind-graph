@@ -2,15 +2,10 @@ import request from 'supertest';
 import app from '../../server';
 import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
-// Conditionally skip this test suite if Dgraph Enterprise is not available
-describe('Real Integration: Namespace Isolation', () => {
+const enterpriseAvailable = (global as any).DGRAPH_ENTERPRISE_AVAILABLE;
+
+(enterpriseAvailable ? describe : describe.skip)('Real Integration: Namespace Isolation', () => {
   beforeAll(async () => {
-    // Check at runtime and skip if Enterprise not available
-    if (!(global as any).DGRAPH_ENTERPRISE_AVAILABLE) {
-      console.warn('Skipping namespace isolation tests - Dgraph Enterprise not available');
-      pending('Dgraph Enterprise not available');
-      return;
-    }
     await global.testUtils.setupTestDatabase();
   });
 

@@ -1,14 +1,10 @@
 import app from '../../server';
 import { testRequest, verifyInTestTenant, createTestNodeData } from '../helpers/realTestHelpers';
 
-describe('Real Integration: Hierarchy Operations', () => {
+const enterpriseAvailable = (global as any).DGRAPH_ENTERPRISE_AVAILABLE;
+
+(enterpriseAvailable ? describe : describe.skip)('Real Integration: Hierarchy Operations', () => {
   beforeAll(async () => {
-    // Check at runtime and skip if Enterprise not available
-    if (!(global as any).DGRAPH_ENTERPRISE_AVAILABLE) {
-      console.warn('Skipping hierarchy operations tests - Dgraph Enterprise not available');
-      pending('Dgraph Enterprise not available');
-      return;
-    }
     await global.testUtils.setupTestDatabase();
   });
 
