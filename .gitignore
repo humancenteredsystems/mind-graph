@@ -5,3 +5,6 @@
 # Python cache
 **/__pycache__/
 *.py[cod]
+
+# MCP settings with sensitive tokens
+mcp_settings.json
