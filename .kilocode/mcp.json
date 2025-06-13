@@ -7,6 +7,9 @@
         "mcp_server_git",
         "--repository",
         "/home/gb/coding/mims-graph"
+      ],
+      "alwaysAllow": [
+        "git_status"
       ]
     }
   }
