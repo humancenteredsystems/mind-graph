@@ -149,7 +149,13 @@ export const createGraphOperations = (
 
   const deleteNodes = async (nodeIds: string[]) => {
     try {
-      await executeMutation(DELETE_NODE_MUTATION, { input: { filter: { id: { in: nodeIds } } } });
+      // Use the same cascade deletion logic as single delete for consistency
+      // This ensures proper edge cleanup and cascade behavior
+      for (const nodeId of nodeIds) {
+        await deleteNodeCascade(nodeId);
+      }
+      
+      // Update state after all deletions are complete
       setNodes(prev => prev.filter(n => !nodeIds.includes(n.id)));
       setEdges(prev => prev.filter(e => !nodeIds.includes(e.source) && !nodeIds.includes(e.target)));
     } catch (err) {
