@@ -2,6 +2,10 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import klay from 'cytoscape-klay';
+import coseBilkent from 'cytoscape-cose-bilkent';
+import dagre from 'cytoscape-dagre';
+import cola from 'cytoscape-cola';
+import euler from 'cytoscape-euler';
 import { NodeData, EdgeData } from '../types/graph';
 import { 
   CytoscapeTapEvent, 
@@ -14,12 +18,17 @@ import {
 } from '../types/cytoscape';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useHierarchyContext } from '../hooks/useHierarchy';
+import { useLayoutContext } from '../context/LayoutContext';
 import { log } from '../utils/logger';
 import { theme, config } from '../config';
 import { normalizeHierarchyId } from '../utils/graphUtils';
 
 // Register Cytoscape plugins ONCE at module load
 cytoscape.use(klay);
+cytoscape.use(coseBilkent);
+cytoscape.use(dagre);
+cytoscape.use(cola);
+cytoscape.use(euler);
 
 /**
  * Props interface for the GraphView component.
@@ -199,8 +208,9 @@ const GraphView: React.FC<GraphViewProps> = ({
   console.log(`[GraphView RENDER] Nodes prop length: ${nodes.length}, Edges prop length: ${edges.length}`); // Forceful log
 
   const cyRef = useRef<Core | null>(null);
-    const { openMenu } = useContextMenu();
-    const { hierarchyId, levels } = useHierarchyContext();
+  const { openMenu } = useContextMenu();
+  const { hierarchyId, levels } = useHierarchyContext();
+  const { layoutEngine, applyLayout, currentAlgorithm } = useLayoutContext();
   const selectedOrderRef = useRef<string[]>([]);
   const selectedEdgesOrderRef = useRef<string[]>([]);
   /**
@@ -344,11 +354,15 @@ const GraphView: React.FC<GraphViewProps> = ({
     },
   ];
 
-  // Attach Cytoscape instance reference
+  // Attach Cytoscape instance reference and initialize layout engine
   const attachCy = (cy: Core) => {
     cyRef.current = cy;
     (window as unknown as { cyInstance: Core }).cyInstance = cy; // Expose for E2E testing
-    log('GraphView', 'Cytoscape instance attached and exposed to window.cyInstance');
+    
+    // Initialize layout engine with current data
+    layoutEngine.initialize(cy, hierarchyId, nodes, edges);
+    
+    log('GraphView', 'Cytoscape instance attached and layout engine initialized');
   };
   
   // Set up all event handlers - SEPARATED from attachCy for clarity
@@ -575,12 +589,17 @@ const GraphView: React.FC<GraphViewProps> = ({
     };
   }, [openMenu, onAddNode, onNodeExpand, onExpandChildren, onExpandAll, onCollapseNode, isNodeExpanded, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, onDeleteEdge, onDeleteEdges, edges, hierarchyId, levels]);
 
-  // Layout on elements update: use preset positions based on level
+  // Layout engine integration - apply layout when elements change
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy) return;
-    cy.layout({ name: 'preset', padding: config.graphPadding }).run();
-  }, [elements]);
+    if (!cy || elements.length === 0) return;
+    
+    // Update layout engine with current data
+    layoutEngine.initialize(cy, hierarchyId, nodes, edges);
+    
+    // Apply current layout algorithm
+    applyLayout();
+  }, [elements, hierarchyId, nodes, edges, layoutEngine, applyLayout]);
 
     // Track selection order for multi-node operations
   useEffect(() => {

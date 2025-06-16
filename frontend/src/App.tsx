@@ -6,6 +6,7 @@ import { log } from './utils/logger';
 import { theme } from './config';
 import { useUIContext } from './hooks/useUI';
 import { HierarchyProvider } from './context/HierarchyContext';
+import { LayoutProvider } from './context/LayoutContext';
 import { useHierarchyContext } from './hooks/useHierarchy';
 import NodeFormModal from './components/NodeFormModal';
 import NodeDrawer from './components/NodeDrawer';
@@ -14,6 +15,7 @@ import SettingsModal from './components/SettingsModal';
 import AdminButton from './components/AdminButton';
 import AdminModal from './components/AdminModal';
 import EmptyGraphState from './components/EmptyGraphState';
+import LayoutControls from './components/LayoutControls';
 
 function AppInner() {
   
@@ -199,6 +201,10 @@ function AppInner() {
                 connectNodes(from, to);
               }}
             />
+            
+            {/* Layout Controls */}
+            <LayoutControls />
+            
             {/* Show empty state overlay when no nodes are present */}
             {nodes.length === 0 && (
               <EmptyGraphState
@@ -238,7 +244,9 @@ function AppInner() {
 
 const App = () => (
   <HierarchyProvider>
-    <AppInner />
+    <LayoutProvider>
+      <AppInner />
+    </LayoutProvider>
   </HierarchyProvider>
 );
 
