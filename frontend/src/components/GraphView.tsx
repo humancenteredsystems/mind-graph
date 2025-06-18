@@ -267,6 +267,12 @@ const GraphView: React.FC<GraphViewProps> = ({
       // Check if node is expanded for visual indicator
       const expanded = isNodeExpanded?.(id) ?? false;
       
+      // Simple initial positioning - layout engine will handle final positioning and fitting
+      const simplePosition = {
+        x: levelNum * config.nodeHorizontalSpacing,
+        y: idx * config.nodeVerticalSpacing
+      };
+      
       return {
         data: {
           id,
@@ -280,10 +286,7 @@ const GraphView: React.FC<GraphViewProps> = ({
           levelLabel: assignmentForCurrent?.levelLabel,
           expanded,
         },
-        position: { 
-          x: levelNum * config.nodeHorizontalSpacing, 
-          y: idx * config.nodeVerticalSpacing 
-        },
+        position: simplePosition,
       };
     });
     const validIds = new Set(visible.map(n => n.id));

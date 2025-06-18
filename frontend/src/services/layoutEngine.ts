@@ -56,7 +56,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 300,
     fit: true,
-    padding: 20,
+    padding: 50, // Increased padding for better viewport utilization
     respectHierarchy: true,
     levelSpacing: 200,
     nodeSpacing: 100,
@@ -66,7 +66,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 600,
     fit: true,
-    padding: 20,
+    padding: 50, // Increased padding for better viewport utilization
     respectHierarchy: false,
     forceStrength: 0.1,
     repulsionStrength: 1000,
@@ -77,7 +77,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 400,
     fit: true,
-    padding: 20,
+    padding: 50, // Increased padding for better viewport utilization
     respectHierarchy: true,
     circularRadius: 150,
   },
@@ -86,7 +86,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 300,
     fit: true,
-    padding: 20,
+    padding: 50, // Increased padding for better viewport utilization
     respectHierarchy: true,
     gridSpacing: 120,
   },
@@ -95,7 +95,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 400,
     fit: true,
-    padding: 20,
+    padding: 50, // Increased padding for better viewport utilization
     respectHierarchy: true,
     levelSpacing: 180,
     nodeSpacing: 80,
@@ -105,7 +105,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: false,
     animationDuration: 0,
     fit: false,
-    padding: 20,
+    padding: 50, // Increased padding for consistency
     respectHierarchy: false,
   },
   preset: {
@@ -113,7 +113,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 200,
     fit: true,
-    padding: 10,
+    padding: 50, // Increased padding for better viewport utilization
     respectHierarchy: true,
     levelSpacing: 200,
     nodeSpacing: 100,
@@ -226,8 +226,10 @@ export class LayoutEngine {
 
     const layoutOptions: any = {
       name: 'klay',
-      fit: false, // We'll handle fit separately for faster animation
+      fit: config.fit, // Enable fit during layout execution
       padding: config.padding,
+      animate: config.animate,
+      animationDuration: config.animationDuration,
       klay: {
         direction: 'DOWN',
         spacing: config.nodeSpacing || 100,
@@ -242,21 +244,9 @@ export class LayoutEngine {
       const layout = this.cy!.layout(layoutOptions);
       
       layout.on('layoutstop', () => {
-        if (config.fit) {
-          if (config.animate) {
-            this.cy!.animate({
-              fit: { eles: this.cy!.elements(), padding: config.padding },
-            }, {
-              duration: 200, // Fast fit animation
-              complete: () => resolve(),
-            });
-          } else {
-            this.cy!.fit(this.cy!.elements(), config.padding);
-            resolve();
-          }
-        } else {
-          resolve();
-        }
+        // Center and fit the graph after layout
+        this.centerAndFitGraph();
+        resolve();
       });
       
       layout.run();
@@ -271,8 +261,10 @@ export class LayoutEngine {
 
     const layoutOptions: any = {
       name: 'cose-bilkent',
-      fit: false, // We'll handle fit separately
+      fit: config.fit, // Enable fit during layout execution
       padding: config.padding,
+      animate: config.animate,
+      animationDuration: config.animationDuration,
       nodeRepulsion: config.repulsionStrength || 4500,
       idealEdgeLength: config.springLength || 50,
       edgeElasticity: config.forceStrength || 0.45,
@@ -280,8 +272,6 @@ export class LayoutEngine {
       gravity: 0.25,
       numIter: 1000, // Reduced iterations to prevent hanging
       tile: true,
-      animate: config.animate ? 'end' : false, // Use 'end' instead of 'during' to prevent hanging
-      animationDuration: config.animationDuration,
       randomize: false,
       // Simplified simulation parameters
       refresh: 20, // Reduced refresh rate
@@ -298,29 +288,14 @@ export class LayoutEngine {
       const timeout = setTimeout(() => {
         layout.stop();
         log('LayoutEngine', 'Force-directed layout timed out, stopping');
-        if (config.fit) {
-          this.cy!.fit(this.cy!.elements(), config.padding);
-        }
+        this.centerAndFitGraph();
         resolve();
       }, 3000); // 3 second timeout
       
       layout.on('layoutstop', () => {
         clearTimeout(timeout);
-        if (config.fit) {
-          if (config.animate) {
-            this.cy!.animate({
-              fit: { eles: this.cy!.elements(), padding: config.padding },
-            }, {
-              duration: 200,
-              complete: () => resolve(),
-            });
-          } else {
-            this.cy!.fit(this.cy!.elements(), config.padding);
-            resolve();
-          }
-        } else {
-          resolve();
-        }
+        this.centerAndFitGraph();
+        resolve();
       });
       
       layout.run();
@@ -340,8 +315,10 @@ export class LayoutEngine {
       // Simple circular layout
       const layoutOptions: any = {
         name: 'circle',
-        fit: false,
+        fit: config.fit, // Enable fit during layout execution
         padding: config.padding,
+        animate: config.animate,
+        animationDuration: config.animationDuration,
         radius: config.circularRadius || 150,
       };
 
@@ -349,21 +326,8 @@ export class LayoutEngine {
         const layout = this.cy!.layout(layoutOptions);
         
         layout.on('layoutstop', () => {
-          if (config.fit) {
-            if (config.animate) {
-              this.cy!.animate({
-                fit: { eles: this.cy!.elements(), padding: config.padding },
-              }, {
-                duration: 200,
-                complete: () => resolve(),
-              });
-            } else {
-              this.cy!.fit(this.cy!.elements(), config.padding);
-              resolve();
-            }
-          } else {
-            resolve();
-          }
+          this.centerAndFitGraph();
+          resolve();
         });
         
         layout.run();
@@ -379,8 +343,10 @@ export class LayoutEngine {
 
     const layoutOptions: any = {
       name: 'concentric',
-      fit: false,
+      fit: config.fit, // Enable fit during layout execution
       padding: config.padding,
+      animate: config.animate,
+      animationDuration: config.animationDuration,
       concentric: (node: NodeSingular) => {
         const nodeData = node.data() as NodeData;
         const level = getNodeHierarchyLevel(nodeData, this.hierarchyId);
@@ -394,21 +360,8 @@ export class LayoutEngine {
       const layout = this.cy!.layout(layoutOptions);
       
       layout.on('layoutstop', () => {
-        if (config.fit) {
-          if (config.animate) {
-            this.cy!.animate({
-              fit: { eles: this.cy!.elements(), padding: config.padding },
-            }, {
-              duration: 200,
-              complete: () => resolve(),
-            });
-          } else {
-            this.cy!.fit(this.cy!.elements(), config.padding);
-            resolve();
-          }
-        } else {
-          resolve();
-        }
+        this.centerAndFitGraph();
+        resolve();
       });
       
       layout.run();
@@ -428,8 +381,10 @@ export class LayoutEngine {
       // Standard grid layout
       const layoutOptions: any = {
         name: 'grid',
-        fit: false,
+        fit: config.fit, // Enable fit during layout execution
         padding: config.padding,
+        animate: config.animate,
+        animationDuration: config.animationDuration,
         spacingFactor: (config.gridSpacing || 120) / 100,
       };
 
@@ -437,21 +392,8 @@ export class LayoutEngine {
         const layout = this.cy!.layout(layoutOptions);
         
         layout.on('layoutstop', () => {
-          if (config.fit) {
-            if (config.animate) {
-              this.cy!.animate({
-                fit: { eles: this.cy!.elements(), padding: config.padding },
-              }, {
-                duration: 200,
-                complete: () => resolve(),
-              });
-            } else {
-              this.cy!.fit(this.cy!.elements(), config.padding);
-              resolve();
-            }
-          } else {
-            resolve();
-          }
+          this.centerAndFitGraph();
+          resolve();
         });
         
         layout.run();
@@ -498,8 +440,10 @@ export class LayoutEngine {
 
     const layoutOptions: any = {
       name: 'preset',
-      fit: false,
+      fit: config.fit, // Enable fit during layout execution
       padding: config.padding,
+      animate: config.animate,
+      animationDuration: config.animationDuration,
       positions,
     };
 
@@ -507,21 +451,8 @@ export class LayoutEngine {
       const layout = this.cy!.layout(layoutOptions);
       
       layout.on('layoutstop', () => {
-        if (config.fit) {
-          if (config.animate) {
-            this.cy!.animate({
-              fit: { eles: this.cy!.elements(), padding: config.padding },
-            }, {
-              duration: 200,
-              complete: () => resolve(),
-            });
-          } else {
-            this.cy!.fit(this.cy!.elements(), config.padding);
-            resolve();
-          }
-        } else {
-          resolve();
-        }
+        this.centerAndFitGraph();
+        resolve();
       });
       
       layout.run();
@@ -538,8 +469,10 @@ export class LayoutEngine {
       // Use Dagre for proper hierarchical tree layout
       const layoutOptions: any = {
         name: 'dagre',
-        fit: false,
+        fit: config.fit, // Enable fit during layout execution
         padding: config.padding,
+        animate: config.animate,
+        animationDuration: config.animationDuration,
         directed: true,
         rankDir: 'TB', // Top to bottom
         align: 'UL', // Upper left alignment
@@ -552,21 +485,8 @@ export class LayoutEngine {
         const layout = this.cy!.layout(layoutOptions);
         
         layout.on('layoutstop', () => {
-          if (config.fit) {
-            if (config.animate) {
-              this.cy!.animate({
-                fit: { eles: this.cy!.elements(), padding: config.padding },
-              }, {
-                duration: 200,
-                complete: () => resolve(),
-              });
-            } else {
-              this.cy!.fit(this.cy!.elements(), config.padding);
-              resolve();
-            }
-          } else {
-            resolve();
-          }
+          this.centerAndFitGraph();
+          resolve();
         });
         
         layout.run();
@@ -575,8 +495,10 @@ export class LayoutEngine {
       // Use breadthfirst as fallback
       const layoutOptions: any = {
         name: 'breadthfirst',
-        fit: false,
+        fit: config.fit, // Enable fit during layout execution
         padding: config.padding,
+        animate: config.animate,
+        animationDuration: config.animationDuration,
         directed: true,
         spacingFactor: 1.5,
         avoidOverlap: true,
@@ -587,21 +509,8 @@ export class LayoutEngine {
         const layout = this.cy!.layout(layoutOptions);
         
         layout.on('layoutstop', () => {
-          if (config.fit) {
-            if (config.animate) {
-              this.cy!.animate({
-                fit: { eles: this.cy!.elements(), padding: config.padding },
-              }, {
-                duration: 200,
-                complete: () => resolve(),
-              });
-            } else {
-              this.cy!.fit(this.cy!.elements(), config.padding);
-              resolve();
-            }
-          } else {
-            resolve();
-          }
+          this.centerAndFitGraph();
+          resolve();
         });
         
         layout.run();
@@ -620,8 +529,10 @@ export class LayoutEngine {
 
     const layoutOptions: any = {
       name: 'preset',
-      fit: false,
+      fit: config.fit, // Enable fit during layout execution
       padding: config.padding,
+      animate: config.animate,
+      animationDuration: config.animationDuration,
       positions,
     };
 
@@ -629,21 +540,8 @@ export class LayoutEngine {
       const layout = this.cy!.layout(layoutOptions);
       
       layout.on('layoutstop', () => {
-        if (config.fit) {
-          if (config.animate) {
-            this.cy!.animate({
-              fit: { eles: this.cy!.elements(), padding: config.padding },
-            }, {
-              duration: 200,
-              complete: () => resolve(),
-            });
-          } else {
-            this.cy!.fit(this.cy!.elements(), config.padding);
-            resolve();
-          }
-        } else {
-          resolve();
-        }
+        this.centerAndFitGraph();
+        resolve();
       });
       
       layout.run();
@@ -696,6 +594,25 @@ export class LayoutEngine {
     });
 
     log('LayoutEngine', `Cached positions for ${Object.keys(this.positionCache).length} nodes`);
+  }
+
+  /**
+   * Center and fit the graph using Cytoscape's built-in methods
+   * This is the slick, simple solution that works with Cytoscape's natural behavior
+   */
+  private centerAndFitGraph(): void {
+    if (!this.cy) return;
+
+    const nodes = this.cy.nodes();
+    if (nodes.length === 0) return;
+
+    log('LayoutEngine', 'Applying center and fit to graph');
+    
+    // Use Cytoscape's built-in centering and fitting
+    this.cy.center(nodes);
+    this.cy.fit(nodes, this.currentConfig.padding);
+    
+    log('LayoutEngine', 'Graph centered and fitted successfully');
   }
 
   /**

@@ -57,19 +57,15 @@ const LayoutControls: React.FC<LayoutControlsProps> = ({ style }) => {
   };
 
   const controlsStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: '10px',
-    right: '10px',
     background: theme.colors.background.primary,
     border: `1px solid ${theme.colors.border.default}`,
     borderRadius: '8px',
     padding: '12px',
     boxShadow: theme.components.modal.shadow,
-    zIndex: theme.zIndex.dropdown,
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
-    minWidth: '200px',
+    height: 'fit-content',
     ...style,
   };
 
