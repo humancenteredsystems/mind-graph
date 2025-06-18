@@ -7,103 +7,6 @@ exports.TestDataSeeder = void 0;
 const tenantManager_1 = require("../../services/tenantManager");
 const dgraphTenant_1 = require("../../services/dgraphTenant");
 const config_1 = __importDefault(require("../../config")); // Assuming config is available
-const axios_1 = __importDefault(require("axios")); // Import axios for making API calls
-// Helper function to make API calls (similar to Python's call_api)
-async function callApi(apiBase, endpoint, apiKey, method, payload, extraHeaders) {
-    const url = `${apiBase.replace(/\/+$/, '')}${endpoint}`;
-    const headers = {
-        'Content-Type': 'application/json',
-        ...extraHeaders,
-    };
-    if (apiKey) {
-        headers['X-Admin-API-Key'] = apiKey;
-    }
-    try {
-        console.log(`[API_CALL] ${method} ${url}`);
-        // Single, direct call to axios
-        const response = await (0, axios_1.default)({
-            method,
-            url,
-            headers,
-            data: payload,
-        });
-        console.log(`[API_CALL] Response Status: ${response.status}`);
-        // Dgraph GraphQL errors are in response.data.errors, API errors might be in response.data.error
-        if (response.data && (response.data.errors || response.data.error)) {
-            console.error(`[API_CALL] API Error:`, response.data.errors || response.data.error);
-            return { success: false, error: response.data.error || 'GraphQL errors', details: response.data.errors, data: response.data };
-        }
-        return { success: true, data: response.data };
-    }
-    catch (error) {
-        console.error(`[API_CALL] Request Error: ${error.message}`);
-        if (error.response) {
-            console.error(`[API_CALL] Response Status: ${error.response.status}`);
-            console.error(`[API_CALL] Response Data:`, error.response.data);
-            return { success: false, error: error.response.data.error || error.message, details: error.response.data, status: error.response.status };
-        }
-        else if (error.request) {
-            console.error(`[API_CALL] No response received:`, error.request);
-            return { success: false, error: 'No response received', details: error.request };
-        }
-        else {
-            return { success: false, error: error.message };
-        }
-    }
-}
-// GraphQL mutation templates (still needed for node/edge/assignment creation)
-const ADD_NODE_MUTATION = `
-mutation AddNode($input: [AddNodeInput!]!) {
-  addNode(input: $input) {
-    node {
-      id
-      label
-      type
-    }
-  }
-}
-`;
-const ADD_EDGE_MUTATION = `
-mutation AddEdge($input: [AddEdgeInput!]!) {
-  addEdge(input: $input) {
-    edge {
-      from { id }
-      fromId
-      to { id }
-      toId
-      type
-    }
-  }
-}
-`;
-const ADD_HIERARCHY_ASSIGNMENT_MUTATION = `
-mutation AddHierarchyAssignment($input: [AddHierarchyAssignmentInput!]!) {
-  addHierarchyAssignment(input: $input) {
-    hierarchyAssignment {
-      id
-      node { id label }
-      hierarchy { id name }
-      level { id label levelNumber }
-    }
-  }
-}
-`;
-const DELETE_NODE_MUTATION = `
-mutation DeleteTestNodes($ids: [ID!]) {
-  deleteNode(filter: { id: { in: $ids } }) {
-    msg
-    numUids
-  }
-}
-`;
-const DELETE_HIERARCHY_MUTATION = `
-mutation DeleteTestHierarchy($id: ID!) {
-  deleteHierarchy(filter: { id: { eq: $id } }) {
-    msg
-    numUids
-  }
-}
-`;
 class TestDataSeeder {
     constructor() {
         this.tenantManager = new tenantManager_1.TenantManager();
@@ -183,7 +86,7 @@ class TestDataSeeder {
     }
     async seedTestData() {
         console.log('[TEST_SEED] Seeding test data using working seed script approach');
-        const testClient = dgraphTenant_1.DgraphTenantFactory.createTestTenant();
+        const testClient = await dgraphTenant_1.DgraphTenantFactory.createTestTenant();
         try {
             // 1. Create test hierarchy
             console.log('[TEST_SEED] Creating test hierarchy...');

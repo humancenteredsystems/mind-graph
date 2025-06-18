@@ -6,15 +6,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const supertest_1 = __importDefault(require("supertest"));
 const server_1 = __importDefault(require("../../server"));
 const realTestHelpers_1 = require("../helpers/realTestHelpers");
-// Conditionally skip this test suite if Dgraph Enterprise is not available
-describe('Real Integration: Namespace Isolation', () => {
+const enterpriseAvailable = global.DGRAPH_ENTERPRISE_AVAILABLE;
+(enterpriseAvailable ? describe : describe.skip)('Real Integration: Namespace Isolation', () => {
     beforeAll(async () => {
-        // Check at runtime and skip if Enterprise not available
-        if (!global.DGRAPH_ENTERPRISE_AVAILABLE) {
-            console.warn('Skipping namespace isolation tests - Dgraph Enterprise not available');
-            pending('Dgraph Enterprise not available');
-            return;
-        }
         await global.testUtils.setupTestDatabase();
     });
     afterAll(async () => {
@@ -161,7 +155,7 @@ describe('Real Integration: Namespace Isolation', () => {
             `
                 });
             }
-            catch (error) {
+            catch (e) {
                 // Expected if default hierarchy doesn't exist
                 console.log('Default namespace creation skipped - no default hierarchy');
             }
@@ -298,7 +292,7 @@ describe('Real Integration: Namespace Isolation', () => {
             })
                 .expect(200);
             // Attempt to update from different namespace context
-            const updateAttempt = await (0, supertest_1.default)(server_1.default)
+            await (0, supertest_1.default)(server_1.default)
                 .post('/api/mutate')
                 .send({
                 mutation: `

@@ -954,13 +954,13 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
           </div>
         </div>
         
-        {/* Mode indicator */}
-        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
-          Mode: {isMultiTenantMode ? 'Multi-tenant (Dgraph Enterprise)' : 'Single-tenant (Dgraph OSS)'}
-          {!isMultiTenantMode && (
-            <span style={{ color: '#f59e0b' }}> • Tenant management requires Dgraph Enterprise</span>
-          )}
-        </div>
+      {/* Mode indicator */}
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+        Mode: {isMultiTenantMode ? 'Multi-tenant (Dgraph Enterprise)' : 'Single-tenant (Dgraph OSS)'}
+        {!isMultiTenantMode && (
+          <span style={{ color: '#6b7280' }}> • Creating additional tenants requires Dgraph Enterprise</span>
+        )}
+      </div>
       </div>
 
       {/* Create tenant form */}
@@ -1099,95 +1099,96 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                     {tenant.health}
                   </span>
                   
-                  {/* Action buttons - show for all tenants, but limit multi-tenant operations */}
+                  {/* Core tenant operations - available in both OSS and Enterprise modes */}
                   <>
                     <button
                       onClick={() => clearTenantData(tenant.tenantId)}
-                      disabled={isLoading}
+                      disabled={isLoading || tenant.health === 'not-accessible'}
                       style={{
                         padding: '4px 8px',
-                        background: '#8b5cf6',
+                        background: tenant.health === 'not-accessible' ? '#9ca3af' : '#8b5cf6',
                         color: 'white',
                         border: 'none',
                         borderRadius: 4,
                         fontSize: 11,
-                        cursor: isLoading ? 'not-allowed' : 'pointer',
-                        opacity: isLoading ? 0.6 : 1,
+                        cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
+                        opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
                       }}
-                      title="Clear nodes & edges (safe deletion)"
+                      title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Clear nodes & edges (safe deletion)'}
                     >
                       Clear Data
                     </button>
                     
                     <button
                       onClick={() => clearTenantSchema(tenant.tenantId)}
-                      disabled={isLoading}
+                      disabled={isLoading || tenant.health === 'not-accessible'}
                       style={{
                         padding: '4px 8px',
-                        background: '#f59e0b',
+                        background: tenant.health === 'not-accessible' ? '#9ca3af' : '#f59e0b',
                         color: 'white',
                         border: 'none',
                         borderRadius: 4,
                         fontSize: 11,
-                        cursor: isLoading ? 'not-allowed' : 'pointer',
-                        opacity: isLoading ? 0.6 : 1,
+                        cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
+                        opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
                       }}
-                      title="Clear schema (push minimal schema)"
+                      title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Clear schema (push minimal schema)'}
                     >
                       Clear Schema
                     </button>
                     
                     <button
                       onClick={() => pushFreshSchema(tenant.tenantId)}
-                      disabled={isLoading}
+                      disabled={isLoading || tenant.health === 'not-accessible'}
                       style={{
                         padding: '4px 8px',
-                        background: '#06b6d4',
+                        background: tenant.health === 'not-accessible' ? '#9ca3af' : '#06b6d4',
                         color: 'white',
                         border: 'none',
                         borderRadius: 4,
                         fontSize: 11,
-                        cursor: isLoading ? 'not-allowed' : 'pointer',
-                        opacity: isLoading ? 0.6 : 1,
+                        cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
+                        opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
                       }}
-                      title="Push fresh default schema"
+                      title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Push fresh default schema'}
                     >
                       Push Schema
                     </button>
                     
                     <button
                       onClick={() => ApiService.seedTenantData(tenant.tenantId, 'test', false, adminKey).then(() => loadTenants()).catch((error) => setError(`Failed to seed data: ${error.message}`))}
-                      disabled={isLoading}
+                      disabled={isLoading || tenant.health === 'not-accessible'}
                       style={{
                         padding: '4px 8px',
-                        background: '#10b981',
+                        background: tenant.health === 'not-accessible' ? '#9ca3af' : '#10b981',
                         color: 'white',
                         border: 'none',
                         borderRadius: 4,
                         fontSize: 11,
-                        cursor: isLoading ? 'not-allowed' : 'pointer',
-                        opacity: isLoading ? 0.6 : 1,
+                        cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
+                        opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
                       }}
-                      title="Seed hierarchy data and sample nodes"
+                      title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Seed hierarchy data and sample nodes'}
                     >
                       Seed Data
                     </button>
 
-                    {/* Multi-tenant specific operations */}
+                    {/* Enterprise-only operations: Reset and Delete */}
                     {isMultiTenantMode && tenant.tenantId !== 'default' && (
                       <button
                         onClick={() => resetTenant(tenant.tenantId)}
-                        disabled={isLoading}
+                        disabled={isLoading || tenant.health === 'not-accessible'}
                         style={{
                           padding: '4px 8px',
-                          background: '#f59e0b',
+                          background: tenant.health === 'not-accessible' ? '#9ca3af' : '#f59e0b',
                           color: 'white',
                           border: 'none',
                           borderRadius: 4,
                           fontSize: 11,
-                          cursor: isLoading ? 'not-allowed' : 'pointer',
-                          opacity: isLoading ? 0.6 : 1,
+                          cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
+                          opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
                         }}
+                        title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Reset tenant (Enterprise only)'}
                       >
                         Reset
                       </button>
@@ -1196,17 +1197,18 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                     {isMultiTenantMode && tenant.tenantId !== 'default' && tenant.tenantId !== 'test-tenant' && (
                       <button
                         onClick={() => deleteTenant(tenant.tenantId)}
-                        disabled={isLoading}
+                        disabled={isLoading || tenant.health === 'not-accessible'}
                         style={{
                           padding: '4px 8px',
-                          background: '#dc2626',
+                          background: tenant.health === 'not-accessible' ? '#9ca3af' : '#dc2626',
                           color: 'white',
                           border: 'none',
                           borderRadius: 4,
                           fontSize: 11,
-                          cursor: isLoading ? 'not-allowed' : 'pointer',
-                          opacity: isLoading ? 0.6 : 1,
+                          cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
+                          opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
                         }}
+                        title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Delete tenant (Enterprise only)'}
                       >
                         Delete
                       </button>

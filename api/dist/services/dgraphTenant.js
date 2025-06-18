@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DgraphTenantFactory = exports.DgraphTenant = void 0;
+exports.DgraphTenantFactory = exports.DgraphTenant = exports.DgraphTenantInternal = void 0;
 const axios_1 = __importDefault(require("axios"));
 const config_1 = __importDefault(require("../config"));
 const namespaceValidator_1 = require("../utils/namespaceValidator");
@@ -89,6 +89,7 @@ class DgraphTenantInternal {
         return this.namespace === null || this.namespace === '0x0';
     }
 }
+exports.DgraphTenantInternal = DgraphTenantInternal;
 /**
  * DgraphTenant - A tenant-aware Dgraph client that handles namespace-specific operations
  * with Enterprise capability validation
@@ -103,31 +104,31 @@ class DgraphTenantFactory {
      * @param namespace - The namespace to operate in (null for default)
      * @returns A new tenant client instance
      */
-    static createTenant(namespace = null) {
-        return new exports.DgraphTenant(namespace);
+    static async createTenant(namespace = null) {
+        return new DgraphTenantInternal(namespace);
     }
     /**
      * Create a tenant client from a user context object
      * @param userContext - User context containing namespace information
      * @returns A new tenant client instance
      */
-    static createTenantFromContext(userContext) {
+    static async createTenantFromContext(userContext) {
         const namespace = userContext?.namespace || null;
-        return new exports.DgraphTenant(namespace);
+        return new DgraphTenantInternal(namespace);
     }
     /**
      * Create a tenant client for the default namespace
      * @returns A new tenant client for default namespace
      */
-    static createDefaultTenant() {
-        return new exports.DgraphTenant(null);
+    static async createDefaultTenant() {
+        return new DgraphTenantInternal(null);
     }
     /**
      * Create a tenant client for the test namespace
      * @returns A new tenant client for test namespace
      */
-    static createTestTenant() {
-        return new exports.DgraphTenant(config_1.default.testNamespace);
+    static async createTestTenant() {
+        return new DgraphTenantInternal(config_1.default.testNamespace);
     }
 }
 exports.DgraphTenantFactory = DgraphTenantFactory;

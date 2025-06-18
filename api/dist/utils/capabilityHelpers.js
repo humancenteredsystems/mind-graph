@@ -11,6 +11,7 @@ exports.isCapabilityDetectionComplete = isCapabilityDetectionComplete;
 exports.getCapabilityDetectionError = getCapabilityDetectionError;
 exports.ensureCapabilitiesDetected = ensureCapabilitiesDetected;
 const adaptiveTenantFactory_1 = require("../services/adaptiveTenantFactory");
+const errorResponse_1 = require("./errorResponse"); // Added import
 /**
  * Standardized capability checking utilities
  *
@@ -55,8 +56,7 @@ function getCapabilitiesSync() {
 function requiresEnterprise(operation) {
     if (!isEnterpriseAvailable()) {
         const capabilities = getCapabilitiesSync();
-        const { EnterpriseFeatureNotAvailableError } = require('./errorResponse');
-        throw new EnterpriseFeatureNotAvailableError(`Enterprise features (${operation})`, {
+        throw new errorResponse_1.EnterpriseFeatureNotAvailableError(`Enterprise features (${operation})`, {
             operation,
             currentMode: capabilities?.enterpriseDetected ? 'enterprise-single-tenant' : 'oss-single-tenant',
             suggestion: 'Please ensure you are running Dgraph Enterprise with a valid license'
@@ -71,11 +71,10 @@ function requiresEnterprise(operation) {
 function requiresMultiTenant(operation) {
     if (!isMultiTenantSupported()) {
         const capabilities = getCapabilitiesSync();
-        const { MultiTenantNotSupportedError } = require('./errorResponse');
         const suggestion = capabilities?.enterpriseDetected
             ? 'Check namespace isolation configuration - Enterprise detected but namespace operations not functional'
             : 'Upgrade to Dgraph Enterprise with namespace support';
-        throw new MultiTenantNotSupportedError(operation, suggestion);
+        throw new errorResponse_1.MultiTenantNotSupportedError(operation, suggestion);
     }
 }
 /**

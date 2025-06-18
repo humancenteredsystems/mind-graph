@@ -228,32 +228,44 @@ router.post('/admin/tenant/seed', authenticateAdmin, async (req: Request, res: R
     console.log(`[ADMIN_TENANT] Starting hierarchy seeding for tenant ${tenantId}, type: ${dataType}`);
     
     try {
-      // Get tenant namespace and create client for seeding operations
+      // Get tenant namespace and create adaptive client for seeding operations
       const namespace = await tenantManager.getTenantNamespace(tenantId);
-      const tenantClient = await DgraphTenantFactory.createTenant(namespace);
+      const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
+      const tenantClient = await adaptiveTenantFactory.createTenant(namespace);
       
-      // Create the primary hierarchy
+      // Check if hierarchy already exists, create if needed
       const hierarchyId = 'h1';
       const hierarchyName = 'Primary Knowledge Graph';
       
-      console.log(`[ADMIN_TENANT] Creating hierarchy: ${hierarchyName}`);
-      const createHierarchyMutation = `
-        mutation CreateHierarchy($input: [AddHierarchyInput!]!) {
-          addHierarchy(input: $input) {
-            hierarchy {
-              id
-              name
+      console.log(`[ADMIN_TENANT] Checking for existing hierarchy: ${hierarchyId}`);
+      const checkHierarchyQuery = `{ queryHierarchy(filter: { id: { eq: "${hierarchyId}" } }) { id name } }`;
+      const existingHierarchy = await tenantClient.executeGraphQL(checkHierarchyQuery);
+      
+      let hierarchy;
+      if (existingHierarchy?.queryHierarchy?.length > 0) {
+        console.log(`[ADMIN_TENANT] Using existing hierarchy: ${hierarchyId}`);
+        hierarchy = existingHierarchy.queryHierarchy[0];
+      } else {
+        console.log(`[ADMIN_TENANT] Creating new hierarchy: ${hierarchyName}`);
+        const createHierarchyMutation = `
+          mutation CreateHierarchy($input: [AddHierarchyInput!]!) {
+            addHierarchy(input: $input) {
+              hierarchy {
+                id
+                name
+              }
             }
           }
+        `;
+        
+        const hierarchyResult = await tenantClient.executeGraphQL(createHierarchyMutation, {
+          input: [{ id: hierarchyId, name: hierarchyName }]
+        });
+        
+        if (!hierarchyResult?.addHierarchy?.hierarchy?.[0]) {
+          throw new Error('Failed to create hierarchy');
         }
-      `;
-      
-      const hierarchyResult = await tenantClient.executeGraphQL(createHierarchyMutation, {
-        input: [{ id: hierarchyId, name: hierarchyName }]
-      });
-      
-      if (!hierarchyResult?.addHierarchy?.hierarchy?.[0]) {
-        throw new Error('Failed to create hierarchy');
+        hierarchy = hierarchyResult.addHierarchy.hierarchy[0];
       }
       
       // Create hierarchy levels

@@ -208,6 +208,41 @@ class TestRunner extends events_1.EventEmitter {
      * Parse test output to extract summary information
      */
     parseTestOutput(result, output) {
+        // Enhanced debugging for integration-real tests
+        const isIntegrationReal = result.id.includes('integration-real');
+        if (isIntegrationReal) {
+            console.log(`[TEST_RUNNER] === INTEGRATION-REAL DEBUG START ===`);
+            console.log(`[TEST_RUNNER] Test ID: ${result.id}`);
+            console.log(`[TEST_RUNNER] Output length: ${output.length} characters`);
+            console.log(`[TEST_RUNNER] First 500 chars:`, output.slice(0, 500));
+            console.log(`[TEST_RUNNER] Last 500 chars:`, output.slice(-500));
+            console.log(`[TEST_RUNNER] Contains "numTotalTests":`, output.includes('numTotalTests'));
+            console.log(`[TEST_RUNNER] Contains "Tests:":`, output.includes('Tests:'));
+            console.log(`[TEST_RUNNER] Contains "Test Suites:":`, output.includes('Test Suites:'));
+            // Look for JSON patterns
+            const jsonMatches = output.match(/\{[^{}]*"numTotalTests"[^{}]*\}/g);
+            if (jsonMatches) {
+                console.log(`[TEST_RUNNER] Found ${jsonMatches.length} potential JSON matches`);
+                jsonMatches.forEach((match, index) => {
+                    console.log(`[TEST_RUNNER] JSON match ${index + 1}:`, match);
+                });
+            }
+            // Look for text patterns
+            const testPatterns = [
+                /Tests:\s+(\d+)\s+failed,\s+(\d+)\s+passed,\s+(\d+)\s+total/,
+                /Tests:\s+(\d+)\s+failed,\s+(\d+)\s+skipped,\s+(\d+)\s+passed,\s+(\d+)\s+total/,
+                /Test Suites:\s+(\d+)\s+failed,\s+(\d+)\s+passed,\s+(\d+)\s+total/
+            ];
+            testPatterns.forEach((pattern, index) => {
+                const match = output.match(pattern);
+                console.log(`[TEST_RUNNER] Pattern ${index + 1} match:`, match ? match[0] : 'No match');
+            });
+            console.log(`[TEST_RUNNER] === INTEGRATION-REAL DEBUG END ===`);
+        }
+        // Route integration-real tests to specific parser
+        if (isIntegrationReal) {
+            return this.parseIntegrationRealOutput(result, output);
+        }
         // Try to parse Jest JSON output first - look for complete JSON objects
         try {
             // Look for the final JSON output that Jest produces with --json flag
@@ -309,6 +344,136 @@ class TestRunner extends events_1.EventEmitter {
         // Log for debugging if we still don't have a summary
         if (!result.summary && output.includes('Tests:')) {
             console.log(`[TEST_RUNNER] Found test output but couldn't parse for ${result.id}:`, output.slice(-500));
+        }
+    }
+    /**
+     * Parse integration-real test output with enhanced strategies
+     */
+    parseIntegrationRealOutput(result, output) {
+        console.log(`[TEST_RUNNER] Parsing integration-real output for ${result.id}`);
+        // Strategy 1: Try Jest JSON output parsing (same as regular tests but with enhanced logging)
+        try {
+            // Look for the final JSON output that Jest produces with --json flag
+            const lines = output.split('\n');
+            // Look for lines that start with { and try to parse them as JSON
+            for (let i = lines.length - 1; i >= 0; i--) {
+                const line = lines[i].trim();
+                if (line.startsWith('{') && line.includes('numTotalTests')) {
+                    try {
+                        const jestResults = JSON.parse(line);
+                        if (jestResults.numTotalTests !== undefined) {
+                            result.summary = {
+                                passed: jestResults.numPassedTests || 0,
+                                failed: jestResults.numFailedTests || 0,
+                                total: jestResults.numTotalTests || 0,
+                                suites: jestResults.numTotalTestSuites || 0
+                            };
+                            console.log(`[TEST_RUNNER] Integration-real JSON parsing SUCCESS for ${result.id}:`, result.summary);
+                            return;
+                        }
+                    }
+                    catch (parseError) {
+                        console.log(`[TEST_RUNNER] Integration-real JSON line parse failed:`, parseError);
+                        continue;
+                    }
+                }
+            }
+            // Try multi-line JSON block parsing
+            const jsonBlockMatch = output.match(/\{[\s\S]*?"numTotalTests"\s*:\s*\d+[\s\S]*?\}/);
+            if (jsonBlockMatch) {
+                try {
+                    const jestResults = JSON.parse(jsonBlockMatch[0]);
+                    result.summary = {
+                        passed: jestResults.numPassedTests || 0,
+                        failed: jestResults.numFailedTests || 0,
+                        total: jestResults.numTotalTests || 0,
+                        suites: jestResults.numTotalTestSuites || 0
+                    };
+                    console.log(`[TEST_RUNNER] Integration-real JSON block parsing SUCCESS for ${result.id}:`, result.summary);
+                    return;
+                }
+                catch (parseError) {
+                    console.log(`[TEST_RUNNER] Integration-real JSON block parse failed:`, parseError);
+                }
+            }
+        }
+        catch (error) {
+            console.log(`[TEST_RUNNER] Integration-real JSON parsing failed for ${result.id}:`, error);
+        }
+        // Strategy 2: Enhanced text pattern matching for integration-real
+        try {
+            // Pattern 1: Standard Jest output format
+            let testsMatch = output.match(/Tests:\s+(\d+)\s+failed,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
+            if (testsMatch) {
+                const [, failed, passed, total] = testsMatch;
+                result.summary = {
+                    passed: parseInt(passed, 10),
+                    failed: parseInt(failed, 10),
+                    total: parseInt(total, 10),
+                    suites: 1
+                };
+                console.log(`[TEST_RUNNER] Integration-real text pattern 1 SUCCESS for ${result.id}:`, result.summary);
+                return;
+            }
+            // Pattern 2: With skipped tests
+            testsMatch = output.match(/Tests:\s+(\d+)\s+failed,\s+(\d+)\s+skipped,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
+            if (testsMatch) {
+                const [, failed, skipped, passed, total] = testsMatch;
+                result.summary = {
+                    passed: parseInt(passed, 10),
+                    failed: parseInt(failed, 10),
+                    total: parseInt(total, 10),
+                    suites: 1
+                };
+                console.log(`[TEST_RUNNER] Integration-real text pattern 2 SUCCESS for ${result.id}:`, result.summary);
+                return;
+            }
+            // Pattern 3: Alternative formats that might be specific to integration-real
+            testsMatch = output.match(/(\d+)\s+passing/);
+            if (testsMatch) {
+                const passed = parseInt(testsMatch[1], 10);
+                const failedMatch = output.match(/(\d+)\s+failing/);
+                const failed = failedMatch ? parseInt(failedMatch[1], 10) : 0;
+                result.summary = {
+                    passed: passed,
+                    failed: failed,
+                    total: passed + failed,
+                    suites: 1
+                };
+                console.log(`[TEST_RUNNER] Integration-real alternative pattern SUCCESS for ${result.id}:`, result.summary);
+                return;
+            }
+            // Pattern 4: Test Suites summary
+            const suitesMatch = output.match(/Test Suites:\s+(\d+)\s+failed,\s+(\d+)\s+passed,\s+(\d+)\s+total/);
+            if (suitesMatch) {
+                const [, failedSuites, passedSuites, totalSuites] = suitesMatch;
+                result.summary = {
+                    passed: parseInt(passedSuites, 10) > 0 ? 1 : 0,
+                    failed: parseInt(failedSuites, 10) > 0 ? 1 : 0,
+                    total: parseInt(totalSuites, 10) > 0 ? parseInt(totalSuites, 10) : 1,
+                    suites: parseInt(totalSuites, 10)
+                };
+                console.log(`[TEST_RUNNER] Integration-real suites pattern SUCCESS for ${result.id}:`, result.summary);
+                return;
+            }
+        }
+        catch (error) {
+            console.log(`[TEST_RUNNER] Integration-real text parsing failed for ${result.id}:`, error);
+        }
+        // Strategy 3: Last resort - if we detect test execution but can't parse results
+        if (output.includes('PASS') || output.includes('FAIL') || output.includes('Test Suites:')) {
+            console.log(`[TEST_RUNNER] Integration-real detected test execution but couldn't parse results for ${result.id}`);
+            // Set minimal summary to indicate tests ran
+            result.summary = {
+                passed: output.includes('PASS') ? 1 : 0,
+                failed: output.includes('FAIL') ? 1 : 0,
+                total: 1,
+                suites: 1
+            };
+            console.log(`[TEST_RUNNER] Integration-real fallback summary for ${result.id}:`, result.summary);
+        }
+        else {
+            console.log(`[TEST_RUNNER] Integration-real no test execution detected for ${result.id}`);
         }
     }
 }

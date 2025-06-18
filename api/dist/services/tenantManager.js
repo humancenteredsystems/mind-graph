@@ -11,6 +11,7 @@ const pushSchema_1 = require("../utils/pushSchema");
 const schemaValidator_1 = require("../utils/schemaValidator");
 const fs_1 = require("fs");
 const path_1 = __importDefault(require("path"));
+const capabilityHelpers_1 = require("../utils/capabilityHelpers");
 /**
  * TenantManager - Manages tenant namespaces and lifecycle operations
  */
@@ -40,7 +41,7 @@ class TenantManager {
             // Initialize schema in new namespace
             await this.initializeTenantSchema(namespace);
             // Verify schema initialization
-            const tenantClientForSchemaCheck = this.tenantFactory.createTenant(namespace);
+            const tenantClientForSchemaCheck = await this.tenantFactory.createTenant(namespace);
             try {
                 // Try a simple query that should work if schema is applied, e.g., querying a non-existent node of a core type
                 await tenantClientForSchemaCheck.executeGraphQL('query { getNode(id: "0x0") { id } }');
@@ -145,7 +146,7 @@ class TenantManager {
      */
     async seedDefaultHierarchies(namespace) {
         try {
-            const tenant = this.tenantFactory.createTenant(namespace);
+            const tenant = await this.tenantFactory.createTenant(namespace);
             const defaultHierarchies = [
                 {
                     id: 'default-hierarchy',
@@ -243,87 +244,100 @@ class TenantManager {
         return this.generateNamespaceId(tenantId);
     }
     /**
-     * Comprehensive health check for a tenant namespace
+     * Comprehensive health check for a tenant namespace with capability-aware logic
+     *
+     * **Issue #28 Fix**: This method now properly detects namespace accessibility
+     * in OSS mode by checking multi-tenant capabilities before attempting GraphQL operations.
+     *
      * @param tenantId - The tenant identifier
      * @param namespace - The namespace to check
      * @returns Health status and details
      */
     async checkTenantHealth(tenantId, namespace) {
         try {
-            const tenant = this.tenantFactory.createTenant(namespace);
-            // Stage 1: Basic connectivity test
-            try {
-                const schemaQuery = `query { __schema { types { name } } }`;
-                const schemaResult = await tenant.executeGraphQL(schemaQuery);
-                if (!schemaResult || !schemaResult.__schema) {
-                    return {
-                        health: 'error',
-                        details: 'GraphQL schema introspection failed'
-                    };
-                }
-            }
-            catch (connectivityError) {
-                // Check if this is a namespace not found error vs other connectivity issues
-                const errorMessage = connectivityError.message || '';
-                if (errorMessage.includes('namespace') || errorMessage.includes('not found')) {
-                    return {
-                        health: 'not-accessible',
-                        details: `Namespace ${namespace} not found in Dgraph`
-                    };
-                }
+            // **ISSUE #28 FIX**: Pre-request capability checking
+            // Check if this is a non-default namespace and multi-tenant is not supported
+            const isDefaultNamespace = namespace === this.defaultNamespace || namespace === '0x0' || namespace === null;
+            if (!isDefaultNamespace && !(0, capabilityHelpers_1.isMultiTenantSupported)()) {
+                console.log(`[TENANT_MANAGER] Health check: Namespace ${namespace} not supported in OSS mode`);
                 return {
-                    health: 'error',
-                    details: `Connection failed: ${errorMessage}`
+                    health: 'not-accessible',
+                    details: `Namespace ${namespace} not supported in OSS mode - multi-tenant features require Dgraph Enterprise`
                 };
             }
-            // Stage 2: Schema verification - check for core types
+            const tenant = await this.tenantFactory.createTenant(namespace);
+            // Stage 1: Namespace-specific connectivity test (replaces introspection queries)
             try {
-                const coreTypeQuery = `query { __type(name: "Node") { name } }`;
-                const typeResult = await tenant.executeGraphQL(coreTypeQuery);
+                // **ISSUE #28 FIX**: Use actual GraphQL operations instead of introspection
+                // This query will fail predictably if the namespace is not accessible
+                const connectivityQuery = `query { queryNode(first: 1) { id } }`;
+                const connectivityResult = await tenant.executeGraphQL(connectivityQuery);
+                // If we get a result (even empty), the namespace is accessible
+                console.log(`[TENANT_MANAGER] Health check: Namespace ${namespace} connectivity confirmed`);
+            }
+            catch (connectivityError) {
+                // Analyze the error to determine the cause
+                const errorMessage = connectivityError.message || '';
+                console.log(`[TENANT_MANAGER] Health check: Connectivity error for namespace ${namespace}: ${errorMessage}`);
+                // Check for namespace-specific errors
+                if (errorMessage.includes('namespace') ||
+                    errorMessage.includes('not found') ||
+                    errorMessage.includes('not supported') ||
+                    errorMessage.includes('Enterprise')) {
+                    return {
+                        health: 'not-accessible',
+                        details: `Namespace ${namespace} not accessible: ${errorMessage}`
+                    };
+                }
+                // Check for schema-related errors
+                if (errorMessage.includes('queryNode') ||
+                    errorMessage.includes('schema') ||
+                    errorMessage.includes('type')) {
+                    return {
+                        health: 'error',
+                        details: `Schema not initialized in namespace ${namespace}: ${errorMessage}`
+                    };
+                }
+                // Generic connectivity error
+                return {
+                    health: 'error',
+                    details: `Connection failed for namespace ${namespace}: ${errorMessage}`
+                };
+            }
+            // Stage 2: Schema verification using actual schema operations
+            try {
+                // Verify core schema types are available by attempting to query them
+                const schemaQuery = `query { __type(name: "Node") { name } }`;
+                const typeResult = await tenant.executeGraphQL(schemaQuery);
                 if (!typeResult || !typeResult.__type) {
                     return {
                         health: 'error',
-                        details: 'Core schema types not found - schema may not be initialized'
+                        details: `Core schema types not found in namespace ${namespace} - schema may not be initialized`
                     };
                 }
+                console.log(`[TENANT_MANAGER] Health check: Schema verification passed for namespace ${namespace}`);
             }
             catch (schemaError) {
+                const errorMessage = schemaError.message || '';
                 return {
                     health: 'error',
-                    details: `Schema verification failed: ${schemaError.message}`
+                    details: `Schema verification failed for namespace ${namespace}: ${errorMessage}`
                 };
             }
-            // Stage 3: Data accessibility test
-            try {
-                const dataQuery = `query { queryNode(first: 1) { id } }`;
-                await tenant.executeGraphQL(dataQuery);
-                // If we get here, everything is working
-                return {
-                    health: 'healthy',
-                    details: 'All health checks passed'
-                };
-            }
-            catch (dataError) {
-                // Data query failed, but connectivity and schema are OK
-                // This might be normal for empty tenants
-                const errorMessage = dataError.message || '';
-                if (errorMessage.includes('queryNode')) {
-                    // This is likely just an empty tenant, which is still healthy
-                    return {
-                        health: 'healthy',
-                        details: 'Namespace accessible, schema initialized (no data yet)'
-                    };
-                }
-                return {
-                    health: 'error',
-                    details: `Data access test failed: ${errorMessage}`
-                };
-            }
+            // Stage 3: Final health confirmation
+            // If we've made it this far, the namespace is healthy
+            console.log(`[TENANT_MANAGER] Health check: All checks passed for namespace ${namespace}`);
+            return {
+                health: 'healthy',
+                details: `All health checks passed for namespace ${namespace}`
+            };
         }
         catch (unexpectedError) {
+            const errorMessage = unexpectedError.message || '';
+            console.error(`[TENANT_MANAGER] Health check: Unexpected error for namespace ${namespace}:`, unexpectedError);
             return {
                 health: 'unknown',
-                details: `Unexpected error during health check: ${unexpectedError.message}`
+                details: `Unexpected error during health check for namespace ${namespace}: ${errorMessage}`
             };
         }
     }
@@ -351,7 +365,7 @@ class TenantManager {
         try {
             const namespace = await this.getTenantNamespace(tenantId);
             console.log(`[TENANT_MANAGER] Deleting tenant ${tenantId} from namespace ${namespace}`);
-            const tenant = this.tenantFactory.createTenant(namespace);
+            const tenant = await this.tenantFactory.createTenant(namespace);
             /**
              * Critical deletion order to prevent GraphQL schema constraint violations.
              *
@@ -401,7 +415,7 @@ class TenantManager {
     async getTenantNodeCount(tenantId) {
         try {
             const namespace = await this.getTenantNamespace(tenantId);
-            const tenant = this.tenantFactory.createTenant(namespace);
+            const tenant = await this.tenantFactory.createTenant(namespace);
             const countQuery = `query { aggregateNode { count } }`;
             const result = await tenant.executeGraphQL(countQuery);
             return result?.aggregateNode?.count || 0;
@@ -419,7 +433,7 @@ class TenantManager {
     async getTenantSchemaInfo(tenantId) {
         try {
             const namespace = await this.getTenantNamespace(tenantId);
-            const tenant = this.tenantFactory.createTenant(namespace);
+            const tenant = await this.tenantFactory.createTenant(namespace);
             // Query the schema types to identify which schema is loaded
             const schemaQuery = `query { __schema { types { name } } }`;
             const result = await tenant.executeGraphQL(schemaQuery);
@@ -515,7 +529,13 @@ class TenantManager {
         for (const tenantId of knownTenants) {
             try {
                 const info = await this.getTenantInfo(tenantId);
-                tenantInfos.push(info);
+                // Only include accessible tenants to prevent 500 errors in OSS mode
+                if (info.health !== 'not-accessible') {
+                    tenantInfos.push(info);
+                }
+                else {
+                    console.log(`[TENANT_MANAGER] Excluding tenant ${tenantId} - not accessible (health: ${info.health})`);
+                }
             }
             catch (error) {
                 console.error(`[TENANT_MANAGER] Error getting info for tenant ${tenantId}:`, error);

@@ -10,6 +10,8 @@ const nodeEnrichment_1 = require("../services/nodeEnrichment");
 const validation_1 = require("../services/validation");
 const axios_1 = __importDefault(require("axios"));
 const namespaceValidator_1 = require("../utils/namespaceValidator");
+const errorResponse_1 = require("../utils/errorResponse"); // Added import
+const adaptiveTenantFactory_2 = require("../services/adaptiveTenantFactory"); // Added import with alias
 const router = express_1.default.Router();
 // Use admin URL from config
 const DGRAPH_ADMIN_SCHEMA_URL = config_1.default.dgraphAdminUrl;
@@ -202,10 +204,12 @@ router.get('/schema', async (req, res) => {
             (0, namespaceValidator_1.validateNamespaceParam)(namespace, 'Schema fetch');
         }
         catch (error) {
-            const { createNamespaceErrorResponse } = require('../utils/errorResponse');
-            const { adaptiveTenantFactory } = require('../services/adaptiveTenantFactory');
-            const capabilities = adaptiveTenantFactory.getCapabilities();
-            const errorResponse = createNamespaceErrorResponse('Schema fetch', namespace || 'non-default', capabilities);
+            const capabilities = adaptiveTenantFactory_2.adaptiveTenantFactory.getCapabilities();
+            const capabilitySubset = capabilities ? {
+                namespacesSupported: capabilities.namespacesSupported,
+                enterpriseDetected: capabilities.enterpriseDetected
+            } : undefined;
+            const errorResponse = (0, errorResponse_1.createNamespaceErrorResponse)('Schema fetch', namespace || 'non-default', capabilitySubset);
             res.status(400).json(errorResponse);
             return;
         }

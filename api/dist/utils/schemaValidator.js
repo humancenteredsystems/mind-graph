@@ -13,7 +13,7 @@ class SchemaValidator {
      */
     static async verifySchemaInNamespace(namespace) {
         try {
-            const client = dgraphTenant_1.DgraphTenantFactory.createTenant(namespace);
+            const client = await dgraphTenant_1.DgraphTenantFactory.createTenant(namespace);
             console.log(`[SCHEMA_VALIDATOR] Verifying schema in namespace ${namespace}`);
             // Step 1: Basic introspection test
             let introspectionWorking = false;

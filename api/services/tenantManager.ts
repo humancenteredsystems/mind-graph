@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import config from '../config';
 import { DgraphTenantFactory } from './dgraphTenant';
+import { adaptiveTenantFactory } from './adaptiveTenantFactory';
 import { pushSchemaViaHttp } from '../utils/pushSchema';
 import { SchemaValidator } from '../utils/schemaValidator';
 import { promises as fs } from 'fs';
@@ -13,7 +14,7 @@ interface TenantManagerDependencies {
   pushSchema?: (schema: string, namespace: string | null, adminUrl?: string) => Promise<any>;
   fileSystem?: typeof fs;
   schemaPath?: string;
-  tenantFactory?: typeof DgraphTenantFactory;
+  tenantFactory?: any; // Allow both class and instance types
 }
 
 interface HierarchyLevel {
@@ -39,7 +40,7 @@ export class TenantManager {
   private pushSchema: (schema: string, namespace: string | null, adminUrl?: string) => Promise<any>;
   private fileSystem: typeof fs;
   private schemaPath: string;
-  private tenantFactory: typeof DgraphTenantFactory;
+  private tenantFactory: any;
   
   public readonly defaultNamespace: string;
   public readonly testNamespace: string;
@@ -51,7 +52,7 @@ export class TenantManager {
     this.pushSchema = dependencies.pushSchema || pushSchemaViaHttp;
     this.fileSystem = dependencies.fileSystem || fs;
     this.schemaPath = dependencies.schemaPath || path.join(__dirname, '../../schemas/default.graphql');
-    this.tenantFactory = dependencies.tenantFactory || DgraphTenantFactory;
+    this.tenantFactory = dependencies.tenantFactory || adaptiveTenantFactory;
     
     // Environment configuration
     this.defaultNamespace = config.defaultNamespace;

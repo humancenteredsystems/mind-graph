@@ -131,7 +131,8 @@ describe('pushSchema Utility', () => {
             };
             mockedAxiosPost.mockResolvedValueOnce(mockResponse);
             await (0, pushSchema_1.pushSchemaViaHttp)(mockSchema, '0x1', adminUrl);
-            expect(mockedAxiosPost).toHaveBeenCalledWith(`${adminUrl}?namespace=0x1`, mockSchema, {
+            expect(mockedAxiosPost).toHaveBeenCalledWith(`${adminUrl}?namespace=0x1`, // eslint-disable-line enterprise/no-unguarded-namespace-usage
+            mockSchema, {
                 headers: { 'Content-Type': 'application/graphql' },
                 timeout: 30000
             });

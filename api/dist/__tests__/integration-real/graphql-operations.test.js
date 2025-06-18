@@ -6,14 +6,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const server_1 = __importDefault(require("../../server"));
 const realTestHelpers_1 = require("../helpers/realTestHelpers");
 const graphqlTestUtils_1 = require("../helpers/graphqlTestUtils");
-describe('Real Integration: GraphQL Operations', () => {
+const enterpriseAvailable = global.DGRAPH_ENTERPRISE_AVAILABLE;
+(enterpriseAvailable ? describe : describe.skip)('Real Integration: GraphQL Operations', () => {
     beforeAll(async () => {
-        // Check at runtime and skip if Enterprise not available
-        if (!global.DGRAPH_ENTERPRISE_AVAILABLE) {
-            console.warn('Skipping GraphQL operations tests - Dgraph Enterprise not available');
-            pending('Dgraph Enterprise not available');
-            return;
-        }
         await global.testUtils.setupTestDatabase();
     });
     afterAll(async () => {

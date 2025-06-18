@@ -55,11 +55,21 @@ export function withNamespaceValidation<T extends (...args: any[]) => any>(
     for (const arg of args) {
       // Direct string namespace (including '0x1', '0x2', etc. or empty strings for validation)
       if (typeof arg === 'string' && (arg.startsWith('0x') || arg === '')) {
+        // Allow operations on default namespace (0x0) in OSS mode
+        if (arg === '0x0' || arg === 'default') {
+          console.log(`[NAMESPACE_VALIDATOR] Allowing ${operationName} on default namespace ${arg} (OSS compatible)`);
+          continue;
+        }
         requiresMultiTenant(operationName);
         break;
       }
       // Object with namespace property
       if (arg && typeof arg === 'object' && 'namespace' in arg && arg.namespace) {
+        // Allow operations on default namespace (0x0) in OSS mode
+        if (arg.namespace === '0x0' || arg.namespace === 'default') {
+          console.log(`[NAMESPACE_VALIDATOR] Allowing ${operationName} on default namespace ${arg.namespace} (OSS compatible)`);
+          continue;
+        }
         requiresMultiTenant(operationName);
         break;
       }
@@ -88,6 +98,14 @@ export function withNamespaceValidationAt<T extends (...args: any[]) => any>(
     
     // Only validate if a namespace is actually provided (including empty strings)
     if (namespace !== null && namespace !== undefined) {
+      // Allow operations on default namespace (0x0) in OSS mode
+      // This enables core tenant operations without requiring Enterprise
+      if (namespace === '0x0' || namespace === 'default') {
+        console.log(`[NAMESPACE_VALIDATOR] Allowing ${operationName} on default namespace ${namespace} (OSS compatible)`);
+        return fn(...args);
+      }
+      
+      // For non-default namespaces, require multi-tenant support
       requiresMultiTenant(operationName);
     }
     
@@ -114,7 +132,12 @@ export function withNamespaceValidationConstructor<T extends new (...args: any[]
         
         // Only validate if a namespace is actually provided (including empty strings)
         if (namespace !== null && namespace !== undefined) {
-          requiresMultiTenant(operationName);
+          // Allow operations on default namespace (0x0) in OSS mode
+          if (namespace === '0x0' || namespace === 'default') {
+            console.log(`[NAMESPACE_VALIDATOR] Allowing ${operationName} on default namespace ${namespace} (OSS compatible)`);
+          } else {
+            requiresMultiTenant(operationName);
+          }
         }
       }
       
@@ -159,6 +182,11 @@ export function validateNamespaceUrl(url: string, operationName: string): void {
   
   // Check if URL contains namespace parameter
   if (url.includes('namespace=') || url.includes('?namespace') || url.includes('&namespace')) {
+    // Allow default namespace operations in OSS mode
+    if (url.includes('namespace=0x0') || url.includes('namespace=default')) {
+      console.log(`[NAMESPACE_VALIDATOR] Allowing ${operationName} URL with default namespace (OSS compatible)`);
+      return;
+    }
     requiresMultiTenant(operationName);
   }
 }
@@ -172,6 +200,11 @@ export function validateNamespaceParam(namespace: string | null | undefined, ope
   if (bypassValidation) return;
   
   if (namespace !== null && namespace !== undefined) {
+    // Allow operations on default namespace (0x0) in OSS mode
+    if (namespace === '0x0' || namespace === 'default') {
+      console.log(`[NAMESPACE_VALIDATOR] Allowing ${operationName} with default namespace ${namespace} (OSS compatible)`);
+      return;
+    }
     requiresMultiTenant(operationName);
   }
 }
