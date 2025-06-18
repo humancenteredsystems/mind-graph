@@ -267,10 +267,10 @@ const GraphView: React.FC<GraphViewProps> = ({
       // Check if node is expanded for visual indicator
       const expanded = isNodeExpanded?.(id) ?? false;
       
-      // Simple initial positioning - layout engine will handle final positioning and fitting
+      // Use proper spacing like original - layout engine will handle centering
       const simplePosition = {
-        x: levelNum * config.nodeHorizontalSpacing,
-        y: idx * config.nodeVerticalSpacing
+        x: levelNum * (config.nodeHorizontalSpacing || 200),
+        y: idx * (config.nodeVerticalSpacing || 100)
       };
       
       return {
