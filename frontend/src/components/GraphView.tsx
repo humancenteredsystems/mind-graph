@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
-import klay from 'cytoscape-klay';
 import coseBilkent from 'cytoscape-cose-bilkent';
 import dagre from 'cytoscape-dagre';
 import cola from 'cytoscape-cola';
@@ -24,7 +23,6 @@ import { theme, config } from '../config';
 import { normalizeHierarchyId } from '../utils/graphUtils';
 
 // Register Cytoscape plugins ONCE at module load
-cytoscape.use(klay);
 cytoscape.use(coseBilkent);
 cytoscape.use(dagre);
 cytoscape.use(cola);

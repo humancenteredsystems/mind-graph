@@ -1,14 +1,14 @@
 /**
- * Layout Engine - Advanced layout management for Cytoscape.js graphs
+ * Layout Engine - Simplified hierarchy-aware layout management for Cytoscape.js graphs
  * 
- * Provides multiple layout algorithms with hierarchy-aware positioning,
- * position caching for stability, and smooth transitions between layouts.
+ * Provides multiple layout algorithms with hierarchy-aware positioning using a factory pattern.
+ * All layouts respect node hierarchy levels for consistent visual organization.
  */
 
-import cytoscape, { Core, LayoutOptions, NodeSingular, EdgeSingular } from 'cytoscape';
+import cytoscape, { Core, LayoutOptions, NodeSingular } from 'cytoscape';
 import { NodeData, EdgeData } from '../types/graph';
 import { log } from '../utils/logger';
-import { normalizeHierarchyId, getNodeHierarchyLevel } from '../utils/graphUtils';
+import { getNodeHierarchyLevel } from '../utils/graphUtils';
 
 // Layout algorithm types
 export type LayoutAlgorithm = 
@@ -50,14 +50,157 @@ export interface LayoutConfig {
   maxExecutionTime?: number;
 }
 
-// Default layout configurations - SET HIERARCHICAL AS DEFAULT
+// Layout factory function type
+type LayoutFactory = (cy: Core, config: LayoutConfig, nodes: NodeData[], edges: EdgeData[], hierarchyId: string) => LayoutOptions;
+
+/**
+ * Generate hierarchy-aware grid positions
+ */
+function generateHierarchyGridPositions(nodes: NodeData[], config: LayoutConfig, hierarchyId: string): { [nodeId: string]: { x: number; y: number } } {
+  const nodesByLevel: { [level: number]: NodeData[] } = {};
+  nodes.forEach(node => {
+    const level = getNodeHierarchyLevel(node, hierarchyId);
+    if (!nodesByLevel[level]) {
+      nodesByLevel[level] = [];
+    }
+    nodesByLevel[level].push(node);
+  });
+
+  const positions: { [nodeId: string]: { x: number; y: number } } = {};
+  const gridSpacing = config.gridSpacing || 120;
+  const levelSpacing = config.levelSpacing || 200;
+
+  Object.keys(nodesByLevel).forEach(levelStr => {
+    const level = parseInt(levelStr);
+    const levelNodes = nodesByLevel[level];
+    const nodesPerRow = Math.ceil(Math.sqrt(levelNodes.length));
+    
+    levelNodes.forEach((node, index) => {
+      const row = Math.floor(index / nodesPerRow);
+      const col = index % nodesPerRow;
+      
+      positions[node.id] = {
+        x: level * levelSpacing + col * gridSpacing,
+        y: row * gridSpacing,
+      };
+    });
+  });
+
+  return positions;
+}
+
+/**
+ * Generate stable hierarchy-based positions for preset layout
+ */
+function generateHierarchyPositions(nodes: NodeData[], config: LayoutConfig, hierarchyId: string): { [nodeId: string]: { x: number; y: number } } {
+  const positions: { [nodeId: string]: { x: number; y: number } } = {};
+  const levelCounters: Record<number, number> = {};
+
+  nodes.forEach(node => {
+    const level = getNodeHierarchyLevel(node, hierarchyId);
+    const index = levelCounters[level] || 0;
+    levelCounters[level] = index + 1;
+
+    positions[node.id] = {
+      x: level * (config.levelSpacing || 200),
+      y: index * (config.nodeSpacing || 100),
+    };
+  });
+
+  return positions;
+}
+
+/**
+ * Hierarchy-aware layout factories
+ * Each factory returns a LayoutOptions object configured for the specific algorithm
+ */
+const layoutFactories: Record<LayoutAlgorithm, LayoutFactory> = {
+  hierarchical: (cy, config) => ({
+    name: 'dagre',
+    animate: config.animate,
+    animationDuration: config.animationDuration,
+    directed: true,
+    rankDir: 'TB', // Top to bottom hierarchy
+    align: 'UL', // Upper left alignment
+    ranker: 'longest-path',
+    nodeSep: config.nodeSpacing || 100,
+    rankSep: config.levelSpacing || 200,
+  }),
+
+  'force-directed': (cy, config, nodes, edges, hierarchyId) => ({
+    name: 'cose-bilkent',
+    animate: config.animate,
+    animationDuration: config.animationDuration,
+    nodeRepulsion: config.repulsionStrength || 4500,
+    idealEdgeLength: config.springLength || 50,
+    edgeElasticity: config.forceStrength || 0.45,
+    nestingFactor: 1.2, // Always respect hierarchy in force-directed
+    gravity: 0.25,
+    numIter: 1000,
+    tile: true,
+    randomize: false,
+    refresh: 20,
+    ungrabifyWhileSimulating: false,
+    convergenceThreshold: 0.02,
+    maxSimulationTime: 2000,
+  }),
+
+  circular: (cy, config, nodes, edges, hierarchyId) => ({
+    name: 'concentric',
+    animate: config.animate,
+    animationDuration: config.animationDuration,
+    concentric: (node: NodeSingular) => {
+      const nodeData = node.data() as NodeData;
+      const level = getNodeHierarchyLevel(nodeData, hierarchyId);
+      return 10 - level; // Higher levels get smaller circles (closer to center)
+    },
+    levelWidth: () => 1,
+    minNodeSpacing: config.nodeSpacing || 100,
+  }),
+
+  grid: (cy, config, nodes, edges, hierarchyId) => {
+    const positions = generateHierarchyGridPositions(nodes, config, hierarchyId);
+    return {
+      name: 'preset',
+      animate: config.animate,
+      animationDuration: config.animationDuration,
+      positions,
+    };
+  },
+
+  tree: (cy, config) => ({
+    name: 'breadthfirst',
+    animate: config.animate,
+    animationDuration: config.animationDuration,
+    directed: true,
+    spacingFactor: 1.5,
+    avoidOverlap: true,
+    maximal: false,
+  }),
+
+  manual: () => ({
+    name: 'null',
+  }),
+
+  preset: (cy, config, nodes, edges, hierarchyId) => {
+    const positions = generateHierarchyPositions(nodes, config, hierarchyId);
+    return {
+      name: 'preset',
+      animate: config.animate,
+      animationDuration: config.animationDuration,
+      positions,
+    };
+  },
+};
+
+// Default layout configurations
 const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
   hierarchical: {
     algorithm: 'hierarchical',
     animate: true,
     animationDuration: 300,
     fit: true,
-    padding: 50, // Increased padding for better viewport utilization
+    padding: 50,
     respectHierarchy: true,
     levelSpacing: 200,
     nodeSpacing: 100,
@@ -67,18 +210,18 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 600,
     fit: true,
-    padding: 50, // Increased padding for better viewport utilization
-    respectHierarchy: false,
+    padding: 50,
+    respectHierarchy: true,
     forceStrength: 0.1,
-    repulsionStrength: 1000,
-    springLength: 100,
+    repulsionStrength: 4500,
+    springLength: 50,
   },
   circular: {
     algorithm: 'circular',
     animate: true,
     animationDuration: 400,
     fit: true,
-    padding: 50, // Increased padding for better viewport utilization
+    padding: 50,
     respectHierarchy: true,
     circularRadius: 150,
   },
@@ -87,7 +230,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 300,
     fit: true,
-    padding: 50, // Increased padding for better viewport utilization
+    padding: 50,
     respectHierarchy: true,
     gridSpacing: 120,
   },
@@ -96,7 +239,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 400,
     fit: true,
-    padding: 50, // Increased padding for better viewport utilization
+    padding: 50,
     respectHierarchy: true,
     levelSpacing: 180,
     nodeSpacing: 80,
@@ -106,7 +249,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: false,
     animationDuration: 0,
     fit: false,
-    padding: 50, // Increased padding for consistency
+    padding: 50,
     respectHierarchy: false,
   },
   preset: {
@@ -114,7 +257,7 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     animate: true,
     animationDuration: 200,
     fit: true,
-    padding: 50, // Increased padding for better viewport utilization
+    padding: 50,
     respectHierarchy: true,
     levelSpacing: 200,
     nodeSpacing: 100,
@@ -122,8 +265,72 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
 };
 
 /**
- * Layout Engine Class
- * Manages layout algorithms, position caching, and smooth transitions
+ * Universal layout runner with timeout protection and error handling
+ */
+async function runHierarchyAwareLayout(
+  cy: Core,
+  algorithm: LayoutAlgorithm,
+  config: LayoutConfig,
+  nodes: NodeData[],
+  edges: EdgeData[],
+  hierarchyId: string
+): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const layoutOptions = layoutFactories[algorithm](cy, config, nodes, edges, hierarchyId);
+      const layout = cy.layout(layoutOptions);
+      
+      // Check if layout object has required methods (for test environment compatibility)
+      if (!layout || typeof layout.on !== 'function' || typeof layout.run !== 'function') {
+        log('LayoutEngine', `Layout object missing required methods, applying fallback centering`);
+        cy.center();
+        cy.fit(cy.nodes(), config.padding);
+        resolve();
+        return;
+      }
+      
+      // Universal timeout protection
+      const timeout = setTimeout(() => {
+        if (typeof layout.stop === 'function') {
+          layout.stop();
+        }
+        log('LayoutEngine', `Layout ${layoutOptions.name} timed out after ${config.maxExecutionTime || 5000}ms, applying fallback centering`);
+        cy.center();
+        cy.fit(cy.nodes(), config.padding);
+        resolve();
+      }, config.maxExecutionTime || 5000);
+      
+      // Error handler for layout failures
+      layout.on('layouterror', (error: any) => {
+        clearTimeout(timeout);
+        log('LayoutEngine', `Layout ${layoutOptions.name} error:`, error);
+        cy.center();
+        cy.fit(cy.nodes(), config.padding);
+        resolve();
+      });
+      
+      // Success handler
+      layout.on('layoutstop', () => {
+        clearTimeout(timeout);
+        log('LayoutEngine', `Layout ${layoutOptions.name} completed successfully`);
+        cy.center();
+        cy.fit(cy.nodes(), config.padding);
+        resolve();
+      });
+      
+      log('LayoutEngine', `Starting layout ${layoutOptions.name}`);
+      layout.run();
+    } catch (error) {
+      log('LayoutEngine', `Exception during layout ${algorithm} setup:`, error);
+      cy.center();
+      cy.fit(cy.nodes(), config.padding);
+      resolve();
+    }
+  });
+}
+
+/**
+ * Layout Engine Class - Simplified with factory pattern
  */
 export class LayoutEngine {
   private cy: Core | null = null;
@@ -187,310 +394,21 @@ export class LayoutEngine {
         this.cacheCurrentPositions(targetAlgorithm);
       }
 
-      // Apply the specific layout algorithm
-      switch (targetAlgorithm) {
-        case 'hierarchical':
-          await this.applyHierarchicalLayout(config);
-          break;
-        case 'force-directed':
-          await this.applyForceDirectedLayout(config);
-          break;
-        case 'circular':
-          await this.applyCircularLayout(config);
-          break;
-        case 'grid':
-          await this.applyGridLayout(config);
-          break;
-        case 'tree':
-          await this.applyTreeLayout(config);
-          break;
-        case 'preset':
-          await this.applyPresetLayout(config);
-          break;
-        case 'manual':
-          // Manual layout doesn't change positions automatically
-          break;
-        default:
-          log('LayoutEngine', `Unknown layout algorithm: ${targetAlgorithm}`);
-          return;
-      }
+      // Run the hierarchy-aware layout
+      await runHierarchyAwareLayout(
+        this.cy,
+        targetAlgorithm,
+        config,
+        this.nodes,
+        this.edges,
+        this.hierarchyId
+      );
 
       this.currentConfig = config;
       log('LayoutEngine', `Successfully applied ${targetAlgorithm} layout`);
     } catch (error) {
       log('LayoutEngine', `Error applying ${targetAlgorithm} layout:`, error);
     }
-  }
-
-  /**
-   * Universal layout executor - eliminates code duplication and ensures consistent behavior
-   */
-  private async executeLayout(layoutOptions: any, config: LayoutConfig): Promise<void> {
-    if (!this.cy) return;
-
-    return new Promise((resolve, reject) => {
-      const layout = this.cy!.layout(layoutOptions);
-      
-      // Check if layout object has required methods (for test environment compatibility)
-      if (!layout || typeof layout.on !== 'function' || typeof layout.run !== 'function') {
-        log('LayoutEngine', `Layout object missing required methods, applying fallback centering`);
-        this.centerAndFitGraph();
-        resolve();
-        return;
-      }
-      
-      // Universal timeout protection to prevent hanging
-      const timeout = setTimeout(() => {
-        if (typeof layout.stop === 'function') {
-          layout.stop();
-        }
-        log('LayoutEngine', `Layout ${layoutOptions.name} timed out, stopping`);
-        this.centerAndFitGraph();
-        reject(new Error(`Layout ${layoutOptions.name} execution timeout`));
-      }, config.maxExecutionTime || 5000);
-      
-      layout.on('layoutstop', () => {
-        clearTimeout(timeout);
-        // Single point of centering and fitting
-        this.centerAndFitGraph();
-        resolve();
-      });
-      
-      layout.run();
-    });
-  }
-
-  /**
-   * Apply hierarchical layout using Klay algorithm with hierarchy awareness
-   */
-  private async applyHierarchicalLayout(config: LayoutConfig): Promise<void> {
-    const layoutOptions: any = {
-      name: 'klay',
-      animate: config.animate,
-      animationDuration: config.animationDuration,
-      klay: {
-        direction: 'DOWN',
-        spacing: config.nodeSpacing || 100,
-        layoutHierarchy: config.respectHierarchy,
-        intCoordinates: true,
-        nodePlacement: 'BRANDES_KOEPF',
-        edgeRouting: 'ORTHOGONAL',
-      },
-    };
-
-    return this.executeLayout(layoutOptions, config);
-  }
-
-  /**
-   * Apply force-directed layout with optimized parameters to prevent hanging
-   */
-  private async applyForceDirectedLayout(config: LayoutConfig): Promise<void> {
-    const layoutOptions: any = {
-      name: 'cose-bilkent',
-      animate: config.animate,
-      animationDuration: config.animationDuration,
-      nodeRepulsion: config.repulsionStrength || 4500,
-      idealEdgeLength: config.springLength || 50,
-      edgeElasticity: config.forceStrength || 0.45,
-      nestingFactor: config.respectHierarchy ? 1.2 : 1,
-      gravity: 0.25,
-      numIter: 1000, // Reduced iterations to prevent hanging
-      tile: true,
-      randomize: false,
-      // Simplified simulation parameters
-      refresh: 20, // Reduced refresh rate
-      ungrabifyWhileSimulating: false,
-      // More aggressive stop conditions
-      convergenceThreshold: 0.02, // Less strict convergence
-      maxSimulationTime: 2000, // Shorter maximum time
-    };
-
-    return this.executeLayout(layoutOptions, config);
-  }
-
-  /**
-   * Apply circular layout with hierarchy-based concentric circles
-   */
-  private async applyCircularLayout(config: LayoutConfig): Promise<void> {
-    if (config.respectHierarchy) {
-      // Custom concentric layout based on hierarchy levels
-      await this.applyConcentricLayout(config);
-    } else {
-      // Simple circular layout
-      const layoutOptions: any = {
-        name: 'circle',
-        animate: config.animate,
-        animationDuration: config.animationDuration,
-        radius: config.circularRadius || 150,
-      };
-
-      return this.executeLayout(layoutOptions, config);
-    }
-  }
-
-  /**
-   * Apply concentric circular layout based on hierarchy levels
-   */
-  private async applyConcentricLayout(config: LayoutConfig): Promise<void> {
-    const layoutOptions: any = {
-      name: 'concentric',
-      animate: config.animate,
-      animationDuration: config.animationDuration,
-      concentric: (node: NodeSingular) => {
-        const nodeData = node.data() as NodeData;
-        const level = getNodeHierarchyLevel(nodeData, this.hierarchyId);
-        return 10 - level; // Higher levels get smaller circles (closer to center)
-      },
-      levelWidth: () => 1,
-      minNodeSpacing: config.nodeSpacing || 100,
-    };
-
-    return this.executeLayout(layoutOptions, config);
-  }
-
-  /**
-   * Apply hierarchy-aware grid layout
-   */
-  private async applyGridLayout(config: LayoutConfig): Promise<void> {
-    if (config.respectHierarchy) {
-      // Custom hierarchy-aware grid positioning
-      await this.applyHierarchyGridLayout(config);
-    } else {
-      // Standard grid layout
-      const layoutOptions: any = {
-        name: 'grid',
-        animate: config.animate,
-        animationDuration: config.animationDuration,
-        spacingFactor: (config.gridSpacing || 120) / 100,
-      };
-
-      return this.executeLayout(layoutOptions, config);
-    }
-  }
-
-  /**
-   * Apply custom hierarchy-aware grid layout
-   */
-  private async applyHierarchyGridLayout(config: LayoutConfig): Promise<void> {
-    // Group nodes by hierarchy level
-    const nodesByLevel: { [level: number]: NodeData[] } = {};
-    this.nodes.forEach(node => {
-      const level = getNodeHierarchyLevel(node, this.hierarchyId);
-      if (!nodesByLevel[level]) {
-        nodesByLevel[level] = [];
-      }
-      nodesByLevel[level].push(node);
-    });
-
-    // Generate positions for hierarchy-aware grid
-    const positions: { [nodeId: string]: { x: number; y: number } } = {};
-    const gridSpacing = config.gridSpacing || 120;
-    const levelSpacing = config.levelSpacing || 200;
-
-    Object.keys(nodesByLevel).forEach(levelStr => {
-      const level = parseInt(levelStr);
-      const levelNodes = nodesByLevel[level];
-      const nodesPerRow = Math.ceil(Math.sqrt(levelNodes.length));
-      
-      levelNodes.forEach((node, index) => {
-        const row = Math.floor(index / nodesPerRow);
-        const col = index % nodesPerRow;
-        
-        positions[node.id] = {
-          x: level * levelSpacing + col * gridSpacing,
-          y: row * gridSpacing,
-        };
-      });
-    });
-
-    const layoutOptions: any = {
-      name: 'preset',
-      animate: config.animate,
-      animationDuration: config.animationDuration,
-      positions,
-    };
-
-    return this.executeLayout(layoutOptions, config);
-  }
-
-  /**
-   * Apply hierarchy-aware tree layout using Dagre
-   */
-  private async applyTreeLayout(config: LayoutConfig): Promise<void> {
-    if (config.respectHierarchy) {
-      // Use Dagre for proper hierarchical tree layout
-      const layoutOptions: any = {
-        name: 'dagre',
-        animate: config.animate,
-        animationDuration: config.animationDuration,
-        directed: true,
-        rankDir: 'TB', // Top to bottom
-        align: 'UL', // Upper left alignment
-        ranker: 'longest-path',
-        nodeSep: config.nodeSpacing || 80,
-        rankSep: config.levelSpacing || 180,
-      };
-
-      return this.executeLayout(layoutOptions, config);
-    } else {
-      // Use breadthfirst as fallback
-      const layoutOptions: any = {
-        name: 'breadthfirst',
-        animate: config.animate,
-        animationDuration: config.animationDuration,
-        directed: true,
-        spacingFactor: 1.5,
-        avoidOverlap: true,
-        maximal: false,
-      };
-
-      return this.executeLayout(layoutOptions, config);
-    }
-  }
-
-  /**
-   * Apply preset layout (current implementation) with improved stability
-   */
-  private async applyPresetLayout(config: LayoutConfig): Promise<void> {
-    // Generate stable positions based on hierarchy
-    const positions = this.generateHierarchyPositions(config);
-
-    const layoutOptions: any = {
-      name: 'preset',
-      animate: config.animate,
-      animationDuration: config.animationDuration,
-      positions,
-    };
-
-    return this.executeLayout(layoutOptions, config);
-  }
-
-  /**
-   * Generate stable hierarchy-based positions
-   */
-  private generateHierarchyPositions(config: LayoutConfig): { [nodeId: string]: { x: number; y: number } } {
-    const positions: { [nodeId: string]: { x: number; y: number } } = {};
-    const levelCounters: Record<number, number> = {};
-
-    this.nodes.forEach(node => {
-      const level = getNodeHierarchyLevel(node, this.hierarchyId);
-      const index = levelCounters[level] || 0;
-      levelCounters[level] = index + 1;
-
-      // Check cache for stable positioning
-      const cached = this.positionCache[node.id];
-      if (cached && cached.layoutAlgorithm === 'preset') {
-        positions[node.id] = { x: cached.x, y: cached.y };
-      } else {
-        // Generate new position
-        positions[node.id] = {
-          x: level * (config.levelSpacing || 200),
-          y: index * (config.nodeSpacing || 100),
-        };
-      }
-    });
-
-    return positions;
   }
 
   /**
@@ -530,25 +448,6 @@ export class LayoutEngine {
     }
 
     log('LayoutEngine', `Cached positions for ${Object.keys(this.positionCache).length} nodes`);
-  }
-
-  /**
-   * Center and fit the graph using Cytoscape's built-in methods
-   * This is the slick, simple solution that works with Cytoscape's natural behavior
-   */
-  private centerAndFitGraph(): void {
-    if (!this.cy) return;
-
-    const nodes = this.cy.nodes();
-    if (nodes.length === 0) return;
-
-    log('LayoutEngine', 'Applying center and fit to graph');
-    
-    // Use Cytoscape's built-in centering and fitting
-    this.cy.center(nodes);
-    this.cy.fit(nodes, this.currentConfig.padding);
-    
-    log('LayoutEngine', 'Graph centered and fitted successfully');
   }
 
   /**

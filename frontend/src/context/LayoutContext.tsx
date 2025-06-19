@@ -11,16 +11,16 @@ import { log } from '../utils/logger';
 
 // Layout algorithm display names
 const ALGORITHM_NAMES: Record<LayoutAlgorithm, string> = {
-  hierarchical: 'Hierarchical (Klay)',
+  hierarchical: 'Hierarchical',
   'force-directed': 'Force-Directed',
   circular: 'Circular',
   grid: 'Grid',
   tree: 'Tree',
   manual: 'Manual',
-  preset: 'Preset (Legacy)',
+  preset: 'Preset',
 };
 
-// Default layout configuration - SET HIERARCHICAL AS DEFAULT
+// Default layout configuration - HIERARCHICAL AS DEFAULT
 const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   algorithm: 'hierarchical',
   animate: true,
