@@ -440,3 +440,71 @@ export const buildSchemaModalHeaderStyle = () => css({
 export const buildSchemaCodeBlockStyle = () => css({
   ...theme.components.adminModal.schema.codeBlock,
 });
+
+/**
+ * Shared utilities for standard modal patterns
+ */
+
+/**
+ * Builds standard modal styles used by SettingsModal and AdminModal
+ */
+export const buildStandardModalStyle = () => css({
+  background: theme.components.modal.background,
+  borderRadius: theme.components.standardModal.borderRadius,
+  width: theme.components.standardModal.width,
+  height: theme.components.standardModal.height,
+  overflow: 'hidden',
+  boxShadow: theme.components.standardModal.shadow,
+  display: 'flex',
+  flexDirection: 'column' as const,
+});
+
+/**
+ * Builds scrollbar styles for modal content areas
+ * Returns both the className and the CSS string for <style> tags
+ */
+export const buildScrollbarStyle = (className: string = 'modal-content') => {
+  const styles = {
+    scrollbarWidth: 'thin' as const,
+    scrollbarColor: '#9ca3af #f3f4f6',
+  };
+
+  const cssString = `
+    .${className} {
+      /* Webkit browsers (Chrome, Safari, Edge) */
+      scrollbar-width: thin;
+      scrollbar-color: #9ca3af #f3f4f6;
+    }
+    
+    .${className}::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .${className}::-webkit-scrollbar-track {
+      background: #f3f4f6;
+      border-radius: 4px;
+    }
+    
+    .${className}::-webkit-scrollbar-thumb {
+      background: #9ca3af;
+      border-radius: 4px;
+      transition: background 0.2s ease;
+    }
+    
+    .${className}::-webkit-scrollbar-thumb:hover {
+      background: #6b7280;
+    }
+    
+    /* Firefox */
+    .${className} {
+      scrollbar-width: thin;
+      scrollbar-color: #9ca3af #f3f4f6;
+    }
+  `;
+
+  return {
+    styles,
+    cssString,
+    className,
+  };
+};

@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { useUIContext } from '../hooks/useUI';
 import { SystemStatus } from '../types/system';
+import ModalOverlay from './ModalOverlay';
+import ModalContainer, { ModalHeader, ModalContent } from './ModalContainer';
+import TabNavigation, { Tab } from './TabNavigation';
+import { buildStandardModalStyle, buildScrollbarStyle } from '../utils/styleUtils';
 
 interface StatusIconProps {
   isActive: boolean;
@@ -195,100 +199,34 @@ const SettingsModal: React.FC = () => {
   const { settingsModalOpen, closeSettingsModal, systemStatus } = useUIContext();
   const [activeTab, setActiveTab] = useState('features');
 
-  if (!settingsModalOpen) return null;
+  const tabs: Tab[] = [
+    { id: 'hierarchy', label: 'Hierarchy' },
+    { id: 'features', label: 'Features' },
+  ];
+
+  const scrollbarConfig = buildScrollbarStyle('settings-modal-content');
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0,0,0,0.3)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 2000,
-    }}>
-      <div style={{
-        background: '#fff',
-        borderRadius: 8,
-        width: 600,
-        height: '70vh',
-        overflow: 'hidden',
-        boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
-        {/* Modal Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '20px 24px',
-          borderBottom: '1px solid #e5e7eb',
-        }}>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Settings</h2>
-          <button
-            onClick={closeSettingsModal}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: 24,
-              cursor: 'pointer',
-              color: '#6b7280',
-              padding: 4,
-              lineHeight: 1,
-            }}
-            aria-label="Close Settings"
-          >
-            ×
-          </button>
-        </div>
+    <ModalOverlay isOpen={settingsModalOpen} onClose={closeSettingsModal}>
+      <ModalContainer 
+        width={600}
+        height="70vh"
+      >
+        <ModalHeader 
+          title="Settings" 
+          onClose={closeSettingsModal}
+        />
         
-        {/* Tab Navigation */}
-        <div style={{
-          display: 'flex',
-          borderBottom: '1px solid #e5e7eb',
-        }}>
-          <button
-            onClick={() => setActiveTab('hierarchy')}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              border: 'none',
-              background: activeTab === 'hierarchy' ? '#f3f4f6' : 'transparent',
-              cursor: 'pointer',
-              fontWeight: activeTab === 'hierarchy' ? 600 : 400,
-              borderBottom: activeTab === 'hierarchy' ? '2px solid #3b82f6' : '2px solid transparent',
-            }}
-          >
-            Hierarchy
-          </button>
-          <button
-            onClick={() => setActiveTab('features')}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              border: 'none',
-              background: activeTab === 'features' ? '#f3f4f6' : 'transparent',
-              cursor: 'pointer',
-              fontWeight: activeTab === 'features' ? 600 : 400,
-              borderBottom: activeTab === 'features' ? '2px solid #3b82f6' : '2px solid transparent',
-            }}
-          >
-            Features
-          </button>
-        </div>
+        <TabNavigation 
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          variant="default"
+        />
         
-        {/* Tab Content */}
-        <div 
-          style={{ 
-            flex: 1, 
-            overflow: 'auto',
-            position: 'relative'
-          }}
-          className="settings-modal-content"
+        <ModalContent 
+          padding={false}
+          className={scrollbarConfig.className}
         >
           {activeTab === 'hierarchy' && (
             <div style={{ padding: 20, textAlign: 'center', color: '#6b7280' }}>
@@ -299,43 +237,12 @@ const SettingsModal: React.FC = () => {
           {activeTab === 'features' && (
             <FeaturesTab systemStatus={systemStatus} />
           )}
-        </div>
+        </ModalContent>
         
-        {/* Styled scrollbar CSS */}
-        <style>{`
-          .settings-modal-content {
-            /* Webkit browsers (Chrome, Safari, Edge) */
-            scrollbar-width: thin;
-            scrollbar-color: #9ca3af #f3f4f6;
-          }
-          
-          .settings-modal-content::-webkit-scrollbar {
-            width: 8px;
-          }
-          
-          .settings-modal-content::-webkit-scrollbar-track {
-            background: #f3f4f6;
-            border-radius: 4px;
-          }
-          
-          .settings-modal-content::-webkit-scrollbar-thumb {
-            background: #9ca3af;
-            border-radius: 4px;
-            transition: background 0.2s ease;
-          }
-          
-          .settings-modal-content::-webkit-scrollbar-thumb:hover {
-            background: #6b7280;
-          }
-          
-          /* Firefox */
-          .settings-modal-content {
-            scrollbar-width: thin;
-            scrollbar-color: #9ca3af #f3f4f6;
-          }
-        `}</style>
-      </div>
-    </div>
+        {/* Shared scrollbar CSS */}
+        <style>{scrollbarConfig.cssString}</style>
+      </ModalContainer>
+    </ModalOverlay>
   );
 };
 

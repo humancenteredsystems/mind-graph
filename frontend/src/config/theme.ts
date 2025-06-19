@@ -239,6 +239,14 @@ export const theme = {
       padding: spacing.scale(5), // 20px
     },
     
+    // Standard modal dimensions used by SettingsModal and AdminModal
+    standardModal: {
+      width: 600,
+      height: '70vh',
+      shadow: '0 10px 25px rgba(0,0,0,0.2)',
+      borderRadius: radius.lg,
+    },
+    
     drawer: {
       background: colors.legacy.white,
       border: colors.gray[300],
@@ -396,7 +404,7 @@ export const theme = {
           padding: '8px 16px',
           border: 'none',
           borderRadius: radius.sm,
-          fontSize: fontSize.xs,
+          fontSize: 12,
           fontWeight: 500,
           cursor: 'pointer',
         },

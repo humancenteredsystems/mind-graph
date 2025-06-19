@@ -352,31 +352,16 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
     <div style={{ padding: 20 }}>
       <div style={{ marginBottom: 20 }}>
         <h4 style={{ margin: '0 0 12px 0', color: '#374151' }}>Start Tests</h4>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={theme.components.adminModal.tests.buttonGroup}>
           {(['unit', 'integration', 'integration-real'] as const).map((type) => {
             const buttonState = getButtonState(type);
-            const colors = {
-              unit: '#10b981',
-              integration: '#3b82f6',
-              'integration-real': '#dc2626'
-            };
             
             return (
               <button
                 key={type}
                 onClick={() => startTest(type)}
                 disabled={buttonState.disabled}
-                style={{
-                  padding: '8px 16px',
-                  background: colors[type],
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 4,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: buttonState.disabled ? 'not-allowed' : 'pointer',
-                  opacity: buttonState.opacity,
-                }}
+                style={buildTestButtonStyle(type, buttonState.disabled)}
               >
                 {buttonState.text}
               </button>
@@ -390,17 +375,7 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
               <button
                 onClick={startLinting}
                 disabled={lintingButtonState.disabled}
-                style={{
-                  padding: '8px 16px',
-                  background: '#f59e0b',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 4,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: lintingButtonState.disabled ? 'not-allowed' : 'pointer',
-                  opacity: lintingButtonState.opacity,
-                }}
+                style={buildTestButtonStyle('linting', lintingButtonState.disabled)}
               >
                 {lintingButtonState.text}
               </button>
