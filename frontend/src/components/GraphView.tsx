@@ -602,6 +602,35 @@ const GraphView: React.FC<GraphViewProps> = ({
     applyLayout();
   }, [elements, hierarchyId, nodes, edges, layoutEngine, applyLayout]);
 
+  // Live force-directed layout during node dragging
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    const handleNodeGrab = () => {
+      if (currentAlgorithm === 'force-directed') {
+        log('GraphView', 'Starting live force-directed layout on node grab');
+        applyLayout(undefined, { liveUpdate: true });
+      }
+    };
+
+    const handleNodeFree = () => {
+      if (currentAlgorithm === 'force-directed') {
+        log('GraphView', 'Stopping live force-directed layout on node free');
+        // Stop live update and apply final layout
+        applyLayout();
+      }
+    };
+
+    cy.on('grab', 'node', handleNodeGrab);
+    cy.on('free', 'node', handleNodeFree);
+
+    return () => {
+      cy.off('grab', 'node', handleNodeGrab);
+      cy.off('free', 'node', handleNodeFree);
+    };
+  }, [currentAlgorithm, applyLayout]);
+
     // Track selection order for multi-node operations
   useEffect(() => {
     const cy = cyRef.current;

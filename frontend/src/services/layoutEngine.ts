@@ -12,13 +12,12 @@ import { getNodeHierarchyLevel } from '../utils/graphUtils';
 
 // Layout algorithm types
 export type LayoutAlgorithm = 
+  | 'tree'
   | 'hierarchical'
   | 'force-directed' 
   | 'circular'
   | 'grid'
-  | 'tree'
-  | 'manual'
-  | 'preset';
+  | 'deterministic';
 
 // Position cache for maintaining stability
 interface PositionCache {
@@ -48,6 +47,8 @@ export interface LayoutConfig {
   circularRadius?: number;
   gridSpacing?: number;
   maxExecutionTime?: number;
+  // Live update for continuous simulation
+  liveUpdate?: boolean;
 }
 
 // Layout factory function type
@@ -142,7 +143,8 @@ const layoutFactories: Record<LayoutAlgorithm, LayoutFactory> = {
     refresh: 20,
     ungrabifyWhileSimulating: false,
     convergenceThreshold: 0.02,
-    maxSimulationTime: 2000,
+    maxSimulationTime: config.liveUpdate ? Infinity : 2000,
+    liveUpdate: config.liveUpdate || false,
   }),
 
   circular: (cy, config, nodes, edges, hierarchyId) => ({
@@ -178,11 +180,7 @@ const layoutFactories: Record<LayoutAlgorithm, LayoutFactory> = {
     maximal: false,
   }),
 
-  manual: () => ({
-    name: 'null',
-  }),
-
-  preset: (cy, config, nodes, edges, hierarchyId) => {
+  deterministic: (cy, config, nodes, edges, hierarchyId) => {
     const positions = generateHierarchyPositions(nodes, config, hierarchyId);
     return {
       name: 'preset',
@@ -195,6 +193,16 @@ const layoutFactories: Record<LayoutAlgorithm, LayoutFactory> = {
 
 // Default layout configurations
 const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
+  tree: {
+    algorithm: 'tree',
+    animate: true,
+    animationDuration: 400,
+    fit: true,
+    padding: 50,
+    respectHierarchy: true,
+    levelSpacing: 180,
+    nodeSpacing: 80,
+  },
   hierarchical: {
     algorithm: 'hierarchical',
     animate: true,
@@ -234,26 +242,8 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
     respectHierarchy: true,
     gridSpacing: 120,
   },
-  tree: {
-    algorithm: 'tree',
-    animate: true,
-    animationDuration: 400,
-    fit: true,
-    padding: 50,
-    respectHierarchy: true,
-    levelSpacing: 180,
-    nodeSpacing: 80,
-  },
-  manual: {
-    algorithm: 'manual',
-    animate: false,
-    animationDuration: 0,
-    fit: false,
-    padding: 50,
-    respectHierarchy: false,
-  },
-  preset: {
-    algorithm: 'preset',
+  deterministic: {
+    algorithm: 'deterministic',
     animate: true,
     animationDuration: 200,
     fit: true,
@@ -339,11 +329,12 @@ export class LayoutEngine {
   private hierarchyId: string = '';
   private nodes: NodeData[] = [];
   private edges: EdgeData[] = [];
+  private currentLayout: any = null; // Track current layout instance for live updates
 
   constructor(initialConfig?: Partial<LayoutConfig>) {
-    // Default to hierarchical layout
+    // Default to tree layout
     this.currentConfig = {
-      ...DEFAULT_CONFIGS.hierarchical,
+      ...DEFAULT_CONFIGS.tree,
       ...initialConfig,
     } as LayoutConfig;
   }
@@ -357,6 +348,33 @@ export class LayoutEngine {
     this.nodes = nodes;
     this.edges = edges;
     log('LayoutEngine', `Initialized with ${nodes.length} nodes, ${edges.length} edges`);
+  }
+
+  /**
+   * Helper method to create and manage layout instances
+   */
+  private createLayout(options: LayoutOptions): any {
+    if (!this.cy) return null;
+    
+    // Stop any existing layout first
+    this.stopCurrentLayout();
+    
+    // Create new layout instance
+    const layout = this.cy.layout(options);
+    this.currentLayout = layout;
+    
+    return layout;
+  }
+
+  /**
+   * Stop the current layout if it exists
+   */
+  private stopCurrentLayout(): void {
+    if (this.currentLayout && typeof this.currentLayout.stop === 'function') {
+      this.currentLayout.stop();
+      log('LayoutEngine', 'Stopped current layout');
+    }
+    this.currentLayout = null;
   }
 
   /**
@@ -376,14 +394,11 @@ export class LayoutEngine {
       algorithm: targetAlgorithm,
     } as LayoutConfig;
 
-    log('LayoutEngine', `Applying ${targetAlgorithm} layout`);
+    log('LayoutEngine', `Applying ${targetAlgorithm} layout${config.liveUpdate ? ' (live update)' : ''}`);
 
     try {
       // Stop any running layouts first
-      const nullLayout = this.cy.layout({ name: 'null' });
-      if (nullLayout && typeof nullLayout.stop === 'function') {
-        nullLayout.stop();
-      }
+      this.stopCurrentLayout();
       
       // Clear position cache when switching algorithms for fresh start
       if (targetAlgorithm !== this.currentConfig.algorithm) {
@@ -394,15 +409,27 @@ export class LayoutEngine {
         this.cacheCurrentPositions(targetAlgorithm);
       }
 
-      // Run the hierarchy-aware layout
-      await runHierarchyAwareLayout(
-        this.cy,
-        targetAlgorithm,
-        config,
-        this.nodes,
-        this.edges,
-        this.hierarchyId
-      );
+      // Handle live update mode for force-directed layout
+      if (config.liveUpdate && targetAlgorithm === 'force-directed') {
+        const layoutOptions = layoutFactories[targetAlgorithm](this.cy, config, this.nodes, this.edges, this.hierarchyId);
+        const layout = this.createLayout(layoutOptions);
+        
+        if (layout && typeof layout.run === 'function') {
+          log('LayoutEngine', 'Starting live force-directed layout');
+          layout.run();
+          // Don't await - let it run continuously
+        }
+      } else {
+        // Run standard one-shot layout
+        await runHierarchyAwareLayout(
+          this.cy,
+          targetAlgorithm,
+          config,
+          this.nodes,
+          this.edges,
+          this.hierarchyId
+        );
+      }
 
       this.currentConfig = config;
       log('LayoutEngine', `Successfully applied ${targetAlgorithm} layout`);
@@ -487,5 +514,5 @@ export class LayoutEngine {
   }
 }
 
-// Export singleton instance with hierarchical as default
-export const layoutEngine = new LayoutEngine({ algorithm: 'hierarchical' });
+// Export singleton instance with tree as default
+export const layoutEngine = new LayoutEngine({ algorithm: 'tree' });

@@ -11,18 +11,17 @@ import { log } from '../utils/logger';
 
 // Layout algorithm display names
 const ALGORITHM_NAMES: Record<LayoutAlgorithm, string> = {
+  tree: 'Tree',
   hierarchical: 'Hierarchical',
   'force-directed': 'Force-Directed',
   circular: 'Circular',
   grid: 'Grid',
-  tree: 'Tree',
-  manual: 'Manual',
-  preset: 'Preset',
+  deterministic: 'Deterministic',
 };
 
-// Default layout configuration - HIERARCHICAL AS DEFAULT
+// Default layout configuration - TREE AS DEFAULT
 const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
-  algorithm: 'hierarchical',
+  algorithm: 'tree',
   animate: true,
   animationDuration: 300,
   fit: true,
@@ -74,7 +73,8 @@ export const LayoutProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
   
   const [isLayouting, setIsLayouting] = useState(false);
-  const availableAlgorithms = LayoutEngine.getAvailableAlgorithms();
+  // Override the order to match requested sequence: Tree, Hierarchical, Force-Directed, Circular, Grid, Deterministic
+  const availableAlgorithms: LayoutAlgorithm[] = ['tree', 'hierarchical', 'force-directed', 'circular', 'grid', 'deterministic'];
 
   // Persist config changes to localStorage
   useEffect(() => {

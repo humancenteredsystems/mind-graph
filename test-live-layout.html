@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Force-Directed Layout Test</title>
+    <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
+    <style>
+        #cy {
+            width: 800px;
+            height: 600px;
+            border: 1px solid #ccc;
+            margin: 20px;
+        }
+        .controls {
+            margin: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button onclick="startLiveLayout()">Start Live Force-Directed</button>
+        <button onclick="stopLiveLayout()">Stop Live Layout</button>
+        <button onclick="testDrag()">Test Drag Simulation</button>
+    </div>
+    <div id="cy"></div>
+
+    <script>
+        let cy;
+        let currentLayout = null;
+
+        // Initialize Cytoscape
+        cy = cytoscape({
+            container: document.getElementById('cy'),
+            elements: [
+                // Nodes
+                { data: { id: 'a' } },
+                { data: { id: 'b' } },
+                { data: { id: 'c' } },
+                { data: { id: 'd' } },
+                { data: { id: 'e' } },
+                
+                // Edges
+                { data: { id: 'ab', source: 'a', target: 'b' } },
+                { data: { id: 'bc', source: 'b', target: 'c' } },
+                { data: { id: 'cd', source: 'c', target: 'd' } },
+                { data: { id: 'de', source: 'd', target: 'e' } },
+                { data: { id: 'ae', source: 'a', target: 'e' } }
+            ],
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'background-color': '#666',
+                        'label': 'data(id)',
+                        'width': 40,
+                        'height': 40
+                    }
+                },
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 2,
+                        'line-color': '#ccc',
+                        'target-arrow-color': '#ccc',
+                        'target-arrow-shape': 'triangle'
+                    }
+                }
+            ]
+        });
+
+        function startLiveLayout() {
+            console.log('Starting live force-directed layout');
+            
+            if (currentLayout) {
+                currentLayout.stop();
+            }
+            
+            currentLayout = cy.layout({
+                name: 'cose-bilkent',
+                animate: true,
+                animationDuration: 1000,
+                nodeRepulsion: 4500,
+                idealEdgeLength: 50,
+                edgeElasticity: 0.45,
+                nestingFactor: 1.2,
+                gravity: 0.25,
+                numIter: 1000,
+                tile: true,
+                randomize: false,
+                refresh: 20,
+                ungrabifyWhileSimulating: false,
+                convergenceThreshold: 0.02,
+                maxSimulationTime: Infinity, // Live update
+                liveUpdate: true
+            });
+            
+            currentLayout.run();
+        }
+
+        function stopLiveLayout() {
+            console.log('Stopping live layout');
+            if (currentLayout) {
+                currentLayout.stop();
+                currentLayout = null;
+            }
+        }
+
+        function testDrag() {
+            console.log('Testing drag behavior');
+            
+            // Set up drag event handlers
+            cy.on('grab', 'node', function(evt) {
+                console.log('Node grabbed:', evt.target.id());
+                startLiveLayout();
+            });
+            
+            cy.on('free', 'node', function(evt) {
+                console.log('Node released:', evt.target.id());
+                stopLiveLayout();
+                
+                // Apply final layout
+                setTimeout(() => {
+                    const finalLayout = cy.layout({
+                        name: 'cose-bilkent',
+                        animate: true,
+                        animationDuration: 500,
+                        nodeRepulsion: 4500,
+                        idealEdgeLength: 50,
+                        edgeElasticity: 0.45,
+                        nestingFactor: 1.2,
+                        gravity: 0.25,
+                        numIter: 1000,
+                        tile: true,
+                        randomize: false,
+                        refresh: 20,
+                        ungrabifyWhileSimulating: false,
+                        convergenceThreshold: 0.02,
+                        maxSimulationTime: 2000
+                    });
+                    finalLayout.run();
+                }, 100);
+            });
+            
+            alert('Drag event handlers set up. Try dragging a node!');
+        }
+
+        // Initial layout
+        cy.layout({
+            name: 'cose-bilkent',
+            animate: true,
+            animationDuration: 1000
+        }).run();
+    </script>
+</body>
+</html>

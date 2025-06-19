@@ -333,13 +333,12 @@ const layoutFactories: Record<LayoutAlgorithm, LayoutFactory> = {
 
 ### Available Layout Algorithms
 
-1. **Hierarchical (Default)** - Uses Dagre for top-down tree layout
-2. **Force-Directed** - Physics-based layout with hierarchy influence
-3. **Circular** - Concentric circles based on hierarchy levels
-4. **Grid** - Grid arrangement grouped by hierarchy levels
-5. **Tree** - Breadth-first tree layout
-6. **Manual** - No automatic positioning
-7. **Preset** - Custom positioned layout with hierarchy spacing
+1. **Tree (Default)** - Breadth-first tree layout with hierarchy awareness
+2. **Hierarchical** - Uses Dagre for top-down directed tree layout
+3. **Force-Directed** - Physics-based layout with hierarchy influence and live update support
+4. **Circular** - Concentric circles based on hierarchy levels
+5. **Grid** - Grid arrangement grouped by hierarchy levels
+6. **Deterministic** - Custom positioned layout with stable hierarchy spacing
 
 ### Hierarchy-Aware Features
 
@@ -411,6 +410,51 @@ To add a new layout algorithm:
      // ... existing names
    }
    ```
+
+### Live Force-Directed Layout
+
+The force-directed layout supports real-time continuous simulation during node dragging for enhanced interactivity.
+
+**How It Works:**
+- When a node is grabbed (dragged) in force-directed mode, the layout engine automatically switches to live update mode
+- Neighbor nodes continuously reposition themselves in real-time as the dragged node moves
+- When the node is released, the live simulation stops and a final layout pass settles the positions
+
+**Implementation Details:**
+```typescript
+// LayoutConfig interface includes liveUpdate flag
+interface LayoutConfig {
+  // ... other properties
+  liveUpdate?: boolean; // Enable continuous simulation
+}
+
+// Force-directed factory respects liveUpdate flag
+'force-directed': (cy, config, nodes, edges, hierarchyId) => ({
+  name: 'cose-bilkent',
+  // ... other options
+  maxSimulationTime: config.liveUpdate ? Infinity : 2000,
+  liveUpdate: config.liveUpdate || false,
+})
+
+// GraphView handles drag events
+cy.on('grab', 'node', () => {
+  if (currentAlgorithm === 'force-directed') {
+    applyLayout(undefined, { liveUpdate: true });
+  }
+});
+
+cy.on('free', 'node', () => {
+  if (currentAlgorithm === 'force-directed') {
+    applyLayout(); // Stop live update and settle
+  }
+});
+```
+
+**Benefits:**
+- **Interactive:** Real-time visual feedback during node manipulation
+- **Intuitive:** Natural physics-based neighbor repositioning
+- **Performance:** Only active during drag operations
+- **Seamless:** Automatic activation/deactivation based on user interaction
 
 ### Benefits of This Architecture
 
