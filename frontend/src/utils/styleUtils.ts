@@ -215,3 +215,228 @@ export const buildContextMenuShortcutStyle = () => css({
   fontSize: theme.components.contextMenu.item.fontSize,
   color: theme.components.contextMenu.item.shortcutColor,
 });
+
+/**
+ * AdminModal specific style utilities
+ */
+
+/**
+ * Builds AdminModal container styles
+ */
+export const buildAdminModalStyle = () => css({
+  position: 'fixed' as const,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: theme.components.adminModal.overlay,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: theme.zIndex.modal,
+});
+
+/**
+ * Builds AdminModal content styles
+ */
+export const buildAdminModalContentStyle = () => css({
+  background: theme.components.adminModal.background,
+  borderRadius: theme.components.adminModal.borderRadius,
+  width: theme.components.adminModal.width,
+  height: theme.components.adminModal.height,
+  overflow: 'hidden',
+  boxShadow: theme.components.adminModal.shadow,
+  display: 'flex',
+  flexDirection: 'column' as const,
+});
+
+/**
+ * Builds AdminModal header styles
+ */
+export const buildAdminModalHeaderStyle = () => css({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: theme.components.adminModal.header.padding,
+  borderBottom: `1px solid ${theme.components.adminModal.header.borderBottom}`,
+});
+
+/**
+ * Builds AdminModal tab styles
+ */
+export const buildAdminTabStyle = (isActive: boolean) => css({
+  flex: 1,
+  padding: '12px 16px',
+  border: 'none',
+  background: isActive 
+    ? theme.components.adminModal.tab.active.background 
+    : theme.components.adminModal.tab.inactive.background,
+  cursor: 'pointer',
+  fontWeight: isActive 
+    ? theme.components.adminModal.tab.active.fontWeight 
+    : theme.components.adminModal.tab.inactive.fontWeight,
+  borderBottom: `2px solid ${isActive 
+    ? theme.components.adminModal.tab.active.borderColor 
+    : theme.components.adminModal.tab.inactive.borderColor}`,
+});
+
+/**
+ * Builds test button styles with type-specific colors
+ */
+export const buildTestButtonStyle = (
+  type: 'unit' | 'integration' | 'integration-real' | 'linting',
+  isRunning: boolean = false
+) => css({
+  ...theme.components.adminModal.tests.button,
+  background: theme.colors.admin.test[type],
+  color: theme.colors.text.inverse,
+  opacity: isRunning ? 0.6 : 1,
+  cursor: isRunning ? 'not-allowed' : 'pointer',
+});
+
+/**
+ * Builds tenant action button styles
+ */
+export const buildTenantActionButtonStyle = (
+  variant: 'clearData' | 'clearSchema' | 'pushSchema' | 'seedData' | 'reset' | 'delete',
+  disabled: boolean = false
+) => css({
+  ...theme.components.adminModal.tenants.actionButton,
+  background: disabled 
+    ? theme.colors.admin.button.disabled 
+    : theme.colors.admin.tenant[variant],
+  color: theme.colors.text.inverse,
+  opacity: disabled ? 0.6 : 1,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+});
+
+/**
+ * Builds status badge styles for test results and tenant health
+ */
+export const buildStatusBadgeStyle = (
+  status: 'running' | 'completed' | 'failed' | 'healthy' | 'not-accessible' | 'error' | 'unknown'
+) => {
+  const getStatusColors = (status: string) => {
+    switch (status) {
+      case 'running':
+        return {
+          background: theme.colors.admin.test.running,
+          color: theme.colors.admin.test.runningText,
+        };
+      case 'completed':
+        return {
+          background: theme.colors.admin.test.completed,
+          color: theme.colors.admin.test.completedText,
+        };
+      case 'failed':
+        return {
+          background: theme.colors.admin.test.failed,
+          color: theme.colors.admin.test.failedText,
+        };
+      case 'healthy':
+        return {
+          background: theme.colors.admin.tenant.healthy,
+          color: theme.colors.admin.tenant.healthyText,
+        };
+      case 'not-accessible':
+      case 'error':
+        return {
+          background: theme.colors.admin.tenant.notAccessible,
+          color: theme.colors.admin.tenant.notAccessibleText,
+        };
+      case 'unknown':
+      default:
+        return {
+          background: theme.colors.admin.tenant.unknown,
+          color: theme.colors.admin.tenant.unknownText,
+        };
+    }
+  };
+
+  const colors = getStatusColors(status);
+  
+  return css({
+    padding: '2px 8px',
+    borderRadius: 12,
+    fontSize: 12,
+    fontWeight: 500,
+    background: colors.background,
+    color: colors.color,
+  });
+};
+
+/**
+ * Builds error message styles for AdminModal
+ */
+export const buildAdminErrorStyle = () => css({
+  marginBottom: 16,
+  padding: 12,
+  background: theme.colors.admin.error.background,
+  border: `1px solid ${theme.colors.admin.error.border}`,
+  borderRadius: 4,
+  color: theme.colors.admin.error.text,
+  fontSize: 14,
+});
+
+/**
+ * Builds AdminModal login form styles
+ */
+export const buildAdminLoginContainerStyle = () => css({
+  ...theme.components.adminModal.login.container,
+});
+
+export const buildAdminLoginInputStyle = (disabled: boolean = false) => css({
+  ...theme.components.adminModal.login.input,
+  opacity: disabled ? 0.6 : 1,
+});
+
+export const buildAdminLoginSubmitStyle = (disabled: boolean = false) => css({
+  ...theme.components.adminModal.login.submitButton,
+  background: disabled 
+    ? theme.colors.admin.button.disabled 
+    : theme.colors.admin.button.primary,
+  color: theme.colors.text.inverse,
+  opacity: disabled ? 0.6 : 1,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+});
+
+/**
+ * Builds schema modal styles
+ */
+export const buildSchemaModalOverlayStyle = () => css({
+  position: 'fixed' as const,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: theme.components.adminModal.schema.overlay,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 3000,
+});
+
+export const buildSchemaModalContentStyle = () => css({
+  background: theme.components.adminModal.schema.background,
+  borderRadius: theme.components.adminModal.schema.borderRadius,
+  width: theme.components.adminModal.schema.width,
+  maxWidth: theme.components.adminModal.schema.maxWidth,
+  height: theme.components.adminModal.schema.height,
+  overflow: 'hidden',
+  boxShadow: theme.components.adminModal.schema.shadow,
+  display: 'flex',
+  flexDirection: 'column' as const,
+});
+
+export const buildSchemaModalHeaderStyle = () => css({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: theme.components.adminModal.schema.header.padding,
+  borderBottom: theme.components.adminModal.schema.header.borderBottom,
+  background: theme.components.adminModal.schema.header.background,
+});
+
+export const buildSchemaCodeBlockStyle = () => css({
+  ...theme.components.adminModal.schema.codeBlock,
+});

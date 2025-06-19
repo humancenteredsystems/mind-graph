@@ -1,6 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useUIContext } from '../hooks/useUI';
 import * as ApiService from '../services/ApiService';
+import {
+  buildAdminModalStyle,
+  buildAdminModalContentStyle,
+  buildAdminModalHeaderStyle,
+  buildAdminTabStyle,
+  buildAdminLoginContainerStyle,
+  buildAdminLoginInputStyle,
+  buildAdminLoginSubmitStyle,
+  buildAdminErrorStyle,
+  buildTestButtonStyle,
+  buildTenantActionButtonStyle,
+} from '../utils/styleUtils';
+import { theme } from '../config/theme';
+import ModalOverlay from './ModalOverlay';
+import ModalContainer, { ModalHeader, ModalContent } from './ModalContainer';
+import TabNavigation, { Tab } from './TabNavigation';
+import StatusBadge, { StatusIcon } from './StatusBadge';
 
 interface AdminLoginFormProps {
   onLogin: (key: string) => void;
@@ -27,48 +44,27 @@ const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onLogin, error }) => {
   };
 
   return (
-    <div style={{ padding: 40, textAlign: 'center' }}>
-      <h3 style={{ margin: '0 0 20px 0', color: '#374151' }}>Admin Authentication</h3>
-      <p style={{ margin: '0 0 30px 0', color: '#6b7280', fontSize: 14 }}>
+    <div style={buildAdminLoginContainerStyle()}>
+      <h3 style={theme.components.adminModal.login.title}>Admin Authentication</h3>
+      <p style={theme.components.adminModal.login.subtitle}>
         Enter the admin API key to access admin tools
       </p>
       
       <form onSubmit={handleSubmit}>
-        <div style={{ position: 'relative', marginBottom: 16 }}>
+        <div style={theme.components.adminModal.login.inputContainer}>
           <input
             type={showPassword ? 'text' : 'password'}
             value={adminKey}
             onChange={(e) => setAdminKey(e.target.value)}
             placeholder="Admin API Key"
-            style={{
-              width: '100%',
-              padding: '12px 40px 12px 16px',
-              border: '1px solid #d1d5db',
-              borderRadius: 6,
-              fontSize: 14,
-              boxSizing: 'border-box'
-            }}
+            style={buildAdminLoginInputStyle(isLoading)}
             disabled={isLoading}
             autoFocus
           />
           <button
             type="button"
             onClick={togglePasswordVisibility}
-            style={{
-              position: 'absolute',
-              right: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: '#6b7280',
-              fontSize: 16,
-              padding: 4,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            style={theme.components.adminModal.login.toggleButton}
             disabled={isLoading}
             title={showPassword ? 'Hide password' : 'Show password'}
           >
@@ -77,15 +73,7 @@ const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onLogin, error }) => {
         </div>
         
         {error && (
-          <div style={{
-            marginBottom: 16,
-            padding: 12,
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
-            borderRadius: 4,
-            color: '#dc2626',
-            fontSize: 14,
-          }}>
+          <div style={buildAdminErrorStyle()}>
             {error}
           </div>
         )}
@@ -93,17 +81,7 @@ const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onLogin, error }) => {
         <button
           type="submit"
           disabled={!adminKey.trim() || isLoading}
-          style={{
-            width: '100%',
-            padding: '12px 16px',
-            background: !adminKey.trim() || isLoading ? '#9ca3af' : '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: !adminKey.trim() || isLoading ? 'not-allowed' : 'pointer',
-          }}
+          style={buildAdminLoginSubmitStyle(!adminKey.trim() || isLoading)}
         >
           {isLoading ? 'Authenticating...' : 'Login'}
         </button>
@@ -878,32 +856,6 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
     }
   };
 
-  const fullReset = async (tenantId: string) => {
-    if (!confirm(`Are you sure you want to perform a FULL RESET of tenant "${tenantId}"? This will:\n\n1. Clear all data\n2. Push fresh default schema\n3. Seed test data\n\nThis cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const result = await ApiService.fullTenantReset(tenantId, adminKey, true);
-      
-      if (result.success) {
-        console.log('Full reset completed:', result.steps);
-        await loadTenants(); // Refresh the list
-        setError(null);
-      } else {
-        setError(`Full reset failed: ${result.message}`);
-        console.error('Full reset errors:', result.errors);
-      }
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { error?: string } }; message?: string };
-      const errorMessage = err?.response?.data?.error || err?.message || `Failed to perform full reset for tenant ${tenantId}`;
-      setError(errorMessage);
-      console.error('Error performing full reset:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   useEffect(() => {
     loadSystemStatus();
@@ -1431,36 +1383,10 @@ const AdminModal: React.FC = () => {
   if (!adminModalOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0,0,0,0.3)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 2000,
-    }}>
-      <div style={{
-        background: '#fff',
-        borderRadius: 8,
-        width: 600,
-        height: '70vh',
-        overflow: 'hidden',
-        boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
+    <div style={buildAdminModalStyle()}>
+      <div style={buildAdminModalContentStyle()}>
         {/* Modal Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '20px 24px',
-          borderBottom: '1px solid #e5e7eb',
-        }}>
+        <div style={buildAdminModalHeaderStyle()}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Admin Tools</h2>
             {adminAuthenticated && (
@@ -1469,11 +1395,11 @@ const AdminModal: React.FC = () => {
                 style={{
                   padding: '4px 8px',
                   background: 'transparent',
-                  border: '1px solid #d1d5db',
+                  border: `1px solid ${theme.colors.border.default}`,
                   borderRadius: 4,
                   fontSize: 12,
                   cursor: 'pointer',
-                  color: '#6b7280',
+                  color: theme.colors.text.secondary,
                 }}
               >
                 Logout
@@ -1487,7 +1413,7 @@ const AdminModal: React.FC = () => {
               border: 'none',
               fontSize: 24,
               cursor: 'pointer',
-              color: '#6b7280',
+              color: theme.colors.text.secondary,
               padding: 4,
               lineHeight: 1,
             }}
@@ -1504,33 +1430,17 @@ const AdminModal: React.FC = () => {
             {/* Tab Navigation */}
             <div style={{
               display: 'flex',
-              borderBottom: '1px solid #e5e7eb',
+              borderBottom: `1px solid ${theme.colors.border.light}`,
             }}>
               <button
                 onClick={() => setActiveTab('tests')}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  border: 'none',
-                  background: activeTab === 'tests' ? '#f3f4f6' : 'transparent',
-                  cursor: 'pointer',
-                  fontWeight: activeTab === 'tests' ? 600 : 400,
-                  borderBottom: activeTab === 'tests' ? '2px solid #3b82f6' : '2px solid transparent',
-                }}
+                style={buildAdminTabStyle(activeTab === 'tests')}
               >
                 Tests
               </button>
               <button
                 onClick={() => setActiveTab('tenants')}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  border: 'none',
-                  background: activeTab === 'tenants' ? '#f3f4f6' : 'transparent',
-                  cursor: 'pointer',
-                  fontWeight: activeTab === 'tenants' ? 600 : 400,
-                  borderBottom: activeTab === 'tenants' ? '2px solid #3b82f6' : '2px solid transparent',
-                }}
+                style={buildAdminTabStyle(activeTab === 'tenants')}
               >
                 Tenants
               </button>

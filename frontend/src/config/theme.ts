@@ -83,6 +83,51 @@ export const theme = {
       oss: colors.gray[500],
     },
     
+    // AdminModal specific colors
+    admin: {
+      test: {
+        unit: '#10b981',
+        integration: '#3b82f6',
+        'integration-real': '#dc2626',
+        linting: '#f59e0b',
+        running: '#dbeafe',
+        completed: '#dcfce7',
+        failed: '#fef2f2',
+        runningText: '#1d4ed8',
+        completedText: '#166534',
+        failedText: '#dc2626',
+      },
+      tenant: {
+        clearData: '#8b5cf6',
+        clearSchema: '#f59e0b',
+        pushSchema: '#06b6d4',
+        seedData: '#10b981',
+        reset: '#f59e0b',
+        delete: '#dc2626',
+        healthy: '#dcfce7',
+        notAccessible: '#fef2f2',
+        error: '#fef2f2',
+        healthyText: '#166534',
+        notAccessibleText: '#dc2626',
+        errorText: '#dc2626',
+        unknown: '#f3f4f6',
+        unknownText: '#6b7280',
+      },
+      button: {
+        primary: '#3b82f6',
+        secondary: 'transparent',
+        success: '#10b981',
+        warning: '#f59e0b',
+        danger: '#dc2626',
+        disabled: '#9ca3af',
+      },
+      error: {
+        background: '#fef2f2',
+        border: '#fecaca',
+        text: '#dc2626',
+      },
+    },
+    
     node: {
       default: colors.legacy.nodeDefault,
       selected: colors.legacy.selectedBackground,
@@ -250,6 +295,314 @@ export const theme = {
           background: 'transparent',
           borderColor: 'transparent',
           fontWeight: 400,
+        },
+      },
+    },
+    
+    adminModal: {
+      overlay: 'rgba(0,0,0,0.3)',
+      background: colors.legacy.white,
+      shadow: '0 10px 25px rgba(0,0,0,0.2)',
+      borderRadius: radius.lg,
+      width: 600,
+      height: '70vh',
+      header: {
+        borderBottom: colors.gray[200],
+        padding: `${spacing.scale(5)}px ${spacing.scale(6)}px`, // 20px 24px
+      },
+      content: {
+        padding: spacing.scale(5), // 20px
+      },
+      tab: {
+        active: {
+          background: colors.gray[100],
+          borderColor: colors.primary[500],
+          fontWeight: 600,
+        },
+        inactive: {
+          background: 'transparent',
+          borderColor: 'transparent',
+          fontWeight: 400,
+        },
+      },
+      login: {
+        container: {
+          padding: spacing.scale(10), // 40px
+          textAlign: 'center' as const,
+        },
+        title: {
+          margin: '0 0 20px 0',
+          color: colors.legacy.textDefault,
+        },
+        subtitle: {
+          margin: '0 0 30px 0',
+          color: colors.gray[600],
+          fontSize: fontSize.sm,
+        },
+        inputContainer: {
+          position: 'relative' as const,
+          marginBottom: spacing.scale(4), // 16px
+        },
+        input: {
+          width: '100%',
+          padding: '12px 40px 12px 16px',
+          border: `1px solid ${colors.gray[300]}`,
+          borderRadius: radius.sm,
+          fontSize: fontSize.sm,
+          boxSizing: 'border-box' as const,
+        },
+        toggleButton: {
+          position: 'absolute' as const,
+          right: 12,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: colors.gray[600],
+          fontSize: spacing.scale(4), // 16px
+          padding: spacing.scale(1), // 4px
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        submitButton: {
+          width: '100%',
+          padding: '12px 16px',
+          border: 'none',
+          borderRadius: radius.sm,
+          fontSize: fontSize.sm,
+          fontWeight: 500,
+          cursor: 'pointer',
+        },
+      },
+      tests: {
+        container: {
+          padding: spacing.scale(5), // 20px
+        },
+        section: {
+          marginBottom: spacing.scale(5), // 20px
+        },
+        sectionTitle: {
+          margin: '0 0 12px 0',
+          color: colors.legacy.textDefault,
+        },
+        buttonGroup: {
+          display: 'flex',
+          gap: spacing.scale(2), // 8px
+          flexWrap: 'wrap' as const,
+        },
+        button: {
+          padding: '8px 16px',
+          border: 'none',
+          borderRadius: radius.sm,
+          fontSize: fontSize.xs,
+          fontWeight: 500,
+          cursor: 'pointer',
+        },
+        resultsList: {
+          maxHeight: 300,
+          overflow: 'auto' as const,
+        },
+        resultItem: {
+          padding: spacing.scale(3), // 12px
+          border: `1px solid ${colors.gray[200]}`,
+          borderRadius: radius.sm,
+          marginBottom: spacing.scale(2), // 8px
+          fontSize: fontSize.sm,
+        },
+        resultHeader: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: spacing.scale(1), // 4px
+        },
+        resultMeta: {
+          color: colors.gray[600],
+          fontSize: fontSize.xs,
+        },
+        expandButton: {
+          background: 'none',
+          border: `1px solid ${colors.gray[300]}`,
+          borderRadius: 3,
+          padding: '2px 6px',
+          fontSize: 11,
+          cursor: 'pointer',
+          color: colors.gray[600],
+        },
+        expandedDetails: {
+          marginTop: spacing.scale(2), // 8px
+          padding: spacing.scale(3), // 12px
+          background: colors.gray[50],
+          border: `1px solid ${colors.gray[200]}`,
+          borderRadius: radius.sm,
+          fontSize: fontSize.xs,
+        },
+      },
+      tenants: {
+        container: {
+          padding: spacing.scale(5), // 20px
+        },
+        header: {
+          marginBottom: spacing.scale(4), // 16px
+        },
+        headerRow: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: spacing.scale(2), // 8px
+        },
+        title: {
+          margin: 0,
+          color: colors.legacy.textDefault,
+        },
+        actionGroup: {
+          display: 'flex',
+          gap: spacing.scale(2), // 8px
+        },
+        modeIndicator: {
+          fontSize: fontSize.xs,
+          color: colors.gray[600],
+          marginBottom: spacing.scale(2), // 8px
+        },
+        createForm: {
+          marginBottom: spacing.scale(4), // 16px
+          padding: spacing.scale(4), // 16px
+          border: `1px solid ${colors.gray[200]}`,
+          borderRadius: radius.sm,
+          background: colors.gray[50],
+        },
+        createFormTitle: {
+          margin: '0 0 12px 0',
+          color: colors.legacy.textDefault,
+          fontSize: fontSize.sm,
+        },
+        createFormInput: {
+          width: '100%',
+          padding: '8px 12px',
+          border: `1px solid ${colors.gray[300]}`,
+          borderRadius: radius.sm,
+          fontSize: fontSize.sm,
+          boxSizing: 'border-box' as const,
+        },
+        createFormActions: {
+          display: 'flex',
+          gap: spacing.scale(2), // 8px
+        },
+        tenantsList: {
+          maxHeight: 400,
+          overflow: 'auto' as const,
+        },
+        tenantItem: {
+          padding: spacing.scale(4), // 16px
+          border: `1px solid ${colors.gray[200]}`,
+          borderRadius: radius.sm,
+          marginBottom: spacing.scale(3), // 12px
+        },
+        tenantHeader: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: spacing.scale(2), // 8px
+        },
+        tenantTitle: {
+          fontWeight: 500,
+          fontSize: fontSize.sm,
+        },
+        tenantNamespace: {
+          color: colors.gray[600],
+          fontSize: fontSize.xs,
+        },
+        tenantActions: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: spacing.scale(2), // 8px
+        },
+        tenantInfo: {
+          marginBottom: spacing.scale(2), // 8px
+        },
+        tenantInfoRow: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: spacing.scale(1), // 4px
+        },
+        tenantMeta: {
+          fontSize: fontSize.xs,
+          color: colors.gray[600],
+        },
+        actionButton: {
+          padding: '4px 8px',
+          border: 'none',
+          borderRadius: radius.sm,
+          fontSize: 11,
+          cursor: 'pointer',
+        },
+        schemaButton: {
+          padding: '2px 6px',
+          background: 'transparent',
+          border: `1px solid ${colors.gray[300]}`,
+          borderRadius: 3,
+          fontSize: 11,
+          cursor: 'pointer',
+          color: colors.legacy.textDefault,
+          display: 'flex',
+          alignItems: 'center',
+          gap: spacing.scale(1), // 4px
+        },
+      },
+      schema: {
+        overlay: 'rgba(0,0,0,0.5)',
+        background: colors.legacy.white,
+        shadow: '0 10px 25px rgba(0,0,0,0.3)',
+        borderRadius: radius.lg,
+        width: '80%',
+        maxWidth: 800,
+        height: '80%',
+        header: {
+          borderBottom: `1px solid ${colors.gray[200]}`,
+          background: colors.gray[50],
+          padding: '16px 20px',
+        },
+        title: {
+          margin: 0,
+          fontSize: 18,
+          fontWeight: 600,
+        },
+        subtitle: {
+          margin: '4px 0 0 0',
+          fontSize: fontSize.sm,
+          color: colors.gray[600],
+        },
+        headerActions: {
+          display: 'flex',
+          gap: spacing.scale(2), // 8px
+        },
+        content: {
+          flex: 1,
+          overflow: 'auto' as const,
+          padding: spacing.scale(5), // 20px
+        },
+        codeBlock: {
+          background: colors.gray[50],
+          border: `1px solid ${colors.gray[200]}`,
+          borderRadius: radius.sm,
+          padding: spacing.scale(4), // 16px
+          fontSize: 13,
+          lineHeight: 1.5,
+          overflow: 'auto' as const,
+          margin: 0,
+          fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+          color: colors.legacy.textDefault,
+          whiteSpace: 'pre-wrap' as const,
+          wordBreak: 'break-word' as const,
+        },
+        loadingContainer: {
+          textAlign: 'center' as const,
+          padding: spacing.scale(10), // 40px
+        },
+        loadingText: {
+          color: colors.gray[600],
         },
       },
     },

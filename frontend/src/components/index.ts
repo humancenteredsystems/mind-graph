@@ -23,5 +23,13 @@ export { default as SettingsModal } from './SettingsModal';
 export { default as AdminButton } from './AdminButton';
 export { default as AdminModal } from './AdminModal';
 
+// Shared modal components
+export { default as ModalOverlay } from './ModalOverlay';
+export { default as ModalContainer, ModalHeader, ModalContent } from './ModalContainer';
+export { default as TabNavigation } from './TabNavigation';
+export { default as StatusBadge, StatusIcon } from './StatusBadge';
+
 // Re-export component prop types for external usage
 export type { default as GraphViewProps } from './GraphView';
+export type { Tab } from './TabNavigation';
+export type { StatusType } from './StatusBadge';
