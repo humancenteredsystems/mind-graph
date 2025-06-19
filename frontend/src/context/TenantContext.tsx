@@ -1,15 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { fetchSystemStatus } from '../services/ApiService';
-
-interface TenantContextType {
-  tenantId: string | null;
-  namespace: string | null;
-  isTestTenant: boolean;
-  isMultiTenantMode: boolean;
-  switchTenant: (tenantId: string) => void;
-}
-
-const TenantContext = createContext<TenantContextType | undefined>(undefined);
+import { TenantContext } from './contexts';
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tenantId, setTenantId] = useState<string | null>(
@@ -26,7 +17,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsMultiTenantMode(systemStatus.namespacesSupported || false);
         
         console.log(`[TENANT_CONTEXT] Multi-tenant mode: ${systemStatus.namespacesSupported ? 'enabled' : 'disabled'}`);
-      } catch (error) {
+      } catch {
         console.warn('Could not detect multi-tenant capabilities, assuming OSS mode');
         setIsMultiTenantMode(false);
       }
@@ -66,12 +57,4 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       {children}
     </TenantContext.Provider>
   );
-};
-
-export const useTenant = () => {
-  const context = useContext(TenantContext);
-  if (!context) {
-    throw new Error('useTenant must be used within TenantProvider');
-  }
-  return context;
 };

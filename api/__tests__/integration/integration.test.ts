@@ -36,21 +36,25 @@ describe('Integration /api/mutate', () => {
   });
 
   it('should create a node and return JSON payload from Dgraph', async () => {
-    // Mock Dgraph response for AddNode
-    mockExecuteGraphQL.mockResolvedValueOnce({
-      addNode: {
-        node: [
-          {
-            id: 'it-test-id',
-            label: 'IT Node',
-            type: 'concept',
-            level: 1,
-            status: 'pending',
-            branch: 'main'
-          }
-        ]
-      }
-    });
+    // Mock hierarchy validation first
+    mockExecuteGraphQL
+      .mockResolvedValueOnce({ getHierarchy: { id: 'test-hierarchy' } }) // validateHierarchyId
+      .mockResolvedValueOnce({ queryHierarchy: [{ levels: [{ id: 'level1', levelNumber: 1 }] }] }) // getLevelIdForNode
+      .mockResolvedValueOnce({ getHierarchyLevel: { id: 'level1', levelNumber: 1, hierarchy: { id: 'test-hierarchy' }, allowedTypes: [] } }) // validateLevelIdAndAllowedType
+      .mockResolvedValueOnce({
+        addNode: {
+          node: [
+            {
+              id: 'it-test-id',
+              label: 'IT Node',
+              type: 'concept',
+              level: 1,
+              status: 'pending',
+              branch: 'main'
+            }
+          ]
+        }
+      });
 
     const payload = {
       mutation: `
@@ -76,6 +80,7 @@ describe('Integration /api/mutate', () => {
 
     const res = await request(app)
       .post('/api/mutate')
+      .set('X-Hierarchy-Id', 'test-hierarchy') // Required header
       .send(payload)
       .expect('Content-Type', /json/)
       .expect(200);
@@ -90,19 +95,23 @@ describe('Integration /api/mutate', () => {
   });
 
   it('should create a node with nested hierarchyAssignments', async () => {
-    // Mock Dgraph response for AddNodeWithHierarchy
-    mockExecuteGraphQL.mockResolvedValueOnce({
-      addNode: {
-        node: [
-          {
-            id: 'nested-id',
-            hierarchyAssignments: [
-              { hierarchy: { id: 'hid', name: 'HierarchyName' }, level: { id: 'lid', levelNumber: 1, label: 'LevelLabel' } }
-            ]
-          }
-        ]
-      }
-    });
+    // Mock hierarchy validation and node creation
+    mockExecuteGraphQL
+      .mockResolvedValueOnce({ getHierarchy: { id: 'hid' } }) // validateHierarchyId
+      .mockResolvedValueOnce({ queryHierarchy: [{ levels: [{ id: 'lid', levelNumber: 1 }] }] }) // getLevelIdForNode
+      .mockResolvedValueOnce({ getHierarchyLevel: { id: 'lid', levelNumber: 1, hierarchy: { id: 'hid' }, allowedTypes: [] } }) // validateLevelIdAndAllowedType
+      .mockResolvedValueOnce({
+        addNode: {
+          node: [
+            {
+              id: 'nested-id',
+              hierarchyAssignments: [
+                { hierarchy: { id: 'hid', name: 'HierarchyName' }, level: { id: 'lid', levelNumber: 1, label: 'LevelLabel' } }
+              ]
+            }
+          ]
+        }
+      });
 
     const payload = {
       mutation: `
@@ -140,6 +149,37 @@ describe('Integration /api/mutate', () => {
         })
       ])
     );
+  });
+
+  it('should return 400 error when hierarchy header is missing for node creation', async () => {
+    const payload = {
+      mutation: `
+        mutation AddNode($input: [AddNodeInput!]!) {
+          addNode(input: $input) {
+            node { id label type }
+          }
+        }
+      `,
+      variables: {
+        input: [
+          {
+            id: "no-header-node",
+            label: "No Header Node",
+            type: "concept"
+          }
+        ]
+      }
+    };
+
+    const res = await request(app)
+      .post('/api/mutate')
+      // Intentionally omit X-Hierarchy-Id header
+      .send(payload)
+      .expect('Content-Type', /json/)
+      .expect(400);
+
+    expect(res.body).toHaveProperty('error');
+    expect(res.body.error).toContain('X-Hierarchy-Id header is required');
   });
 });
 

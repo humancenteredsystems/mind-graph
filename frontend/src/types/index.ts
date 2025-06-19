@@ -12,3 +12,5 @@ export type { NodeData, EdgeData } from './graph';
 
 // Re-export all types from modules
 export * from './contextMenu';
+export * from './hierarchy';
+export * from './system';

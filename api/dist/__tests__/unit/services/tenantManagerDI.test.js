@@ -1,5 +1,6 @@
 "use strict";
-const { TenantManager } = require('../../../services/tenantManager');
+Object.defineProperty(exports, "__esModule", { value: true });
+const tenantManager_1 = require("../../../services/tenantManager");
 describe('TenantManager Dependency Injection', () => {
     describe('constructor with dependencies', () => {
         it('should use injected dependencies instead of defaults', async () => {
@@ -15,7 +16,7 @@ describe('TenantManager Dependency Injection', () => {
             };
             const mockSchemaPath = '/mock/path/to/schema.graphql';
             // Create TenantManager with injected dependencies
-            const tenantManager = new TenantManager({
+            const tenantManager = new tenantManager_1.TenantManager({
                 pushSchema: mockPushSchema,
                 fileSystem: mockFileSystem,
                 schemaPath: mockSchemaPath,
@@ -28,7 +29,7 @@ describe('TenantManager Dependency Injection', () => {
             expect(tenantManager.tenantFactory).toBe(mockTenantFactory);
         });
         it('should use defaults when no dependencies are provided', () => {
-            const tenantManager = new TenantManager();
+            const tenantManager = new tenantManager_1.TenantManager();
             // Test that defaults are used (should be functions/objects, not mocks)
             expect(typeof tenantManager.pushSchema).toBe('function');
             expect(typeof tenantManager.fileSystem).toBe('object');
@@ -42,7 +43,7 @@ describe('TenantManager Dependency Injection', () => {
                 readFile: jest.fn().mockResolvedValue('mocked schema content')
             };
             const mockSchemaPath = '/test/schema.graphql';
-            const tenantManager = new TenantManager({
+            const tenantManager = new tenantManager_1.TenantManager({
                 fileSystem: mockFileSystem,
                 schemaPath: mockSchemaPath
             });
@@ -51,17 +52,17 @@ describe('TenantManager Dependency Injection', () => {
             expect(result).toBe('mocked schema content');
         });
         it('should use injected pushSchema for initializeTenantSchema', async () => {
-            const mockPushSchema = jest.fn().mockResolvedValue(true);
+            const mockPushSchema = jest.fn().mockResolvedValue({ success: true });
             const mockFileSystem = {
-                readFile: jest.fn().mockResolvedValue('schema content')
+                readFile: jest.fn().mockResolvedValue('test schema')
             };
-            const tenantManager = new TenantManager({
+            const tenantManager = new tenantManager_1.TenantManager({
                 pushSchema: mockPushSchema,
                 fileSystem: mockFileSystem
             });
             await tenantManager.initializeTenantSchema('0x1');
             expect(mockFileSystem.readFile).toHaveBeenCalled();
-            expect(mockPushSchema).toHaveBeenCalledWith('schema content', '0x1');
+            expect(mockPushSchema).toHaveBeenCalledWith('test schema', '0x1');
         });
         it('should use injected tenant factory for creating tenants', async () => {
             const mockTenant = {
@@ -74,7 +75,7 @@ describe('TenantManager Dependency Injection', () => {
                 readFile: jest.fn().mockResolvedValue('schema content')
             };
             const mockPushSchema = jest.fn().mockResolvedValue(true);
-            const tenantManager = new TenantManager({
+            const tenantManager = new tenantManager_1.TenantManager({
                 tenantFactory: mockTenantFactory,
                 fileSystem: mockFileSystem,
                 pushSchema: mockPushSchema
@@ -87,7 +88,7 @@ describe('TenantManager Dependency Injection', () => {
             const mockFileSystem = {
                 readFile: jest.fn().mockRejectedValue(new Error('File not found'))
             };
-            const tenantManager = new TenantManager({
+            const tenantManager = new tenantManager_1.TenantManager({
                 fileSystem: mockFileSystem
             });
             await expect(tenantManager.getDefaultSchema()).rejects.toThrow('Could not load default schema');

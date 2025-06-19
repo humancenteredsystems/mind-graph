@@ -1,10 +1,12 @@
 // tests/node-expansion.spec.ts
 import { test, expect } from '@playwright/test';
+import { TestWindow, NodePosition, GraphCounts } from './types';
+import { Page } from '@playwright/test';
 
 // Helper function to get Cytoscape element counts via page.evaluate
-async function getCyCounts(page: any) {
-  return await page.evaluate(() => {
-    const cy = (window as any).cyInstance; // Assumes cyInstance is exposed on window
+async function getCyCounts(page: Page): Promise<GraphCounts> {
+  return await page.evaluate((): GraphCounts => {
+    const cy = (window as TestWindow).cyInstance; // Assumes cyInstance is exposed on window
     if (!cy) return { nodes: -1, edges: -1 }; // Indicate error
     return { nodes: cy.nodes().length, edges: cy.edges().length };
   });
@@ -14,7 +16,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
   // Wait for initial load
   await expect(page.locator('[data-testid="graph-container"] canvas').first()).toBeVisible({ timeout: 15000 });
-  await page.waitForFunction(() => (window as any).cyInstance && (window as any).cyInstance.nodes().length > 0, null, { timeout: 15000 });
+  await page.waitForFunction(() => (window as TestWindow).cyInstance && (window as TestWindow).cyInstance!.nodes().length > 0, null, { timeout: 15000 });
 });
 
 test('Expanding a node via context menu keeps graph visible', async ({ page }) => {
@@ -26,18 +28,17 @@ test('Expanding a node via context menu keeps graph visible', async ({ page }) =
   const initialEdgeCount = initialCounts.edges;
 
   // Get the position of a node to click
-  const nodePosition = await page.evaluate(() => {
-    const cy = (window as any).cyInstance;
+  const nodePosition = await page.evaluate((): NodePosition | null => {
+    const cy = (window as TestWindow).cyInstance;
     if (!cy || cy.nodes().length === 0) return null;
     
     // Get the first node position in renderer coordinates
     const node = cy.nodes().first();
     const renderedPosition = node.renderedPosition();
-    const zoom = cy.zoom();
-    const pan = cy.pan();
     
     // Get the container bounds
     const container = cy.container();
+    if (!container) return null;
     const rect = container.getBoundingClientRect();
     
     // Calculate screen coordinates
@@ -112,7 +113,7 @@ test('Expanding a node via context menu keeps graph visible', async ({ page }) =
 
 // This test is skipped until we know more about the test data structure
 // Uncomment and adapt when you have a node that should definitely add new nodes when expanded
-test.skip('Expanding a node adds new nodes/edges', async ({ page }) => {
+test.skip('Expanding a node adds new nodes/edges', async () => {
   // TODO: Implement this test
   // 1. Identify a node that *should* have unrevealed children
   // 2. Get initial counts

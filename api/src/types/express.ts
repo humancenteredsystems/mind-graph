@@ -11,6 +11,7 @@ export interface TenantContext {
   wasCreated?: boolean;
   error?: string;
   ensureError?: string;
+  fallbackReason?: string;
 }
 
 export interface UserContext {

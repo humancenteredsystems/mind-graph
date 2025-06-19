@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useHierarchyContext } from '../context/HierarchyContext';
+import { useHierarchyContext } from './useHierarchy';
 import { fetchTraversalData, executeQuery } from '../services/ApiService';
 import { transformTraversalData, transformAllGraphData } from '../utils/graphUtils';
 import { GET_ALL_NODES_AND_EDGES_QUERY } from '../graphql/queries';
@@ -46,7 +46,7 @@ export const useGraphState = (): UseGraphState => {
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true); // Initialize to true for loading state
-  const [isExpanding, setIsExpanding] = useState<boolean>(false);
+  const [isExpanding] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
   
@@ -56,18 +56,6 @@ export const useGraphState = (): UseGraphState => {
   // Create graph operations
   const operations = createGraphOperations(setNodes, setEdges, setError, edges);
 
-  // Helper function to get current hierarchy expansion state
-  const getHierarchyState = useCallback((): HierarchyExpansionState => {
-    const existing = expansionStates.get(hierarchyId);
-    if (existing) return existing;
-    
-    const newState: HierarchyExpansionState = {
-      expandedNodeIds: new Set(),
-      expansionDetails: new Map()
-    };
-    setExpansionStates(prev => new Map(prev).set(hierarchyId, newState));
-    return newState;
-  }, [hierarchyId, expansionStates]);
 
   // Check if a node is expanded in the current hierarchy
   const isNodeExpanded = useCallback((nodeId: string): boolean => {
@@ -100,11 +88,20 @@ export const useGraphState = (): UseGraphState => {
   }, [hierarchyId]);
 
   const loadCompleteGraph = useCallback(async () => {
-    log('useGraphState', `Loading complete graph for hierarchy ${hierarchyId}`);
+    log('useGraphState', `Loading complete graph for hierarchy ${hierarchyId || 'unknown'}`);
     setIsLoading(true);
     setError(null);
+    
+    // Add a timeout to prevent infinite loading
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Graph loading timeout')), 10000); // 10 second timeout
+    });
+    
     try {
-      const rawData = await executeQuery(GET_ALL_NODES_AND_EDGES_QUERY);
+      const rawData = await Promise.race([
+        executeQuery(GET_ALL_NODES_AND_EDGES_QUERY),
+        timeoutPromise
+      ]) as any; // Type assertion to handle Promise.race result
       const { nodes: allNodes, edges: allEdges } = transformAllGraphData(rawData);
       setNodes(allNodes);
       setEdges(allEdges);
@@ -121,7 +118,14 @@ export const useGraphState = (): UseGraphState => {
       });
     } catch (err) {
       log('useGraphState', 'Error loading complete graph', err);
-      setError('Failed to load complete graph data.');
+      // Don't set error for timeout - just show empty state
+      if (err instanceof Error && err.message === 'Graph loading timeout') {
+        log('useGraphState', 'Graph loading timed out, showing empty state');
+        setNodes([]);
+        setEdges([]);
+      } else {
+        setError('Failed to load complete graph data.');
+      }
     } finally {
       setIsLoading(false);
     }

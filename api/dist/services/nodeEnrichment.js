@@ -6,17 +6,26 @@ const validation_1 = require("./validation");
  * Enriches addNode inputs with nested hierarchyAssignments
  * Handles validation and transformation of client input for node creation
  */
-async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
-    // Only enrich AddNodeWithHierarchy mutations; simple AddNode mutations bypass enrichment
-    if (!Array.isArray(variables.input) || !mutation.includes('AddNodeWithHierarchy')) {
+async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation, tenantClient) {
+    // Only enrich addNode mutations; other mutations bypass enrichment
+    if (!Array.isArray(variables.input) || !mutation.includes('addNode')) {
         return variables;
+    }
+    // MANDATORY: X-Hierarchy-Id header is required for node creation
+    if (!hierarchyIdFromHeader) {
+        throw new Error('X-Hierarchy-Id header is required for node creation mutations');
+    }
+    // Validate the hierarchy ID from header exists
+    const isHeaderHierarchyValid = await (0, validation_1.validateHierarchyId)(hierarchyIdFromHeader, tenantClient);
+    if (!isHeaderHierarchyValid) {
+        throw new Error(`Invalid hierarchyId in header: ${hierarchyIdFromHeader}. Hierarchy not found.`);
     }
     const enrichedInputs = [];
     for (const inputObj of variables.input) {
         // Client can override hierarchyId per input item, this also needs validation
         let itemHierarchyId = inputObj.hierarchyId || hierarchyIdFromHeader;
         if (inputObj.hierarchyId && inputObj.hierarchyId !== hierarchyIdFromHeader) {
-            const isItemHierarchyValid = await (0, validation_1.validateHierarchyId)(inputObj.hierarchyId);
+            const isItemHierarchyValid = await (0, validation_1.validateHierarchyId)(inputObj.hierarchyId, tenantClient);
             if (!isItemHierarchyValid) {
                 throw new Error(`Invalid hierarchyId in input item: ${inputObj.hierarchyId}. Hierarchy not found.`);
             }
@@ -32,7 +41,7 @@ async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
             finalLevelId = hierarchyAssignment.level?.id;
             if (itemHierarchyIdFromAssignment && finalLevelId) {
                 console.log(`[MUTATE] Processing client-provided hierarchyAssignments: hierarchyId=${itemHierarchyIdFromAssignment}, levelId=${finalLevelId} for node type ${inputObj.type}`);
-                await (0, validation_1.validateLevelIdAndAllowedType)(finalLevelId, inputObj.type, itemHierarchyIdFromAssignment);
+                await (0, validation_1.validateLevelIdAndAllowedType)(finalLevelId, inputObj.type, itemHierarchyIdFromAssignment, tenantClient);
                 shouldCreateAssignment = true;
             }
             else {
@@ -44,7 +53,7 @@ async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
             if (!itemHierarchyId) {
                 throw new Error('Hierarchy ID is required when providing levelId');
             }
-            await (0, validation_1.validateLevelIdAndAllowedType)(inputObj.levelId, inputObj.type, itemHierarchyId);
+            await (0, validation_1.validateLevelIdAndAllowedType)(inputObj.levelId, inputObj.type, itemHierarchyId, tenantClient);
             finalLevelId = inputObj.levelId;
             shouldCreateAssignment = true;
         }
@@ -53,9 +62,9 @@ async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
             if (!itemHierarchyId) {
                 throw new Error('Hierarchy ID is required when providing parentId');
             }
-            const calculatedLevelId = await (0, validation_1.getLevelIdForNode)(inputObj.parentId, itemHierarchyId);
+            const calculatedLevelId = await (0, validation_1.getLevelIdForNode)(inputObj.parentId, itemHierarchyId, tenantClient);
             console.log(`[MUTATE] Validating calculated levelId: ${calculatedLevelId} for node type ${inputObj.type}`);
-            await (0, validation_1.validateLevelIdAndAllowedType)(calculatedLevelId, inputObj.type, itemHierarchyId);
+            await (0, validation_1.validateLevelIdAndAllowedType)(calculatedLevelId, inputObj.type, itemHierarchyId, tenantClient);
             finalLevelId = calculatedLevelId;
             shouldCreateAssignment = true;
         }
@@ -75,11 +84,27 @@ async function enrichNodeInputs(variables, hierarchyIdFromHeader, mutation) {
                 ];
             }
         }
-        else if (!inputObj.hierarchyAssignments && !inputObj.levelId && !inputObj.parentId) {
-            // If no hierarchy assignment information provided, do not automatically create an assignment here.
-            // The node will be created without an assignment.
-            // This allows seed_data.py to explicitly assign later.
-            console.log(`[MUTATE] Node ${inputObj.id} (${inputObj.type}) will be created without an initial hierarchy assignment by addNode.`);
+        else if (itemHierarchyId) {
+            // Auto-assign to appropriate level when hierarchy header provided but no specific assignment info
+            console.log(`[MUTATE] Auto-assigning node ${inputObj.id} (${inputObj.type}) to hierarchy ${itemHierarchyId}`);
+            try {
+                // Use null as parentId to assign to level 1 (root level)
+                const autoLevelId = await (0, validation_1.getLevelIdForNode)(null, itemHierarchyId, tenantClient);
+                console.log(`[MUTATE] Validating auto-assigned levelId: ${autoLevelId} for node type ${inputObj.type}`);
+                await (0, validation_1.validateLevelIdAndAllowedType)(autoLevelId, inputObj.type, itemHierarchyId, tenantClient);
+                nodeInput.hierarchyAssignments = [
+                    { hierarchy: { id: itemHierarchyId }, level: { id: autoLevelId } }
+                ];
+                console.log(`[MUTATE] Auto-assigned node ${inputObj.id} to level ${autoLevelId} in hierarchy ${itemHierarchyId}`);
+            }
+            catch (error) {
+                console.error(`[MUTATE] Failed to auto-assign node ${inputObj.id} to hierarchy ${itemHierarchyId}:`, error);
+                throw error; // Re-throw validation errors
+            }
+        }
+        else {
+            // This case should not happen due to header validation above, but keeping for safety
+            throw new Error('Hierarchy context is required for node creation');
         }
         enrichedInputs.push(nodeInput);
     }

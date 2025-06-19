@@ -1,7 +1,10 @@
 import express, { Request, Response } from 'express';
 import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
-import { authenticateAdmin } from '../middleware/auth';
 import { Hierarchy, HierarchyLevel, HierarchyAssignment } from '../src/types/domain';
+import { authenticateAdmin } from '../middleware/auth';
+import { sendErrorResponse, ErrorType } from '../utils/errorResponse';
+import { validateRequiredFields, validateId, validateEntityExists } from '../utils/validationHelpers';
+import { validateLevelIdAndAllowedType, NodeTypeNotAllowedError } from '../services/validation';
 
 const router = express.Router();
 
@@ -16,9 +19,9 @@ async function getTenantClient(req: Request) {
   return await adaptiveTenantFactory.createTenantFromContext(userContext);
 }
 
-// --- Hierarchy CRUD ---
+// --- PUBLIC HIERARCHY ROUTES (No authentication required) ---
 
-// Get all hierarchies
+// Get all hierarchies - PUBLIC ENDPOINT
 router.get('/hierarchy', async (req: Request, res: Response): Promise<void> => {
   const query = `
     query {
@@ -32,14 +35,14 @@ router.get('/hierarchy', async (req: Request, res: Response): Promise<void> => {
     const tenantClient = await getTenantClient(req);
     const data = await tenantClient.executeGraphQL(query);
     res.json(data.queryHierarchy);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to fetch hierarchies:', error);
+    res.status(500).json({ error: 'Failed to fetch hierarchies', details: err.message });
   }
 });
 
-// Admin-protected routes
-router.use(authenticateAdmin);
+// --- PUBLIC HIERARCHY ROUTES ---
 
 // Create a new hierarchy
 router.post('/hierarchy', async (req: Request, res: Response): Promise<void> => {
@@ -63,9 +66,10 @@ router.post('/hierarchy', async (req: Request, res: Response): Promise<void> => 
     const data = await tenantClient.executeGraphQL(mutation, { input: [{ id, name }] });
     const hier = data.addHierarchy.hierarchy[0];
     res.status(201).json(hier);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to create hierarchy:', error);
+    res.status(500).json({ error: 'Failed to create hierarchy', details: err.message });
   }
 });
 
@@ -97,9 +101,10 @@ router.get('/hierarchy/:id', async (req: Request, res: Response): Promise<void> 
       return;
     }
     res.json(hier);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to fetch hierarchy:', error);
+    res.status(500).json({ error: 'Failed to fetch hierarchy', details: err.message });
   }
 });
 
@@ -132,9 +137,10 @@ router.put('/hierarchy/:id', async (req: Request, res: Response): Promise<void> 
     const data = await tenantClient.executeGraphQL(mutation, { id, name });
     const hier = data.updateHierarchy.hierarchy[0];
     res.json(hier);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to update hierarchy:', error);
+    res.status(500).json({ error: 'Failed to update hierarchy', details: err.message });
   }
 });
 
@@ -159,9 +165,10 @@ router.delete('/hierarchy/:id', async (req: Request, res: Response): Promise<voi
     const tenantClient = await getTenantClient(req);
     const data = await tenantClient.executeGraphQL(mutation, { id });
     res.json(data.deleteHierarchy);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to delete hierarchy:', error);
+    res.status(500).json({ error: 'Failed to delete hierarchy', details: err.message });
   }
 });
 
@@ -174,25 +181,50 @@ router.post('/hierarchy/level', async (req: Request, res: Response): Promise<voi
     res.status(400).json({ error: 'Missing required fields: hierarchyId, levelNumber, and label' });
     return;
   }
-  const mutation = `
-    mutation ($input: [AddHierarchyLevelInput!]!) {
-      addHierarchyLevel(input: $input) {
-        hierarchyLevel {
+
+  // Validate level number uniqueness within the hierarchy
+  const checkLevelQuery = `
+    query CheckLevelUniqueness($hierarchyId: String!, $levelNumber: Int!) {
+      queryHierarchy(filter: { id: { eq: $hierarchyId } }) {
+        levels(filter: { levelNumber: { eq: $levelNumber } }) {
           id
           levelNumber
-          label
         }
       }
     }
   `;
+
   try {
     const tenantClient = await getTenantClient(req);
+    
+    // Check if level number already exists
+    const checkResult = await tenantClient.executeGraphQL(checkLevelQuery, { hierarchyId, levelNumber });
+    const existingLevels = checkResult.queryHierarchy[0]?.levels || [];
+    
+    if (existingLevels.length > 0) {
+      sendErrorResponse(res, ErrorType.CONFLICT, `Level number ${levelNumber} already exists in hierarchy ${hierarchyId}`);
+      return;
+    }
+
+    const mutation = `
+      mutation ($input: [AddHierarchyLevelInput!]!) {
+        addHierarchyLevel(input: $input) {
+          hierarchyLevel {
+            id
+            levelNumber
+            label
+          }
+        }
+      }
+    `;
+    
     const data = await tenantClient.executeGraphQL(mutation, { input: [{ hierarchy: { id: hierarchyId }, levelNumber, label }] });
     const level = data.addHierarchyLevel.hierarchyLevel[0];
     res.status(201).json(level);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to create hierarchy level:', error);
+    res.status(500).json({ error: 'Failed to create hierarchy level', details: err.message });
   }
 });
 
@@ -225,9 +257,10 @@ router.put('/hierarchy/level/:id', async (req: Request, res: Response): Promise<
     const data = await tenantClient.executeGraphQL(mutation, { id, label });
     const level = data.updateHierarchyLevel.hierarchyLevel[0];
     res.json(level);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to update hierarchy level:', error);
+    res.status(500).json({ error: 'Failed to update hierarchy level', details: err.message });
   }
 });
 
@@ -252,9 +285,10 @@ router.delete('/hierarchy/level/:id', async (req: Request, res: Response): Promi
     const tenantClient = await getTenantClient(req);
     const data = await tenantClient.executeGraphQL(mutation, { id });
     res.json(data.deleteHierarchyLevel);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to delete hierarchy level:', error);
+    res.status(500).json({ error: 'Failed to delete hierarchy level', details: err.message });
   }
 });
 
@@ -267,26 +301,60 @@ router.post('/hierarchy/assignment', async (req: Request, res: Response): Promis
     res.status(400).json({ error: 'Missing required fields: nodeId, hierarchyId, and levelId' });
     return;
   }
-  const mutation = `
-    mutation ($input: [AddHierarchyAssignmentInput!]!) {
-      addHierarchyAssignment(input: $input) {
-        hierarchyAssignment {
-          id
-          node { id label }
-          hierarchy { id name }
-          level { id label levelNumber }
-        }
+
+  // Validate node existence and get node type
+  const checkNodeQuery = `
+    query CheckNodeExists($nodeId: String!) {
+      getNode(id: $nodeId) {
+        id
+        label
+        type
       }
     }
   `;
+
   try {
     const tenantClient = await getTenantClient(req);
+    
+    // Check if node exists
+    const nodeResult = await tenantClient.executeGraphQL(checkNodeQuery, { nodeId });
+    if (!nodeResult.getNode) {
+      sendErrorResponse(res, ErrorType.NOT_FOUND, `Node with ID '${nodeId}' does not exist`);
+      return;
+    }
+
+    // Validate type constraints for the level
+    const nodeType = nodeResult.getNode.type;
+    try {
+      await validateLevelIdAndAllowedType(levelId, nodeType, hierarchyId, tenantClient);
+    } catch (validationError) {
+      if (validationError instanceof NodeTypeNotAllowedError) {
+        res.status(400).json({ error: validationError.message });
+        return;
+      }
+      throw validationError; // Re-throw other errors
+    }
+
+    const mutation = `
+      mutation ($input: [AddHierarchyAssignmentInput!]!) {
+        addHierarchyAssignment(input: $input) {
+          hierarchyAssignment {
+            id
+            node { id label }
+            hierarchy { id name }
+            level { id label levelNumber }
+          }
+        }
+      }
+    `;
+    
     const data = await tenantClient.executeGraphQL(mutation, { input: [{ node: { id: nodeId }, hierarchy: { id: hierarchyId }, level: { id: levelId } }] });
     const assignment = data.addHierarchyAssignment.hierarchyAssignment[0];
     res.status(201).json(assignment);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to create hierarchy assignment:', error);
+    res.status(500).json({ error: 'Failed to create hierarchy assignment', details: err.message });
   }
 });
 
@@ -311,9 +379,10 @@ router.delete('/hierarchy/assignment/:id', async (req: Request, res: Response): 
     const tenantClient = await getTenantClient(req);
     const data = await tenantClient.executeGraphQL(mutation, { id });
     res.json(data.deleteHierarchyAssignment);
-  } catch (err) {
-    const error = err as Error;
-    res.status(500).json({ error: error.message });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to delete hierarchy assignment:', error);
+    res.status(500).json({ error: 'Failed to delete hierarchy assignment', details: err.message });
   }
 });
 

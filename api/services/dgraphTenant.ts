@@ -1,11 +1,12 @@
 import axios, { AxiosResponse } from 'axios';
 import config from '../config';
 import { DgraphQueryResponse } from '../src/types';
+import { withNamespaceValidationConstructor } from '../utils/namespaceValidator';
 
 /**
- * DgraphTenant - A tenant-aware Dgraph client that handles namespace-specific operations
+ * Internal DgraphTenant class (without validation)
  */
-export class DgraphTenant {
+export class DgraphTenantInternal {
   private namespace: string | null;
   private baseUrl: string;
   private endpoint: string;
@@ -44,8 +45,10 @@ export class DgraphTenant {
         variables,
       }, {
         headers: { 'Content-Type': 'application/json' },
-        timeout: 10000,
-        validateStatus: (status) => status < 500
+        timeout: 10000, // Request timeout
+        validateStatus: (status) => status < 500,
+        signal: AbortSignal.timeout(12000), // Total operation timeout (includes connection)
+        maxRedirects: 0 // Prevent redirect loops that could cause hangs
       });
       
       console.log(`[DGRAPH_TENANT] Response status: ${response.status}`);
@@ -73,7 +76,18 @@ export class DgraphTenant {
         console.error(`[DGRAPH_TENANT] No response received:`, error.request);
       }
 
-      throw new Error(`Failed to communicate with Dgraph in namespace ${this.namespace || 'default'}: ${error.message}`);
+      // If this is a namespace operation and we're in OSS mode, provide Enterprise-specific error
+      if (this.namespace && this.namespace !== '0x0') {
+        const { NamespaceNotSupportedError } = require('../utils/errorResponse');
+        throw new NamespaceNotSupportedError(
+          'GraphQL execution',
+          this.namespace,
+          'Verify Dgraph Enterprise license and namespace configuration'
+        );
+      }
+
+      // For default namespace operations, provide generic connection error without internal details
+      throw new Error(`Failed to execute GraphQL operation. Please check Dgraph connectivity and configuration.`);
     }
   }
 
@@ -93,6 +107,16 @@ export class DgraphTenant {
 }
 
 /**
+ * DgraphTenant - A tenant-aware Dgraph client that handles namespace-specific operations
+ * with Enterprise capability validation
+ */
+export const DgraphTenant = withNamespaceValidationConstructor(
+  DgraphTenantInternal,
+  'Tenant client creation',
+  0
+);
+
+/**
  * DgraphTenantFactory - Factory for creating tenant-specific Dgraph clients
  */
 export class DgraphTenantFactory {
@@ -101,8 +125,8 @@ export class DgraphTenantFactory {
    * @param namespace - The namespace to operate in (null for default)
    * @returns A new tenant client instance
    */
-  static createTenant(namespace: string | null = null): DgraphTenant {
-    return new DgraphTenant(namespace);
+  static async createTenant(namespace: string | null = null): Promise<DgraphTenantInternal> {
+    return new DgraphTenantInternal(namespace);
   }
 
   /**
@@ -110,24 +134,24 @@ export class DgraphTenantFactory {
    * @param userContext - User context containing namespace information
    * @returns A new tenant client instance
    */
-  static createTenantFromContext(userContext?: { namespace?: string | null }): DgraphTenant {
+  static async createTenantFromContext(userContext?: { namespace?: string | null }): Promise<DgraphTenantInternal> {
     const namespace = userContext?.namespace || null;
-    return new DgraphTenant(namespace);
+    return new DgraphTenantInternal(namespace);
   }
 
   /**
    * Create a tenant client for the default namespace
    * @returns A new tenant client for default namespace
    */
-  static createDefaultTenant(): DgraphTenant {
-    return new DgraphTenant(null);
+  static async createDefaultTenant(): Promise<DgraphTenantInternal> {
+    return new DgraphTenantInternal(null);
   }
 
   /**
    * Create a tenant client for the test namespace
    * @returns A new tenant client for test namespace
    */
-  static createTestTenant(): DgraphTenant {
-    return new DgraphTenant(config.testNamespace);
+  static async createTestTenant(): Promise<DgraphTenantInternal> {
+    return new DgraphTenantInternal(config.testNamespace);
   }
 }

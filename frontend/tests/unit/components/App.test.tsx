@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { screen, waitFor, act, render } from '@testing-library/react';
 import { mockNodes, mockEdges } from '../../helpers/mockData';
+import { MockNode, MockEdge } from '../../helpers/mockTypes';
 import App from '../../../src/App';
 import { UIProvider } from '../../../src/context/UIContext';
 
@@ -39,7 +40,13 @@ vi.mock('../../../src/utils/graphUtils', () => ({
 
 // Mock GraphView component to avoid complex Cytoscape dependencies
 vi.mock('../../../src/components/GraphView', () => ({
-  default: ({ nodes, edges, onNodeExpand, onLoadCompleteGraph, onDeleteNode }: any) => {
+  default: ({ nodes, edges, onNodeExpand, onLoadCompleteGraph, onDeleteNode }: {
+    nodes: MockNode[];
+    edges: MockEdge[];
+    onNodeExpand?: (nodeId: string) => void;
+    onLoadCompleteGraph?: () => void;
+    onDeleteNode?: (nodeId: string) => void;
+  }) => {
     return (
       <div data-testid="graph-view">
         <span data-testid="node-count">{nodes.length}</span>

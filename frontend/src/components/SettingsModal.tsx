@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useUIContext } from '../context/UIContext';
+import { useUIContext } from '../hooks/useUI';
+import { SystemStatus } from '../types/system';
 
 interface StatusIconProps {
   isActive: boolean;
@@ -18,7 +19,7 @@ const StatusIcon: React.FC<StatusIconProps> = ({ isActive }) => (
 );
 
 interface FeaturesTabProps {
-  systemStatus: any;
+  systemStatus: SystemStatus | null;
 }
 
 const FeaturesTab: React.FC<FeaturesTabProps> = ({ systemStatus }) => {
@@ -34,7 +35,7 @@ const FeaturesTab: React.FC<FeaturesTabProps> = ({ systemStatus }) => {
   const isTrialActive = systemStatus.licenseType === 'oss-trial';
   
   // Get display name for license type
-  const getLicenseTypeDisplay = (licenseType: string) => {
+  const getLicenseTypeDisplay = (licenseType?: string) => {
     switch (licenseType) {
       case 'oss-only':
         return 'Open Source';

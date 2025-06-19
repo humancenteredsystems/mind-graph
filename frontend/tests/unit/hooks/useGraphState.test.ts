@@ -9,8 +9,8 @@ vi.mock('../../../src/services/ApiService', () => ({
   executeMutation: vi.fn(),
 }));
 
-// Mock the hierarchy context
-vi.mock('../../../src/context/HierarchyContext', () => ({
+// Mock the hierarchy context using the correct hook path
+vi.mock('../../../src/hooks/useHierarchy', () => ({
   useHierarchyContext: () => ({
     hierarchyId: 'test-hierarchy',
     hierarchies: [{ id: 'test-hierarchy', name: 'Test Hierarchy' }],
@@ -23,6 +23,7 @@ vi.mock('../../../src/context/HierarchyContext', () => ({
 
 import { useGraphState } from '../../../src/hooks/useGraphState';
 import * as ApiService from '../../../src/services/ApiService';
+import type { RawNodeResponse } from '../../../src/types/graph';
 
 describe('useGraphState', () => {
   beforeEach(() => {
@@ -35,30 +36,27 @@ describe('useGraphState', () => {
           id: 'node1',
           label: 'Test Node 1',
           type: 'concept',
-          hierarchyAssignments: [
+          assignments: [
             {
-              hierarchy: { id: 'test-hierarchy', name: 'Test Hierarchy' },
-              level: { id: 'level1', levelNumber: 1, label: 'Level 1' }
+              hierarchyId: 'test-hierarchy',
+              hierarchyName: 'Test Hierarchy',
+              levelId: 'level1',
+              levelNumber: 1
             }
           ],
-          outgoing: [
-            {
-              type: 'simple',
-              to: { id: 'node2' }
-            }
-          ]
         },
         {
           id: 'node2',
           label: 'Test Node 2',
           type: 'concept',
-          hierarchyAssignments: [
+          assignments: [
             {
-              hierarchy: { id: 'test-hierarchy', name: 'Test Hierarchy' },
-              level: { id: 'level2', levelNumber: 2, label: 'Level 2' }
+              hierarchyId: 'test-hierarchy',
+              hierarchyName: 'Test Hierarchy',
+              levelId: 'level2',
+              levelNumber: 2
             }
-          ],
-          outgoing: []
+          ]
         }
       ]
     });
@@ -77,7 +75,7 @@ describe('useGraphState', () => {
             }
           ],
           outgoing: []
-        }
+        } as RawNodeResponse
       ]
     });
   });

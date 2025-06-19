@@ -24,7 +24,15 @@ vi.mock('axios', () => {
 
 // Get the mocked axios for test assertions
 const mockedAxios = vi.mocked(axios);
-const mockApiClient = (mockedAxios.create as any)();
+const mockApiClient = mockedAxios.create() as unknown as {
+  post: ReturnType<typeof vi.fn>;
+  get: ReturnType<typeof vi.fn>;
+  interceptors: {
+    request: {
+      use: ReturnType<typeof vi.fn>;
+    };
+  };
+};
 
 describe('ApiService', () => {
   beforeEach(() => {

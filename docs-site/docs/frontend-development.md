@@ -285,6 +285,186 @@ export const buildButtonStyle = (variant = 'primary') => css({
 - **Performance:** No inline style recalculations
 - **Responsive Design:** Mobile-first responsive layouts
 
+## Layout Engine Architecture
+
+The frontend uses a simplified hierarchy-aware layout system built on Cytoscape.js with a factory pattern for maximum flexibility and maintainability.
+
+### Layout System Overview
+
+**Core Components:**
+- `frontend/src/services/layoutEngine.ts` - Main layout engine with factory pattern
+- `frontend/src/context/LayoutContext.tsx` - React context for layout state management
+- `frontend/src/components/LayoutControls.tsx` - UI controls for layout switching
+
+### Layout Factory Pattern
+
+All layouts use a unified factory pattern that ensures hierarchy awareness:
+
+```typescript
+// Layout factory function type
+type LayoutFactory = (cy: Core, config: LayoutConfig, nodes: NodeData[], edges: EdgeData[], hierarchyId: string) => LayoutOptions;
+
+// Example factory implementation
+const layoutFactories: Record<LayoutAlgorithm, LayoutFactory> = {
+  hierarchical: (cy, config) => ({
+    name: 'dagre',
+    animate: config.animate,
+    directed: true,
+    rankDir: 'TB', // Top to bottom hierarchy
+    nodeSep: config.nodeSpacing || 100,
+    rankSep: config.levelSpacing || 200,
+  }),
+  
+  circular: (cy, config, nodes, edges, hierarchyId) => ({
+    name: 'concentric',
+    animate: config.animate,
+    concentric: (node: NodeSingular) => {
+      const nodeData = node.data() as NodeData;
+      const level = getNodeHierarchyLevel(nodeData, hierarchyId);
+      return 10 - level; // Higher levels get smaller circles
+    },
+    levelWidth: () => 1,
+    minNodeSpacing: config.nodeSpacing || 100,
+  }),
+  
+  // ... other algorithms
+};
+```
+
+### Available Layout Algorithms
+
+1. **Tree (Default)** - Breadth-first tree layout with hierarchy awareness
+2. **Hierarchical** - Uses Dagre for top-down directed tree layout
+3. **Force-Directed** - Physics-based layout with hierarchy influence and live update support
+4. **Circular** - Concentric circles based on hierarchy levels
+5. **Grid** - Grid arrangement grouped by hierarchy levels
+6. **Deterministic** - Custom positioned layout with stable hierarchy spacing
+
+### Hierarchy-Aware Features
+
+**All layouts respect node hierarchy levels:**
+- Nodes are positioned based on their `levelNumber` in the hierarchy
+- Higher-level nodes appear closer to the root/center
+- Spacing and positioning algorithms consider parent-child relationships
+- Visual consistency maintained across all layout types
+
+### Universal Layout Runner
+
+Single execution function handles all layouts with consistent behavior:
+
+```typescript
+async function runHierarchyAwareLayout(
+  cy: Core,
+  algorithm: LayoutAlgorithm,
+  config: LayoutConfig,
+  nodes: NodeData[],
+  edges: EdgeData[],
+  hierarchyId: string
+): Promise<void>
+```
+
+**Features:**
+- Timeout protection (5 seconds default)
+- Error handling with fallback centering
+- Consistent center and fit behavior
+- Promise-based async execution
+
+### Adding New Layout Algorithms
+
+To add a new layout algorithm:
+
+1. **Add to type definition:**
+   ```typescript
+   export type LayoutAlgorithm = 
+     | 'hierarchical'
+     | 'your-new-algorithm'
+     // ... existing algorithms
+   ```
+
+2. **Create factory function:**
+   ```typescript
+   'your-new-algorithm': (cy, config, nodes, edges, hierarchyId) => ({
+     name: 'cytoscape-plugin-name',
+     animate: config.animate,
+     // ... algorithm-specific options
+     // Use hierarchyId and nodes to make it hierarchy-aware
+   })
+   ```
+
+3. **Add default configuration:**
+   ```typescript
+   const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
+     'your-new-algorithm': {
+       algorithm: 'your-new-algorithm',
+       animate: true,
+       // ... default settings
+     },
+     // ... existing configs
+   }
+   ```
+
+4. **Update display name:**
+   ```typescript
+   const ALGORITHM_NAMES: Record<LayoutAlgorithm, string> = {
+     'your-new-algorithm': 'Your Algorithm Name',
+     // ... existing names
+   }
+   ```
+
+### Live Force-Directed Layout
+
+The force-directed layout supports real-time continuous simulation during node dragging for enhanced interactivity.
+
+**How It Works:**
+- When a node is grabbed (dragged) in force-directed mode, the layout engine automatically switches to live update mode
+- Neighbor nodes continuously reposition themselves in real-time as the dragged node moves
+- When the node is released, the live simulation stops and a final layout pass settles the positions
+
+**Implementation Details:**
+```typescript
+// LayoutConfig interface includes liveUpdate flag
+interface LayoutConfig {
+  // ... other properties
+  liveUpdate?: boolean; // Enable continuous simulation
+}
+
+// Force-directed factory respects liveUpdate flag
+'force-directed': (cy, config, nodes, edges, hierarchyId) => ({
+  name: 'cose-bilkent',
+  // ... other options
+  maxSimulationTime: config.liveUpdate ? Infinity : 2000,
+  liveUpdate: config.liveUpdate || false,
+})
+
+// GraphView handles drag events
+cy.on('grab', 'node', () => {
+  if (currentAlgorithm === 'force-directed') {
+    applyLayout(undefined, { liveUpdate: true });
+  }
+});
+
+cy.on('free', 'node', () => {
+  if (currentAlgorithm === 'force-directed') {
+    applyLayout(); // Stop live update and settle
+  }
+});
+```
+
+**Benefits:**
+- **Interactive:** Real-time visual feedback during node manipulation
+- **Intuitive:** Natural physics-based neighbor repositioning
+- **Performance:** Only active during drag operations
+- **Seamless:** Automatic activation/deactivation based on user interaction
+
+### Benefits of This Architecture
+
+- **KISS Principle:** Simple factory pattern eliminates complex switch statements
+- **DRY Principle:** Single execution function handles all layouts consistently
+- **Hierarchy-Aware:** Every layout respects node hierarchy by design
+- **Extensible:** Adding new algorithms requires minimal code changes
+- **Maintainable:** Clear separation of concerns and consistent patterns
+- **Reliable:** Universal error handling and timeout protection
+
 ## Next Steps
 
 - Review the [System Architecture](./system-architecture.md) to understand the overall system design

@@ -68,6 +68,8 @@ import axios from 'axios'; // Import axios using ES module syntax
 import { TestDataSeeder } from './__tests__/helpers/testDataSeeder';
 import { DgraphTenantFactory } from './services/dgraphTenant';
 import { TenantManager } from './services/tenantManager';
+import { dgraphCapabilityDetector } from './services/dgraphCapabilities';
+import { capabilityHelpers } from './utils/capabilityHelpers';
 
 const TEST_NAMESPACE = '0x1';
 const tenantManager = new TenantManager();
@@ -203,6 +205,12 @@ process.on('uncaughtException', (error) => {
 // Note: Not globally mocking axios to allow real integration tests to make HTTP calls
 // Individual unit tests should mock axios locally if needed
 
+// Conditionally unmock axios for integration-real tests
+const testPath = expect.getState().testPath;
+if (testPath && testPath.includes('integration-real')) {
+  jest.unmock('axios');
+}
+
 // Mock file system operations for consistent testing (after we've read .env)
 jest.mock('fs', () => ({
   promises: {
@@ -328,64 +336,65 @@ afterEach(async () => {
   ...overrides
 });
 
-// Dgraph Enterprise detection for conditional test execution (checks for active license)
+// Dgraph Enterprise detection for conditional test execution using standardized capability helpers
 (global as any).testUtils.checkDgraphEnterprise = async () => {
   try {
-    // Use the top-level imported axios
-    const response = await axios.get('http://localhost:8080/state');
-    // Check for the presence of a license object, if it's enabled, and if it hasn't expired
-    const isEnterprise = response.data && response.data.license &&
-                         response.data.license.enabled === true &&
-                         response.data.license.expiryTs > Date.now() / 1000;
+    // Use standardized capability detection via ensureCapabilitiesDetected
+    const capabilities = await capabilityHelpers.ensureCapabilitiesDetected();
+    
+    // Check if Enterprise features are active and license is valid
+    const isEnterprise = capabilities.enterpriseDetected && 
+                        capabilities.licenseType !== 'oss-only' &&
+                        (!capabilities.licenseExpiry || capabilities.licenseExpiry > new Date());
 
     if (!isEnterprise) {
-       console.warn('[TEST_SETUP] Dgraph Enterprise trial/license not detected or expired, skipping real integration tests');
+      console.warn('[TEST_SETUP] Dgraph Enterprise not available or license expired, skipping real integration tests');
+      console.warn('[TEST_SETUP] Capabilities:', {
+        enterpriseDetected: capabilities.enterpriseDetected,
+        licenseType: capabilities.licenseType,
+        licenseExpiry: capabilities.licenseExpiry,
+        namespacesSupported: capabilities.namespacesSupported
+      });
     } else {
-       console.log('[TEST_SETUP] Dgraph Enterprise trial/license detected.');
+      console.log('[TEST_SETUP] Dgraph Enterprise detected and licensed');
+      console.log('[TEST_SETUP] Capabilities:', {
+        enterpriseDetected: capabilities.enterpriseDetected,
+        licenseType: capabilities.licenseType,
+        licenseExpiry: capabilities.licenseExpiry,
+        namespacesSupported: capabilities.namespacesSupported
+      });
     }
 
     return isEnterprise;
 
-  } catch (error: unknown) { // Explicitly type as unknown
+  } catch (error: unknown) {
     let errorMessage = 'Unknown error';
     if (error instanceof Error) {
       errorMessage = error.message;
     }
-    console.warn('[TEST_SETUP] Error checking Dgraph state for Enterprise features, skipping real integration tests:', errorMessage);
+    console.warn('[TEST_SETUP] Error checking Dgraph Enterprise capabilities, skipping real integration tests:', errorMessage);
     return false;
   }
 };
 
-// Synchronous enterprise detection at module load time
-// This ensures DGRAPH_ENTERPRISE_AVAILABLE is set before conditionalDescribe evaluates
-let enterpriseAvailable = false;
-try {
-  // Synchronous check using require to avoid async issues at module load
-  const { execSync } = require('child_process');
-  const result = execSync('curl -s http://localhost:8080/state', { encoding: 'utf8', timeout: 5000 });
-  const state = JSON.parse(result);
-  enterpriseAvailable = state && state.license &&
-                       state.license.enabled === true &&
-                       state.license.expiryTs > Date.now() / 1000;
-  
-  if (enterpriseAvailable) {
-    console.log('[TEST_SETUP] Dgraph Enterprise detected at module load time');
-  } else {
-    console.warn('[TEST_SETUP] Dgraph Enterprise not available at module load time');
-  }
-} catch (error) {
-  console.warn('[TEST_SETUP] Failed to check Dgraph Enterprise at module load time:', error instanceof Error ? error.message : error);
-  enterpriseAvailable = false;
-}
+// Enterprise detection at module load time using our capability detector
+// Note: We start with false and update asynchronously to avoid blocking module load
+(global as any).DGRAPH_ENTERPRISE_AVAILABLE = false;
 
-// Global flag for enterprise availability - set synchronously
-(global as any).DGRAPH_ENTERPRISE_AVAILABLE = enterpriseAvailable;
-
-// Keep the async version for runtime checks
+// Async enterprise detection that runs before all tests
 beforeAll(async () => {
-  const runtimeCheck = await (global as any).testUtils.checkDgraphEnterprise();
-  if (runtimeCheck !== (global as any).DGRAPH_ENTERPRISE_AVAILABLE) {
-    console.warn('[TEST_SETUP] Enterprise availability changed between module load and runtime');
-    (global as any).DGRAPH_ENTERPRISE_AVAILABLE = runtimeCheck;
+  try {
+    console.log('[TEST_SETUP] Checking Dgraph Enterprise capabilities...');
+    const isEnterprise = await (global as any).testUtils.checkDgraphEnterprise();
+    (global as any).DGRAPH_ENTERPRISE_AVAILABLE = isEnterprise;
+    
+    if (isEnterprise) {
+      console.log('[TEST_SETUP] ✅ Dgraph Enterprise available for real integration tests');
+    } else {
+      console.warn('[TEST_SETUP] ❌ Dgraph Enterprise not available - real integration tests will be skipped');
+    }
+  } catch (error) {
+    console.error('[TEST_SETUP] Failed to detect Enterprise capabilities:', error instanceof Error ? error.message : error);
+    (global as any).DGRAPH_ENTERPRISE_AVAILABLE = false;
   }
 });

@@ -7,6 +7,7 @@ import systemRoutes from './routes/system';
 import graphqlRoutes from './routes/graphql';
 import schemaRoutes from './routes/schema';
 import adminRoutes from './routes/admin';
+import adminTestRoutes from './routes/adminTest';
 import diagnosticRoutes from './routes/diagnostic';
 import hierarchyRoutes from './routes/hierarchy';
 import tenantRoutes from './routes/tenants';
@@ -18,11 +19,15 @@ import { setTenantContext, ensureTenant, validateTenantAccess } from './middlewa
 process.on('uncaughtException', (err, origin) => {
   console.error('[GLOBAL] Uncaught Exception:', err);
   console.error('[GLOBAL] Origin:', origin);
+  console.error('[GLOBAL] Process will exit to prevent hung state');
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[GLOBAL] Unhandled Rejection at:', promise);
   console.error('[GLOBAL] Reason:', reason);
+  console.error('[GLOBAL] Process will exit to prevent hung state');
+  process.exit(1);
 });
 // --- End Global Error Handlers ---
 
@@ -79,12 +84,15 @@ app.use('/api', validateTenantAccess);
 // Note: ensureTenant is applied selectively in routes that need it
 
 // Mount other route modules that require tenant context
+// Mount critical public routes first to avoid admin middleware conflicts
+app.use('/api', hierarchyRoutes);
 app.use('/api', graphqlRoutes);
 app.use('/api', schemaRoutes);
-app.use('/api', adminRoutes);
 app.use('/api', diagnosticRoutes);
-app.use('/api', hierarchyRoutes);
 app.use('/api', tenantRoutes);
+// Mount admin routes last to prevent conflicts with public endpoints
+app.use('/api', adminRoutes);
+app.use('/api', adminTestRoutes);
 
 export default app;
 

@@ -6,7 +6,7 @@ import { vi } from 'vitest';
  * Use this for tests that only need to verify element counts and basic rendering
  */
 export const createMinimalCytoscapeMock = () => ({
-  default: ({ elements, cy }: { elements: any[]; cy?: any }) => {
+  default: ({ elements, cy }: { elements: Array<{ data: { source?: string } }>; cy?: (instance: unknown) => void }) => {
     // Simple mock that just renders a div with test data
     if (typeof cy === 'function') {
       cy({
@@ -32,11 +32,11 @@ export const createMinimalCytoscapeMock = () => ({
  * Use this for tests that need to simulate user interactions like clicks, double-clicks, etc.
  */
 export const createEventCapableCytoscapeMock = () => {
-  const eventHandlers: Record<string, Function[]> = {};
+  const eventHandlers: Record<string, Array<(event: unknown) => void>> = {};
   
   const mockCy = {
     layout: vi.fn().mockReturnValue({ run: vi.fn() }),
-    on: vi.fn((event: string, selector: string, handler: Function) => {
+    on: vi.fn((event: string, selector: string, handler: (event: unknown) => void) => {
       const key = `${event}-${selector}`;
       if (!eventHandlers[key]) eventHandlers[key] = [];
       eventHandlers[key].push(handler);
@@ -53,7 +53,7 @@ export const createEventCapableCytoscapeMock = () => {
       return [];
     }),
     // Test helper to trigger events - exposed via returned object, not global window
-    __triggerEvent: (event: string, selector: string, mockTarget: any) => {
+    __triggerEvent: (event: string, selector: string, mockTarget: unknown) => {
       const key = `${event}-${selector}`;
       eventHandlers[key]?.forEach(handler => 
         handler({ 
@@ -72,7 +72,7 @@ export const createEventCapableCytoscapeMock = () => {
   };
 
   return {
-    default: ({ elements, cy }: { elements: any[]; cy?: any }) => {
+    default: ({ elements, cy }: { elements: unknown[]; cy?: (instance: unknown) => void }) => {
       if (typeof cy === 'function') cy(mockCy);
       return React.createElement('div', {
         'data-testid': 'cytoscape-component',
@@ -87,7 +87,7 @@ export const createEventCapableCytoscapeMock = () => {
 /**
  * Helper to create mock node targets for event simulation
  */
-export const createMockNodeTarget = (nodeData: any) => ({
+export const createMockNodeTarget = (nodeData: { id: string; [key: string]: unknown }) => ({
   isNode: () => true,
   isEdge: () => false,
   id: () => nodeData.id,
@@ -99,7 +99,7 @@ export const createMockNodeTarget = (nodeData: any) => ({
 /**
  * Helper to create mock edge targets for event simulation
  */
-export const createMockEdgeTarget = (edgeData: any) => ({
+export const createMockEdgeTarget = (edgeData: { source: string; target: string; [key: string]: unknown }) => ({
   isNode: () => false,
   isEdge: () => true,
   id: () => `${edgeData.source}-${edgeData.target}`,
@@ -112,12 +112,12 @@ export const createMockEdgeTarget = (edgeData: any) => ({
  * Full mock for complex scenarios (use sparingly)
  * Only implement specific methods needed rather than full API coverage
  */
-export const createFullCytoscapeMock = (customMethods: Record<string, any> = {}) => {
-  const eventHandlers: Record<string, Function[]> = {};
+export const createFullCytoscapeMock = (customMethods: Record<string, unknown> = {}) => {
+  const eventHandlers: Record<string, Array<(event: unknown) => void>> = {};
   
   const mockCy = {
     layout: vi.fn().mockReturnValue({ run: vi.fn() }),
-    on: vi.fn((event: string, selector: string, handler: Function) => {
+    on: vi.fn((event: string, selector: string, handler: (event: unknown) => void) => {
       const key = `${event}-${selector}`;
       if (!eventHandlers[key]) eventHandlers[key] = [];
       eventHandlers[key].push(handler);
@@ -132,7 +132,7 @@ export const createFullCytoscapeMock = (customMethods: Record<string, any> = {})
     // Add custom methods as needed
     ...customMethods,
     // Test utilities
-    __triggerEvent: (event: string, selector: string, mockTarget: any) => {
+    __triggerEvent: (event: string, selector: string, mockTarget: unknown) => {
       const key = `${event}-${selector}`;
       eventHandlers[key]?.forEach(handler => 
         handler({ 
@@ -150,7 +150,7 @@ export const createFullCytoscapeMock = (customMethods: Record<string, any> = {})
   };
 
   return {
-    default: ({ elements, cy }: { elements: any[]; cy?: any }) => {
+    default: ({ elements, cy }: { elements: unknown[]; cy?: (instance: unknown) => void }) => {
       if (typeof cy === 'function') cy(mockCy);
       return React.createElement('div', {
         'data-testid': 'cytoscape-component',

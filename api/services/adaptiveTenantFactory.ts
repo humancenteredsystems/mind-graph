@@ -1,4 +1,4 @@
-import { DgraphTenant } from './dgraphTenant';
+import { DgraphTenantFactory, DgraphTenantInternal } from './dgraphTenant';
 import { dgraphCapabilityDetector } from './dgraphCapabilities';
 import { TenantCapabilities, AdaptiveTenantFactoryOptions } from '../src/types';
 
@@ -48,19 +48,19 @@ export class AdaptiveTenantFactory {
    * @param namespace - Desired namespace (ignored in OSS mode)
    * @returns Tenant client
    */
-  async createTenant(namespace: string | null = null): Promise<DgraphTenant> {
+  async createTenant(namespace: string | null = null): Promise<DgraphTenantInternal> {
     await this.initialize();
     
     if (this.capabilities?.namespacesSupported) {
       // Enterprise mode: use namespace as requested
       console.log(`[ADAPTIVE_TENANT] Creating tenant for namespace: ${namespace || 'default'}`);
-      return new DgraphTenant(namespace);
+      return await DgraphTenantFactory.createTenant(namespace);
     } else {
       // OSS mode: ignore namespace, use default
       if (namespace && namespace !== '0x0') {
         console.log(`[ADAPTIVE_TENANT] OSS mode: ignoring namespace ${namespace}, using default`);
       }
-      return new DgraphTenant(null);
+      return await DgraphTenantFactory.createTenant(null);
     }
   }
 
@@ -69,7 +69,7 @@ export class AdaptiveTenantFactory {
    * @param userContext - User context with namespace info
    * @returns Tenant client
    */
-  async createTenantFromContext(userContext: UserContext | null): Promise<DgraphTenant> {
+  async createTenantFromContext(userContext: UserContext | null): Promise<DgraphTenantInternal> {
     const namespace = userContext?.namespace || null;
     return await this.createTenant(namespace);
   }
@@ -78,7 +78,7 @@ export class AdaptiveTenantFactory {
    * Create default tenant
    * @returns Default tenant client
    */
-  async createDefaultTenant(): Promise<DgraphTenant> {
+  async createDefaultTenant(): Promise<DgraphTenantInternal> {
     return await this.createTenant(null);
   }
 
@@ -86,7 +86,7 @@ export class AdaptiveTenantFactory {
    * Create test tenant (adaptive)
    * @returns Test tenant client
    */
-  async createTestTenant(): Promise<DgraphTenant> {
+  async createTestTenant(): Promise<DgraphTenantInternal> {
     const testNamespace = process.env.DGRAPH_NAMESPACE_TEST || '0x1';
     return await this.createTenant(testNamespace);
   }

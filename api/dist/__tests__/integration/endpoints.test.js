@@ -16,14 +16,14 @@ jest.mock('../../services/adaptiveTenantFactory', () => {
                 isDefaultNamespace: jest.fn().mockReturnValue(true)
             })
         },
-        mockExecuteGraphQL
+        mockExecuteGraphQL // Export mockExecuteGraphQL
     };
 });
 // Import the mock after it's defined
-const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
+const adaptiveTenantFactory_1 = require("../../services/adaptiveTenantFactory");
 describe('API Endpoints', () => {
     beforeEach(() => {
-        mockExecuteGraphQL.mockReset();
+        adaptiveTenantFactory_1.mockExecuteGraphQL.mockReset();
     });
     describe('POST /api/query', () => {
         it('should execute GraphQL query and return results', async () => {
@@ -32,7 +32,7 @@ describe('API Endpoints', () => {
                     { id: 'node1', label: 'Test Node', type: 'concept' }
                 ]
             };
-            mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
             const query = `
         query {
           queryNode(first: 10) {
@@ -49,13 +49,13 @@ describe('API Endpoints', () => {
                 .expect(200);
             expect(res.body).toEqual(mockResponse);
             // Fix: Accept either undefined or {} for variables parameter
-            expect(mockExecuteGraphQL).toHaveBeenCalledWith(query, expect.anything());
+            expect(adaptiveTenantFactory_1.mockExecuteGraphQL).toHaveBeenCalledWith(query, expect.anything());
         });
         it('should handle GraphQL query with variables', async () => {
             const mockResponse = {
                 getNode: { id: 'node1', label: 'Test Node' }
             };
-            mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
             const query = `
         query GetNode($id: String!) {
           getNode(id: $id) {
@@ -71,7 +71,7 @@ describe('API Endpoints', () => {
                 .expect('Content-Type', /json/)
                 .expect(200);
             expect(res.body).toEqual(mockResponse);
-            expect(mockExecuteGraphQL).toHaveBeenCalledWith(query, variables);
+            expect(adaptiveTenantFactory_1.mockExecuteGraphQL).toHaveBeenCalledWith(query, variables);
         });
         it('should return 400 when query is missing', async () => {
             const res = await (0, supertest_1.default)(server_1.default)
@@ -85,14 +85,18 @@ describe('API Endpoints', () => {
     });
     describe('POST /api/mutate', () => {
         it('should execute GraphQL mutation and return results', async () => {
-            const mockResponse = {
+            // Mock hierarchy validation first
+            adaptiveTenantFactory_1.mockExecuteGraphQL
+                .mockResolvedValueOnce({ getHierarchy: { id: 'test-hierarchy' } }) // validateHierarchyId
+                .mockResolvedValueOnce({ queryHierarchy: [{ levels: [{ id: 'level1', levelNumber: 1 }] }] }) // getLevelIdForNode
+                .mockResolvedValueOnce({ getHierarchyLevel: { id: 'level1', levelNumber: 1, hierarchy: { id: 'test-hierarchy' }, allowedTypes: [] } }) // validateLevelIdAndAllowedType
+                .mockResolvedValueOnce({
                 addNode: {
                     node: [
                         { id: 'new-node', label: 'New Node', type: 'concept' }
                     ]
                 }
-            };
-            mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
+            });
             const mutation = `
         mutation AddNode($input: [AddNodeInput!]!) {
           addNode(input: $input) {
@@ -115,7 +119,13 @@ describe('API Endpoints', () => {
                 .send({ mutation, variables })
                 .expect('Content-Type', /json/)
                 .expect(200);
-            expect(res.body).toEqual(mockResponse);
+            expect(res.body).toHaveProperty('addNode');
+            expect(res.body.addNode.node).toHaveLength(1);
+            expect(res.body.addNode.node[0]).toMatchObject({
+                id: 'new-node',
+                label: 'New Node',
+                type: 'concept'
+            });
         });
         it('should return 400 when mutation is missing', async () => {
             const res = await (0, supertest_1.default)(server_1.default)
@@ -144,7 +154,7 @@ describe('API Endpoints', () => {
                     }
                 ]
             };
-            mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
             const res = await (0, supertest_1.default)(server_1.default)
                 .post('/api/traverse')
                 .send({ rootId: 'root-node' })
@@ -170,7 +180,7 @@ describe('API Endpoints', () => {
                     { id: 'node1', label: 'Test Node', type: 'concept' }
                 ]
             };
-            mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce(mockResponse);
             const res = await (0, supertest_1.default)(server_1.default)
                 .get('/api/search')
                 .query({ term: 'test' })
@@ -190,7 +200,7 @@ describe('API Endpoints', () => {
     describe('GET /api/health', () => {
         it('should return health status', async () => {
             // Mock a successful health check
-            mockExecuteGraphQL.mockResolvedValueOnce({ __schema: { queryType: { name: 'Query' } } });
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce({ __schema: { queryType: { name: 'Query' } } });
             const res = await (0, supertest_1.default)(server_1.default)
                 .get('/api/health')
                 .expect('Content-Type', /json/)

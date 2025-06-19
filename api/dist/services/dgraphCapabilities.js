@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.dgraphCapabilityDetector = exports.DgraphCapabilityDetector = void 0;
 const axios_1 = __importDefault(require("axios"));
+const namespaceValidator_1 = require("../utils/namespaceValidator");
 /**
  * DgraphCapabilityDetector - Detects Dgraph Enterprise features and capabilities
  */
@@ -44,7 +45,9 @@ class DgraphCapabilityDetector {
                 enterpriseDetected,
                 namespacesSupported,
                 detectedAt: new Date(),
-                error: undefined
+                error: undefined,
+                licenseType: licenseInfo.type,
+                licenseExpiry: licenseInfo.expiry
             };
             this.lastDetection = Date.now();
             console.log('[DGRAPH_CAPABILITIES] Detection complete:', this.cachedCapabilities);
@@ -52,12 +55,22 @@ class DgraphCapabilityDetector {
         }
         catch (error) {
             console.error('[DGRAPH_CAPABILITIES] Error detecting capabilities:', error.message);
+            // Try to get license info even if other detection fails
+            let fallbackLicenseInfo;
+            try {
+                fallbackLicenseInfo = await this.detectLicenseInfo();
+            }
+            catch (licenseError) {
+                fallbackLicenseInfo = { type: 'unknown', expiry: null };
+            }
             // Fallback to OSS assumptions on network errors
             this.cachedCapabilities = {
                 enterpriseDetected: false,
                 namespacesSupported: false,
                 detectedAt: new Date(),
-                error: error.message
+                error: error.message,
+                licenseType: fallbackLicenseInfo.type,
+                licenseExpiry: fallbackLicenseInfo.expiry
             };
             this.lastDetection = Date.now();
             return this.cachedCapabilities;
@@ -70,8 +83,9 @@ class DgraphCapabilityDetector {
     async detectLicenseInfo() {
         console.log('[DGRAPH_CAPABILITIES] Detecting license information...');
         try {
-            const stateUrl = `${this.zeroUrl}/state`;
-            console.log(`[DGRAPH_CAPABILITIES] Testing Zero state: ${stateUrl}`);
+            // Try Alpha state endpoint first (more reliable in Docker setups)
+            const stateUrl = `${this.baseUrl}/state`;
+            console.log(`[DGRAPH_CAPABILITIES] Testing Alpha state: ${stateUrl}`);
             const response = await axios_1.default.get(stateUrl, {
                 timeout: 5000,
                 validateStatus: (status) => status < 500
@@ -133,23 +147,40 @@ class DgraphCapabilityDetector {
             // Primary method: Check health endpoint for ee_features array
             const healthUrl = `${this.baseUrl}/health`;
             console.log(`[DGRAPH_CAPABILITIES] Testing health endpoint: ${healthUrl}`);
+            // Add admin authentication headers for internal requests
+            const headers = {};
+            if (process.env.ADMIN_API_KEY) {
+                headers['X-Admin-API-Key'] = process.env.ADMIN_API_KEY;
+            }
             const healthResponse = await axios_1.default.get(healthUrl, {
+                headers,
                 timeout: 5000,
                 validateStatus: (status) => status < 500
             });
+            console.log(`[DGRAPH_CAPABILITIES] Health response status: ${healthResponse.status}`);
+            console.log(`[DGRAPH_CAPABILITIES] Health response data:`, JSON.stringify(healthResponse.data, null, 2));
             if (healthResponse.status === 200 && healthResponse.data) {
                 const healthData = healthResponse.data;
                 // Check if response is an array (typical for Dgraph health)
                 if (Array.isArray(healthData) && healthData.length > 0) {
                     const alphaInfo = healthData[0]; // First alpha instance
+                    console.log(`[DGRAPH_CAPABILITIES] Alpha info:`, alphaInfo);
+                    console.log(`[DGRAPH_CAPABILITIES] ee_features:`, alphaInfo.ee_features);
                     // Look for ee_features array - this is the definitive indicator
                     if (alphaInfo.ee_features && Array.isArray(alphaInfo.ee_features) && alphaInfo.ee_features.length > 0) {
                         console.log('[DGRAPH_CAPABILITIES] ✅ Enterprise features detected via ee_features:', alphaInfo.ee_features);
                         return true;
                     }
+                    else {
+                        console.log('[DGRAPH_CAPABILITIES] ❌ No ee_features found in alpha info');
+                    }
+                }
+                else {
+                    console.log('[DGRAPH_CAPABILITIES] ❌ Health data is not an array or is empty');
                 }
                 // Fallback: Check for enterprise indicators in single object response
                 if (!Array.isArray(healthData)) {
+                    console.log('[DGRAPH_CAPABILITIES] Checking single object response');
                     if (healthData.ee_features && Array.isArray(healthData.ee_features) && healthData.ee_features.length > 0) {
                         console.log('[DGRAPH_CAPABILITIES] ✅ Enterprise features detected via ee_features:', healthData.ee_features);
                         return true;
@@ -160,6 +191,9 @@ class DgraphCapabilityDetector {
                         return true;
                     }
                 }
+            }
+            else {
+                console.log(`[DGRAPH_CAPABILITIES] ❌ Invalid health response: status=${healthResponse.status}, data=${!!healthResponse.data}`);
             }
             console.log('[DGRAPH_CAPABILITIES] ❌ No active Enterprise features detected');
             return false;
@@ -176,10 +210,18 @@ class DgraphCapabilityDetector {
     async testNamespaceSupport() {
         console.log('[DGRAPH_CAPABILITIES] Testing namespace support...');
         try {
+            // Bypass namespace validation for capability testing
+            (0, namespaceValidator_1.bypassNamespaceValidation)(true);
             // Test namespace support by trying to access admin schema with namespace parameter
             const testUrl = `${this.baseUrl}/admin/schema?namespace=0x1`;
             console.log(`[DGRAPH_CAPABILITIES] Testing namespace parameter: ${testUrl}`);
+            // Add admin authentication headers for internal requests
+            const headers = {};
+            if (process.env.ADMIN_API_KEY) {
+                headers['X-Admin-API-Key'] = process.env.ADMIN_API_KEY;
+            }
             const response = await axios_1.default.get(testUrl, {
+                headers,
                 timeout: 5000,
                 validateStatus: (status) => status < 500
             });
@@ -209,6 +251,10 @@ class DgraphCapabilityDetector {
         catch (error) {
             console.log('[DGRAPH_CAPABILITIES] Namespace test failed:', error.message);
             return false;
+        }
+        finally {
+            // Always reset bypass validation
+            (0, namespaceValidator_1.bypassNamespaceValidation)(false);
         }
     }
     /**

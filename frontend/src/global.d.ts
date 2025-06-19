@@ -3,3 +3,9 @@
 
 // Allow importing the react-hooks testing library without types errors
 declare module '@testing-library/react-hooks';
+
+// Cytoscape layout plugin type declarations
+declare module 'cytoscape-cose-bilkent';
+declare module 'cytoscape-dagre';
+declare module 'cytoscape-cola';
+declare module 'cytoscape-euler';

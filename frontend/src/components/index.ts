@@ -19,5 +19,9 @@ export { default as NodeFormModal } from './NodeFormModal';
 export { default as SettingsIcon } from './SettingsIcon';
 export { default as SettingsModal } from './SettingsModal';
 
+// Admin components
+export { default as AdminButton } from './AdminButton';
+export { default as AdminModal } from './AdminModal';
+
 // Re-export component prop types for external usage
 export type { default as GraphViewProps } from './GraphView';

@@ -11,6 +11,7 @@ const system_1 = __importDefault(require("./routes/system"));
 const graphql_1 = __importDefault(require("./routes/graphql"));
 const schema_1 = __importDefault(require("./routes/schema"));
 const admin_1 = __importDefault(require("./routes/admin"));
+const adminTest_1 = __importDefault(require("./routes/adminTest"));
 const diagnostic_1 = __importDefault(require("./routes/diagnostic"));
 const hierarchy_1 = __importDefault(require("./routes/hierarchy"));
 const tenants_1 = __importDefault(require("./routes/tenants"));
@@ -20,10 +21,14 @@ const tenantContext_1 = require("./middleware/tenantContext");
 process.on('uncaughtException', (err, origin) => {
     console.error('[GLOBAL] Uncaught Exception:', err);
     console.error('[GLOBAL] Origin:', origin);
+    console.error('[GLOBAL] Process will exit to prevent hung state');
+    process.exit(1);
 });
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[GLOBAL] Unhandled Rejection at:', promise);
     console.error('[GLOBAL] Reason:', reason);
+    console.error('[GLOBAL] Process will exit to prevent hung state');
+    process.exit(1);
 });
 // --- End Global Error Handlers ---
 const app = (0, express_1.default)();
@@ -43,9 +48,13 @@ const corsMiddleware = (req, res, next) => {
     // Allow common methods and headers needed for GraphQL/API requests
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Hierarchy-Id, X-Tenant-Id');
+    // Allow credentials for specific origins (required by browser if frontend sends cookies/auth)
+    if (allowedOrigin !== '*') {
+        res.set('Access-Control-Allow-Credentials', 'true');
+    }
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
-        res.sendStatus(204);
+        res.status(204).end();
         return;
     }
     next();
@@ -64,12 +73,15 @@ app.use('/api', tenantContext_1.setTenantContext);
 app.use('/api', tenantContext_1.validateTenantAccess);
 // Note: ensureTenant is applied selectively in routes that need it
 // Mount other route modules that require tenant context
+// Mount critical public routes first to avoid admin middleware conflicts
+app.use('/api', hierarchy_1.default);
 app.use('/api', graphql_1.default);
 app.use('/api', schema_1.default);
-app.use('/api', admin_1.default);
 app.use('/api', diagnostic_1.default);
-app.use('/api', hierarchy_1.default);
 app.use('/api', tenants_1.default);
+// Mount admin routes last to prevent conflicts with public endpoints
+app.use('/api', admin_1.default);
+app.use('/api', adminTest_1.default);
 exports.default = app;
 // Start the server only if this file is run directly
 if (require.main === module) {

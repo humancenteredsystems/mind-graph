@@ -18,14 +18,14 @@ jest.mock('../../services/adaptiveTenantFactory', () => {
             })
         },
         // Export the mock function so tests can access it
-        mockExecuteGraphQL
+        mockExecuteGraphQL // Export mockExecuteGraphQL
     };
 });
-const { mockExecuteGraphQL } = require('../../services/adaptiveTenantFactory');
+const adaptiveTenantFactory_1 = require("../../services/adaptiveTenantFactory");
 describe('GraphQL Integration Tests', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockExecuteGraphQL.mockReset();
+        adaptiveTenantFactory_1.mockExecuteGraphQL.mockReset();
         // ADMIN_API_KEY is already loaded from .env file via jest.setup.ts
     });
     describe('POST /api/query', () => {
@@ -39,7 +39,7 @@ describe('GraphQL Integration Tests', () => {
           }
         }
       `;
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce({
                 queryNode: mockData_1.mockNodes.slice(0, 2)
             });
             const response = await (0, supertest_1.default)(server_1.default)
@@ -61,7 +61,7 @@ describe('GraphQL Integration Tests', () => {
         }
       `;
             const variables = { id: 'test-node-1' };
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce({
                 getNode: mockData_1.mockNodes[0]
             });
             const response = await (0, supertest_1.default)(server_1.default)
@@ -97,7 +97,7 @@ describe('GraphQL Integration Tests', () => {
           }
         }
       `;
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce({
                 queryNode: mockData_1.mockNodes
             });
             const response = await (0, supertest_1.default)(server_1.default)
@@ -120,7 +120,7 @@ describe('GraphQL Integration Tests', () => {
           }
         }
       `;
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Cannot query field "invalidField" on type "Node"'));
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Cannot query field "invalidField" on type "Node"'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/query')
                 .send({ query: malformedQuery })
@@ -146,7 +146,7 @@ describe('GraphQL Integration Tests', () => {
         }
       `;
             const variables = { term: 'test' };
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce({
                 queryNode: [mockData_1.mockNodes[0]]
             });
             const response = await (0, supertest_1.default)(server_1.default)
@@ -176,7 +176,12 @@ describe('GraphQL Integration Tests', () => {
                         type: 'ConceptNode'
                     }]
             };
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            // Mock hierarchy validation first
+            adaptiveTenantFactory_1.mockExecuteGraphQL
+                .mockResolvedValueOnce({ getHierarchy: { id: 'default-hierarchy' } }) // validateHierarchyId
+                .mockResolvedValueOnce({ queryHierarchy: [{ levels: [{ id: 'level1', levelNumber: 1 }] }] }) // getLevelIdForNode
+                .mockResolvedValueOnce({ getHierarchyLevel: { id: 'level1', levelNumber: 1, hierarchy: { id: 'default-hierarchy' }, allowedTypes: [] } }) // validateLevelIdAndAllowedType
+                .mockResolvedValueOnce({
                 addNode: {
                     node: [{
                             id: variables.input[0].id,
@@ -213,7 +218,7 @@ describe('GraphQL Integration Tests', () => {
                         type: 'relates_to'
                     }]
             };
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce({
                 addEdge: {
                     edge: [variables.input[0]]
                 }
@@ -255,13 +260,15 @@ describe('GraphQL Integration Tests', () => {
                             }]
                     }]
             };
-            // Mock a validation error from the node enrichment service
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('Invalid level or node type constraint violation'));
+            // Mock hierarchy validation then a validation error from the node enrichment service
+            adaptiveTenantFactory_1.mockExecuteGraphQL
+                .mockResolvedValueOnce({ getHierarchy: { id: 'test-hierarchy' } }) // validateHierarchyId
+                .mockRejectedValueOnce(new Error('Invalid level or node type constraint violation'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/mutate')
                 .set('X-Hierarchy-Id', 'test-hierarchy')
                 .send({ mutation, variables })
-                .expect(500); // Server returns 500 for enrichment errors
+                .expect(500); // Server returns 500 for enrichment errors in this specific mock scenario
             expect(response.body).toHaveProperty('error');
         });
         it('should return error for mutation without required hierarchy header', async () => {
@@ -282,13 +289,12 @@ describe('GraphQL Integration Tests', () => {
                         type: 'ConceptNode'
                     }]
             };
-            // Mock an enrichment error (no hierarchy header)
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('Hierarchy header required for node creation'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/mutate')
                 .send({ mutation, variables })
-                .expect(500); // Server returns 500 for enrichment errors
+                .expect(400); // Server returns 400 for validation errors
             expect(response.body).toHaveProperty('error');
+            expect(response.body.error).toContain('X-Hierarchy-Id header is required');
         });
         it('should return 400 when mutation is missing', async () => {
             const response = await (0, supertest_1.default)(server_1.default)
@@ -320,7 +326,7 @@ describe('GraphQL Integration Tests', () => {
                 }
             };
             // Mock rejection for update mutations (not implemented in test environment)
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('Update operations not supported in test environment'));
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockRejectedValueOnce(new Error('Update operations not supported in test environment'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/mutate')
                 .send({ mutation, variables })
@@ -339,7 +345,7 @@ describe('GraphQL Integration Tests', () => {
             const variables = {
                 filter: { id: { eq: 'node-to-delete' } }
             };
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce({
                 deleteNode: {
                     msg: 'Deleted',
                     numUids: 1
@@ -361,7 +367,7 @@ describe('GraphQL Integration Tests', () => {
             label
           // Missing closing brace
       `;
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Syntax Error'));
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Syntax Error'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/query')
                 .send({ query: invalidQuery })
@@ -376,7 +382,7 @@ describe('GraphQL Integration Tests', () => {
           }
         }
       `;
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Cannot query field "nonExistentField" on type "Node"'));
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Cannot query field "nonExistentField" on type "Node"'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/query')
                 .send({ query })
@@ -400,7 +406,7 @@ describe('GraphQL Integration Tests', () => {
                         type: 'ConceptNode'
                     }]
             };
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Variable "$input" got invalid value'));
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Variable "$input" got invalid value'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/mutate')
                 .set('X-Hierarchy-Id', 'test-hierarchy')
@@ -437,7 +443,7 @@ describe('GraphQL Integration Tests', () => {
                 ]
             };
             // Mock validation error for batch operations
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Batch operation validation failed'));
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockRejectedValueOnce(new Error('GraphQL query failed: Batch operation validation failed'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/mutate')
                 .set('X-Hierarchy-Id', 'test-hierarchy')
@@ -457,7 +463,7 @@ describe('GraphQL Integration Tests', () => {
       `;
             const variables = { first: 5, offset: 0 };
             // Mock rejection for complex pagination (not implemented in test environment)
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('Pagination not supported in test environment'));
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockRejectedValueOnce(new Error('Pagination not supported in test environment'));
             const response = await (0, supertest_1.default)(server_1.default)
                 .post('/api/query')
                 .send({ query, variables })
@@ -472,7 +478,7 @@ describe('GraphQL Integration Tests', () => {
           }
         }
       `;
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce({
                 aggregateNode: {
                     count: 42
                 }
@@ -503,7 +509,7 @@ describe('GraphQL Integration Tests', () => {
           }
         }
       `;
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            adaptiveTenantFactory_1.mockExecuteGraphQL.mockResolvedValueOnce({
                 queryNode: mockData_1.mockNodes // Return mock data
             });
             const startTime = Date.now();
@@ -526,7 +532,7 @@ describe('GraphQL Integration Tests', () => {
         }
       `;
             // Set up individual mock responses for each concurrent request
-            mockExecuteGraphQL
+            adaptiveTenantFactory_1.mockExecuteGraphQL
                 .mockResolvedValueOnce({ queryNode: mockData_1.mockNodes })
                 .mockResolvedValueOnce({ queryNode: mockData_1.mockNodes })
                 .mockResolvedValueOnce({ queryNode: mockData_1.mockNodes })

@@ -3,20 +3,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendDgraphAdminRequest = sendDgraphAdminRequest;
+exports.sendDgraphAdminRequest = void 0;
 const axios_1 = __importDefault(require("axios"));
+const namespaceValidator_1 = require("./namespaceValidator");
 /**
- * sendDgraphAdminRequest
- *
- * A shared helper to send JSON payloads to Dgraph admin endpoints.
- * Returns an object { success: boolean, data?: any, error?: string, details?: any }
- *
- * @param url - The full URL of the Dgraph admin endpoint (e.g., /alter or /admin/schema).
- * @param payload - The JSON payload to POST.
- * @param namespace - Optional namespace for multi-tenant operations (e.g., '0x0', '0x1').
- * @returns Promise<AdminOperationResult>
+ * Internal admin request function (without validation)
  */
-async function sendDgraphAdminRequest(url, payload, namespace = null) {
+async function sendDgraphAdminRequestInternal(url, payload, namespace = null) {
     // Build URL with optional namespace parameter
     const finalUrl = namespace ? `${url}?namespace=${namespace}` : url;
     try {
@@ -62,3 +55,15 @@ async function sendDgraphAdminRequest(url, payload, namespace = null) {
         }
     }
 }
+/**
+ * sendDgraphAdminRequest
+ *
+ * A shared helper to send JSON payloads to Dgraph admin endpoints.
+ * Returns an object { success: boolean, data?: any, error?: string, details?: any }
+ *
+ * @param url - The full URL of the Dgraph admin endpoint (e.g., /alter or /admin/schema).
+ * @param payload - The JSON payload to POST.
+ * @param namespace - Optional namespace for multi-tenant operations (e.g., '0x0', '0x1').
+ * @returns Promise<AdminOperationResult>
+ */
+exports.sendDgraphAdminRequest = (0, namespaceValidator_1.withNamespaceValidationAt)(sendDgraphAdminRequestInternal, 'Admin request', 2);

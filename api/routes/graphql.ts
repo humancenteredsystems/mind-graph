@@ -13,6 +13,9 @@ import {
   GraphQLOperation 
 } from '../src/types/graphql';
 import { Node } from '../src/types/domain';
+import { validateNamespaceParam } from '../utils/namespaceValidator';
+import { createNamespaceErrorResponse } from '../utils/errorResponse'; // Added import
+import { adaptiveTenantFactory as adaptiveTenantFactoryForSchema } from '../services/adaptiveTenantFactory'; // Added import with alias
 
 const router = express.Router();
 
@@ -60,14 +63,13 @@ router.post('/query', async (req: Request, res: Response): Promise<void> => {
       const result = await tenantClient.executeGraphQL(query, variables || {});
       res.json(result);
   } catch (error) {
-    // Log the detailed error
-    console.error(`Error in /api/query endpoint:`, error);
-    // Provide a more specific error message if possible
-    const errorMessage = error instanceof Error && error.message.includes('GraphQL query failed:')
-      ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
-      : 'Server error executing query.';
-    const statusCode = error instanceof Error && error.message.includes('GraphQL query failed:') ? 400 : 500;
-    res.status(statusCode).json({ error: errorMessage });
+    const err = error as Error;
+    console.error('[GRAPHQL] Failed to execute query:', error);
+    const errorMessage = err.message.includes('GraphQL query failed:')
+      ? `GraphQL error: ${err.message.replace('GraphQL query failed: ', '')}`
+      : 'Server error executing query';
+    const statusCode = err.message.includes('GraphQL query failed:') ? 400 : 500;
+    res.status(statusCode).json({ error: errorMessage, details: err.message });
   }
 });
 
@@ -78,14 +80,19 @@ router.post('/mutate', async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: 'Missing required field: mutation' });
     return;
   }
+
+  // Check if this is a node creation mutation
+  const isNodeCreation = mutation.includes('addNode') && variables && variables.input;
+  const hierarchyIdFromHeader = req.headers['x-hierarchy-id'] as string;
+
   try {
     // Enrich addNode inputs with nested hierarchyAssignments
     // Focus on the operation being performed rather than specific mutation names
-    const hierarchyIdFromHeader = req.headers['x-hierarchy-id'] as string;
     
     // Only call enrichNodeInputs if variables has the expected structure
     if (variables && typeof variables === 'object' && 'input' in variables) {
-      variables = await enrichNodeInputs(variables, hierarchyIdFromHeader, mutation);
+      const tenantClient = await getTenantClient(req);
+      variables = await enrichNodeInputs(variables, hierarchyIdFromHeader, mutation, tenantClient);
     }
     
     // For mutations that don't need transformation, or for addNode after input enrichment, execute normally
@@ -104,15 +111,26 @@ router.post('/mutate', async (req: Request, res: Response): Promise<void> => {
     console.log('[MUTATE] Dgraph result:', result); // Keep existing log for general mutations
     res.status(200).json(result); // Use 200 OK for mutations unless specifically creating (201)
   } catch (error) {
-    console.error(`Error in /api/mutate endpoint:`, error);
+    const err = error as Error;
+    console.error('[GRAPHQL] Failed to execute mutation:', error);
+    
+    // Handle validation errors with 400 status
     if (error instanceof InvalidLevelError || error instanceof NodeTypeNotAllowedError) {
-      res.status(400).json({ error: error.message }); // Or 422 Unprocessable Entity
+      res.status(400).json({ error: err.message });
+    } else if (err.message.includes('X-Hierarchy-Id header is required') ||
+               err.message.includes('Invalid hierarchyId in header') ||
+               err.message.includes('Hierarchy not found') ||
+               err.message.includes('Invalid level or node type constraint violation') ||
+               err.message.includes('Node type') && err.message.includes('is not allowed')) {
+      // Handle enrichment validation errors as 400 Bad Request
+      res.status(400).json({ error: err.message });
+    } else if (err.message.includes('GraphQL query failed:')) {
+      // Handle GraphQL-specific errors as 400 Bad Request
+      const errorMessage = `GraphQL error: ${err.message.replace('GraphQL query failed: ', '')}`;
+      res.status(400).json({ error: errorMessage, details: err.message });
     } else {
-      const errorMessage = error instanceof Error && error.message.includes('GraphQL query failed:')
-        ? `GraphQL error: ${error.message.replace('GraphQL query failed: ', '')}`
-        : 'Server error executing mutation.';
-      const statusCode = error instanceof Error && error.message.includes('GraphQL query failed:') ? 400 : 500;
-      res.status(statusCode).json({ error: errorMessage });
+      // Handle genuine server errors as 500 Internal Server Error
+      res.status(500).json({ error: 'Server error executing mutation', details: err.message });
     }
   }
 });
@@ -148,13 +166,14 @@ router.post('/traverse', async (req: Request, res: Response): Promise<void> => {
     const data = raw.queryNode || [];
     const safe = data.map(filterValidOutgoingEdges);
     res.json({ data: { queryNode: safe } });
-  } catch (err) {
-    const error = err as Error;
-    if (error.message?.startsWith('GraphQL query failed:')) {
-      res.status(400).json({ error: `GraphQL error during traversal: ${error.message}` });
+  } catch (error) {
+    const err = error as Error;
+    console.error('[GRAPHQL] Failed to execute traversal:', error);
+    if (err.message?.startsWith('GraphQL query failed:')) {
+      res.status(400).json({ error: `GraphQL error during traversal: ${err.message}`, details: err.message });
       return;
     }
-    res.status(500).json({ error: 'Server error during traversal.' });
+    res.status(500).json({ error: 'Server error during traversal', details: err.message });
   }
 });
 
@@ -192,11 +211,11 @@ router.get('/search', async (req: Request, res: Response): Promise<void> => {
     res.json(result);
   } catch (error) {
     const err = error as Error;
-    console.error(`Error in /api/search endpoint: ${err.message}`);
+    console.error('[GRAPHQL] Failed to execute search:', error);
     if (err.message.startsWith('GraphQL query failed:')) {
-       res.status(400).json({ error: `GraphQL error during search: ${err.message}` });
+       res.status(400).json({ error: `GraphQL error during search: ${err.message}`, details: err.message });
     } else {
-       res.status(500).json({ error: 'Server error during search.' });
+       res.status(500).json({ error: 'Server error during search', details: err.message });
     }
   }
 });
@@ -206,6 +225,21 @@ router.get('/schema', async (req: Request, res: Response): Promise<void> => {
     try {
         // Build namespace-aware admin URL
         const namespace = req.tenantContext?.namespace;
+        
+        // Validate namespace parameter before making request (ADMIN operation - FAIL WITH CONTEXT)
+        try {
+          validateNamespaceParam(namespace, 'Schema fetch');
+        } catch (error: any) {
+          const capabilities = adaptiveTenantFactoryForSchema.getCapabilities();
+          const capabilitySubset = capabilities ? {
+            namespacesSupported: capabilities.namespacesSupported,
+            enterpriseDetected: capabilities.enterpriseDetected
+          } : undefined;
+          const errorResponse = createNamespaceErrorResponse('Schema fetch', namespace || 'non-default', capabilitySubset);
+          res.status(400).json(errorResponse);
+          return;
+        }
+        
         const adminUrl = namespace 
           ? `${DGRAPH_ADMIN_SCHEMA_URL}?namespace=${namespace}`
           : DGRAPH_ADMIN_SCHEMA_URL;
@@ -222,12 +256,12 @@ router.get('/schema', async (req: Request, res: Response): Promise<void> => {
         }
     } catch (error) {
         const err = error as Error;
-        console.error(`Error fetching schema from Dgraph admin: ${err.message}`);
+        console.error('[GRAPHQL] Failed to fetch schema from Dgraph admin:', error);
         if (axios.isAxiosError(error) && error.response) {
-            console.error('Dgraph admin response status:', error.response.status);
-            console.error('Dgraph admin response data:', error.response.data);
+            console.error('[GRAPHQL] Dgraph admin response status:', error.response.status);
+            console.error('[GRAPHQL] Dgraph admin response data:', error.response.data);
         }
-        res.status(500).json({ error: 'Failed to fetch schema from Dgraph.' });
+        res.status(500).json({ error: 'Failed to fetch schema from Dgraph', details: err.message });
     }
 });
 
@@ -288,11 +322,11 @@ router.post('/deleteNodeCascade', async (req: Request, res: Response): Promise<v
 
   } catch (error) {
     const err = error as Error;
-    console.error('[DELETE NODE CASCADE] Error:', err);
+    console.error('[GRAPHQL] Failed to delete node cascade:', error);
     const errorMessage = err.message.includes('GraphQL query failed:')
       ? `GraphQL error during delete: ${err.message.replace('GraphQL query failed: ', '')}`
       : `Server error during delete: ${err.message}`;
-    res.status(500).json({ error: errorMessage });
+    res.status(500).json({ error: errorMessage, details: err.message });
   }
 });
 
@@ -310,7 +344,7 @@ router.get('/health', async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     const err = error as Error;
-    console.error('[HEALTH] Error during health check:', err);
+    console.error('[GRAPHQL] Failed health check:', error);
     res.status(500).json({
       apiStatus: 'ERROR',
       dgraphStatus: 'disconnected',

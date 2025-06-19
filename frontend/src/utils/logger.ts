@@ -1,7 +1,7 @@
 // Simple logger utility
 const DEBUG = import.meta.env.DEV || localStorage.getItem("debug") === "true";
 
-export function log(namespace: string, ...args: any[]) {
+export function log(namespace: string, ...args: unknown[]) {
   if (DEBUG) {
     console.log(`%c[${namespace}]`, 'color: orange;', ...args);
   }

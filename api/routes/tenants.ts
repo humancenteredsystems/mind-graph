@@ -1,7 +1,9 @@
 import express, { Request, Response } from 'express';
-import { TenantManager } from '../services/tenantManager';
+import { adaptiveTenantFactory } from '../services/adaptiveTenantFactory';
 import { authenticateAdmin } from '../middleware/auth';
+import { createErrorResponseFromError } from '../utils/errorResponse';
 import { ensureTenant } from '../middleware/tenantContext';
+import { TenantManager } from '../services/tenantManager';
 
 const router = express.Router();
 const tenantManager = new TenantManager();
@@ -45,12 +47,11 @@ router.get('/tenant/info', async (req: Request, res: Response): Promise<void> =>
   } catch (error) {
     const err = error as Error;
     console.error('[TENANT_INFO] Error:', err);
-    res.status(500).json({ error: 'Failed to get tenant information' });
+    res.status(500).json(createErrorResponseFromError('Failed to get tenant information', err));
   }
 });
 
 // --- Admin-Protected Tenant Operations ---
-router.use(authenticateAdmin);
 
 /**
  * Create a new tenant
@@ -86,7 +87,7 @@ router.use(authenticateAdmin);
  * - 409: Tenant already exists
  * - 500: Schema initialization or hierarchy seeding failure
  */
-router.post('/tenant', ensureTenant, async (req: Request, res: Response): Promise<void> => {
+router.post('/tenant', authenticateAdmin, ensureTenant, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId }: { tenantId: string } = req.body;
     
@@ -114,24 +115,24 @@ router.post('/tenant', ensureTenant, async (req: Request, res: Response): Promis
   } catch (error) {
     const err = error as Error;
     console.error('[CREATE_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to create tenant' });
+    res.status(500).json(createErrorResponseFromError('Failed to create tenant', err));
   }
 });
 
-// List all tenants
-router.get('/tenant', async (req: Request, res: Response): Promise<void> => {
+// List all tenants (admin only)
+router.get('/tenant', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const tenants = await tenantManager.listTenants();
     res.json(tenants);
   } catch (error) {
     const err = error as Error;
     console.error('[LIST_TENANTS] Error:', err);
-    res.status(500).json({ error: 'Failed to list tenants' });
+    res.status(500).json(createErrorResponseFromError('Failed to list tenants', err));
   }
 });
 
-// Get specific tenant information
-router.get('/tenant/:tenantId', async (req: Request, res: Response): Promise<void> => {
+// Get specific tenant information (admin only)
+router.get('/tenant/:tenantId', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId } = req.params;
     const tenantInfo = await tenantManager.getTenantInfo(tenantId);
@@ -140,12 +141,12 @@ router.get('/tenant/:tenantId', async (req: Request, res: Response): Promise<voi
   } catch (error) {
     const err = error as Error;
     console.error('[GET_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to get tenant information' });
+    res.status(500).json(createErrorResponseFromError('Failed to get tenant information', err));
   }
 });
 
-// Delete a tenant
-router.delete('/tenant/:tenantId', async (req: Request, res: Response): Promise<void> => {
+// Delete a tenant (admin only)
+router.delete('/tenant/:tenantId', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { tenantId } = req.params;
     
@@ -172,12 +173,12 @@ router.delete('/tenant/:tenantId', async (req: Request, res: Response): Promise<
   } catch (error) {
     const err = error as Error;
     console.error('[DELETE_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to delete tenant' });
+    res.status(500).json(createErrorResponseFromError('Failed to delete tenant', err));
   }
 });
 
-// Initialize test tenant (for development)
-router.post('/tenant/test/init', async (req: Request, res: Response): Promise<void> => {
+// Initialize test tenant (for development) (admin only)
+router.post('/tenant/test/init', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const testTenantId = 'test-tenant';
     
@@ -203,12 +204,12 @@ router.post('/tenant/test/init', async (req: Request, res: Response): Promise<vo
   } catch (error) {
     const err = error as Error;
     console.error('[INIT_TEST_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to initialize test tenant' });
+    res.status(500).json(createErrorResponseFromError('Failed to initialize test tenant', err));
   }
 });
 
-// Reset test tenant (clear all data)
-router.post('/tenant/test/reset', async (req: Request, res: Response): Promise<void> => {
+// Reset test tenant (clear all data) (admin only)
+router.post('/tenant/test/reset', authenticateAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const testTenantId = 'test-tenant';
     
@@ -225,7 +226,7 @@ router.post('/tenant/test/reset', async (req: Request, res: Response): Promise<v
   } catch (error) {
     const err = error as Error;
     console.error('[RESET_TEST_TENANT] Error:', err);
-    res.status(500).json({ error: 'Failed to reset test tenant' });
+    res.status(500).json(createErrorResponseFromError('Failed to reset test tenant', err));
   }
 });
 

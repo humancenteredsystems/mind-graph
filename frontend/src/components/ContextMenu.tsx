@@ -1,6 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { MenuType, MenuItem } from '../types/contextMenu';
-import { useContextMenu } from '../context/ContextMenuContext';
+import { useContextMenu } from '../hooks/useContextMenu';
 import { theme } from '../config';
 
 const ContextMenu: React.FC = () => {

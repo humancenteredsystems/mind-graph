@@ -2,9 +2,7 @@ import {
   getAllSchemas,
   getSchemaById,
   getProductionSchema,
-  getSchemaContent,
-  addSchema,
-  updateSchema
+  getSchemaContent
 } from '../../../services/schemaRegistry';
 
 // Mock fs
@@ -16,7 +14,7 @@ jest.mock('fs', () => ({
   }
 }));
 
-const fs = require('fs');
+import fs from 'fs';
 
 describe('SchemaRegistry Service', () => {
   beforeEach(() => {

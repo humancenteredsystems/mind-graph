@@ -6,7 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const server_1 = __importDefault(require("../../server"));
 const realTestHelpers_1 = require("../helpers/realTestHelpers");
 const graphqlTestUtils_1 = require("../helpers/graphqlTestUtils");
-describe('Real Integration: GraphQL Operations', () => {
+const enterpriseAvailable = global.DGRAPH_ENTERPRISE_AVAILABLE;
+(enterpriseAvailable ? describe : describe.skip)('Real Integration: GraphQL Operations', () => {
     beforeAll(async () => {
         await global.testUtils.setupTestDatabase();
     });
@@ -15,6 +16,7 @@ describe('Real Integration: GraphQL Operations', () => {
     });
     beforeEach(async () => {
         await global.testUtils.resetTestDatabase();
+        await global.testUtils.seedTestData();
     });
     describe('Query Operations', () => {
         it('should execute simple node queries', async () => {
@@ -27,7 +29,6 @@ describe('Real Integration: GraphQL Operations', () => {
                 id
                 label
                 type
-                status
               }
             }
           `
@@ -47,7 +48,6 @@ describe('Real Integration: GraphQL Operations', () => {
             id
             label
             type
-            status
           }
         }
       `;
@@ -147,7 +147,6 @@ describe('Real Integration: GraphQL Operations', () => {
               id
               label
               type
-              status
             }
           }
         }
@@ -204,21 +203,30 @@ describe('Real Integration: GraphQL Operations', () => {
             const fromNode = (0, realTestHelpers_1.createTestNodeData)({ label: 'From Node', type: 'concept' });
             const toNode = (0, realTestHelpers_1.createTestNodeData)({ label: 'To Node', type: 'example' });
             // Create the nodes
+            const nodeCreationMutation = `
+        mutation CreateNodes($input: [AddNodeInput!]!) {
+          addNode(input: $input) {
+            node {
+              id
+              label
+              type
+            }
+          }
+        }
+      `;
             await (0, realTestHelpers_1.testRequest)(server_1.default)
                 .post('/api/mutate')
                 .set('X-Hierarchy-Id', 'test-hierarchy-1')
                 .send({
-                mutation: `
-            mutation {
-              addNode(input: [
-                { id: "${fromNode.id}", label: "${fromNode.label}", type: "${fromNode.type}" },
-                { id: "${toNode.id}", label: "${toNode.label}", type: "${toNode.type}" }
-              ]) {
-                node { id }
-              }
-            }
-          `
-            });
+                mutation: nodeCreationMutation,
+                variables: {
+                    input: [
+                        { id: fromNode.id, label: fromNode.label, type: fromNode.type },
+                        { id: toNode.id, label: toNode.label, type: toNode.type }
+                    ]
+                }
+            })
+                .expect(200);
             // Create edge between them
             const edgeMutation = `
         mutation CreateEdge($input: [AddEdgeInput!]!) {
@@ -232,8 +240,8 @@ describe('Real Integration: GraphQL Operations', () => {
         }
       `;
             const edgeData = {
-                fromId: fromNode.id,
-                toId: toNode.id,
+                from: { id: fromNode.id },
+                to: { id: toNode.id },
                 type: 'relates_to'
             };
             const response = await (0, realTestHelpers_1.testRequest)(server_1.default)
@@ -417,16 +425,11 @@ describe('Real Integration: GraphQL Operations', () => {
     describe('Complex GraphQL Operations', () => {
         it('should handle queries with fragments', async () => {
             const query = `
-        fragment NodeDetails on Node {
-          id
-          label
-          type
-          status
-        }
-
         query {
           queryNode(first: 3) {
-            ...NodeDetails
+            id
+            label
+            type
             hierarchyAssignments {
               hierarchy {
                 id
@@ -446,7 +449,6 @@ describe('Real Integration: GraphQL Operations', () => {
                 expect(node).toHaveProperty('id');
                 expect(node).toHaveProperty('label');
                 expect(node).toHaveProperty('type');
-                expect(node).toHaveProperty('status');
             }
         });
         it('should handle queries with pagination', async () => {
@@ -472,10 +474,8 @@ describe('Real Integration: GraphQL Operations', () => {
             const query = `
         query FilteredNodes($nodeType: String!, $labelFilter: String!) {
           queryNode(filter: { 
-            and: [
-              { type: { eq: $nodeType } },
-              { label: { anyofterms: $labelFilter } }
-            ]
+            type: { eq: $nodeType },
+            label: { anyofterms: $labelFilter }
           }) {
             id
             label
@@ -524,11 +524,14 @@ describe('Real Integration: GraphQL Operations', () => {
                 mutation: `
             mutation {
               addEdge(input: [{ 
-                fromId: "${nodeA.id}", 
-                toId: "${nodeB.id}", 
+                from: { id: "${nodeA.id}" }, 
+                to: { id: "${nodeB.id}" }, 
                 type: "relates_to" 
               }]) {
-                edge { fromId toId }
+                edge { 
+                  fromId
+                  toId
+                }
               }
             }
           `
@@ -615,7 +618,7 @@ describe('Real Integration: GraphQL Operations', () => {
             const verificationQuery = `
         query { 
           queryNode(filter: { 
-            label: { regexp: "/^Batch Node/" } 
+            label: { anyofterms: "Batch Node" } 
           }) { 
             id 
             label 

@@ -21,7 +21,6 @@ export const getLevelColor = (level?: number): string => {
   if (level === undefined || level < 1) return colors.legacy.nodeDefault;
   if (level === 2) return 'red'; // Special case from current implementation
   
-  const baseHue = 40;
   const hueStep = 40;
   const saturation = 60;
   const lightness = 60;

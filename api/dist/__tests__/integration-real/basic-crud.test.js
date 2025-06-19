@@ -5,13 +5,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const server_1 = __importDefault(require("../../server"));
 const realTestHelpers_1 = require("../helpers/realTestHelpers");
-const conditionalDescribe = global.DGRAPH_ENTERPRISE_AVAILABLE ? describe : describe.skip;
-conditionalDescribe('Real Integration: Basic CRUD Operations', () => {
+const enterpriseAvailable = global.DGRAPH_ENTERPRISE_AVAILABLE;
+(enterpriseAvailable ? describe : describe.skip)('Real Integration: Basic CRUD Operations', () => {
     beforeAll(async () => {
-        if (!global.DGRAPH_ENTERPRISE_AVAILABLE) {
-            console.warn('Skipping real integration tests - Dgraph Enterprise not available');
-            return;
-        }
         await global.testUtils.setupTestDatabase();
     });
     afterAll(async () => {

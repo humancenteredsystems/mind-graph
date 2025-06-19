@@ -6,9 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const supertest_1 = __importDefault(require("supertest"));
 const server_1 = __importDefault(require("../../server"));
 const realTestHelpers_1 = require("../helpers/realTestHelpers");
-// Conditionally skip this test suite if Dgraph Enterprise is not available
-const describeIfEnterprise = global.DGRAPH_ENTERPRISE_AVAILABLE ? describe : describe.skip;
-describeIfEnterprise('Real Integration: Namespace Isolation', () => {
+const enterpriseAvailable = global.DGRAPH_ENTERPRISE_AVAILABLE;
+(enterpriseAvailable ? describe : describe.skip)('Real Integration: Namespace Isolation', () => {
     beforeAll(async () => {
         await global.testUtils.setupTestDatabase();
     });
@@ -99,12 +98,19 @@ describeIfEnterprise('Real Integration: Namespace Isolation', () => {
           `
             })
                 .expect(200);
+            // Debug the response structure
+            console.log('Test response body:', JSON.stringify(testResponse.body, null, 2));
+            console.log('Default response body:', JSON.stringify(defaultResponse.body, null, 2));
             // Test tenant should have seeded data
-            const testNodeIds = testResponse.body.queryNode.map((n) => n.id);
+            expect(testResponse.body.data).toBeDefined();
+            expect(testResponse.body.data.queryNode).toBeDefined();
+            const testNodeIds = testResponse.body.data.queryNode.map((n) => n.id);
             expect(testNodeIds).toContain('test-concept-1');
             expect(testNodeIds).toContain('test-example-1');
             // Default namespace should be empty or have different data
-            const defaultNodeIds = defaultResponse.body.queryNode.map((n) => n.id);
+            expect(defaultResponse.body.data).toBeDefined();
+            expect(defaultResponse.body.data.queryNode).toBeDefined();
+            const defaultNodeIds = defaultResponse.body.data.queryNode.map((n) => n.id);
             expect(defaultNodeIds).not.toContain('test-concept-1');
             expect(defaultNodeIds).not.toContain('test-example-1');
         });
@@ -149,7 +155,7 @@ describeIfEnterprise('Real Integration: Namespace Isolation', () => {
             `
                 });
             }
-            catch (error) {
+            catch (e) {
                 // Expected if default hierarchy doesn't exist
                 console.log('Default namespace creation skipped - no default hierarchy');
             }
@@ -286,7 +292,7 @@ describeIfEnterprise('Real Integration: Namespace Isolation', () => {
             })
                 .expect(200);
             // Attempt to update from different namespace context
-            const updateAttempt = await (0, supertest_1.default)(server_1.default)
+            await (0, supertest_1.default)(server_1.default)
                 .post('/api/mutate')
                 .send({
                 mutation: `

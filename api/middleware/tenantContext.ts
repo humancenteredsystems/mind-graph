@@ -31,16 +31,20 @@ export async function setTenantContext(req: Request, res: Response, next: NextFu
   } catch (error: any) {
     console.error('[TENANT_CONTEXT] Failed to resolve tenant context:', error);
     
-    // Fallback to default tenant
+    // DEGRADE_GRACEFULLY for READ operations - fallback to default tenant with context
+    const { createMultiTenantErrorResponse } = await import('../utils/errorResponse');
+    const { TenantManager } = await import('../services/tenantManager');
+    
     req.tenantContext = {
       tenantId: 'default',
-      namespace: tenantManager.defaultNamespace,
+      namespace: '0x0',
       isTestTenant: false,
       isDefaultTenant: true,
-      error: error.message
+      error: error.message,
+      fallbackReason: 'Multi-tenant context resolution failed, using default tenant'
     };
     
-    console.log('[TENANT_CONTEXT] Falling back to default tenant');
+    console.log('[TENANT_CONTEXT] Degrading gracefully to default tenant for READ operations');
     next();
   }
 }

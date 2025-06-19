@@ -36,7 +36,7 @@ The main trade-off is a slightly more verbose data structure (an extra "hop" thr
 ### Backend API
 
 *   **Direct Management (CRUD Operations):**
-    *   The API provides RESTful endpoints (primarily under `/api/hierarchy/...`) for creating, reading, updating, and deleting `Hierarchy`, `HierarchyLevel`, and `HierarchyAssignment` entities. These are mostly admin-protected.
+    *   The API provides RESTful endpoints (primarily under `/api/hierarchy/...`) for creating, reading, updating, and deleting `Hierarchy`, `HierarchyLevel`, and `HierarchyAssignment` entities. These are publicly accessible as hierarchies are user-managed knowledge organization tools.
     *   Refer to `docs/api-endpoints.md` for detailed endpoint specifications.
 
 *   **Automatic Assignment during Node Creation (`POST /api/mutate` with `addNode`):**

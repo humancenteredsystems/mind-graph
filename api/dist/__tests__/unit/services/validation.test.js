@@ -1,49 +1,47 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const validation_1 = require("../../../services/validation");
-// Mock the dgraphClient
-jest.mock('../../../dgraphClient', () => ({
-    executeGraphQL: jest.fn()
-}));
-const dgraphClient_1 = require("../../../dgraphClient");
-// Type the mocked function
-const mockExecuteGraphQL = dgraphClient_1.executeGraphQL;
 describe('validation service', () => {
+    let mockTenantClient;
     beforeEach(() => {
         jest.clearAllMocks();
+        // Create mock tenant client
+        mockTenantClient = {
+            executeGraphQL: jest.fn()
+        };
     });
     describe('validateHierarchyId', () => {
         it('should return true for valid hierarchy ID', async () => {
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 getHierarchy: { id: 'hierarchy1' }
             });
-            const result = await (0, validation_1.validateHierarchyId)('hierarchy1');
+            const result = await (0, validation_1.validateHierarchyId)('hierarchy1', mockTenantClient);
             expect(result).toBe(true);
         });
         it('should return false for invalid hierarchy ID', async () => {
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 getHierarchy: null
             });
-            const result = await (0, validation_1.validateHierarchyId)('nonexistent');
+            const result = await (0, validation_1.validateHierarchyId)('nonexistent', mockTenantClient);
             expect(result).toBe(false);
         });
         it('should return false for invalid input types', async () => {
-            const result1 = await (0, validation_1.validateHierarchyId)(null);
-            const result2 = await (0, validation_1.validateHierarchyId)(123);
-            const result3 = await (0, validation_1.validateHierarchyId)('');
+            const result1 = await (0, validation_1.validateHierarchyId)(null, mockTenantClient);
+            const result2 = await (0, validation_1.validateHierarchyId)(123, mockTenantClient);
+            const result3 = await (0, validation_1.validateHierarchyId)('', mockTenantClient);
             expect(result1).toBe(false);
             expect(result2).toBe(false);
             expect(result3).toBe(false);
         });
         it('should handle database errors gracefully', async () => {
-            mockExecuteGraphQL.mockRejectedValueOnce(new Error('Database error'));
-            const result = await (0, validation_1.validateHierarchyId)('hierarchy1');
+            mockTenantClient.executeGraphQL.mockRejectedValueOnce(new Error('Database error'));
+            const result = await (0, validation_1.validateHierarchyId)('hierarchy1', mockTenantClient);
             expect(result).toBe(false);
         });
     });
     describe('validateLevelIdAndAllowedType', () => {
         it('should validate successfully for allowed node type at level', async () => {
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 getHierarchyLevel: {
                     id: 'level1',
                     levelNumber: 1,
@@ -54,12 +52,12 @@ describe('validation service', () => {
                     ]
                 }
             });
-            const result = await (0, validation_1.validateLevelIdAndAllowedType)('level1', 'concept', 'hierarchy1');
+            const result = await (0, validation_1.validateLevelIdAndAllowedType)('level1', 'concept', 'hierarchy1', mockTenantClient);
             expect(result).toBeDefined();
             expect(result.id).toBe('level1');
         });
         it('should throw NodeTypeNotAllowedError for disallowed node type', async () => {
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 getHierarchyLevel: {
                     id: 'level1',
                     levelNumber: 1,
@@ -69,12 +67,12 @@ describe('validation service', () => {
                     ]
                 }
             });
-            await expect((0, validation_1.validateLevelIdAndAllowedType)('level1', 'invalid-type', 'hierarchy1'))
+            await expect((0, validation_1.validateLevelIdAndAllowedType)('level1', 'invalid-type', 'hierarchy1', mockTenantClient))
                 .rejects
                 .toThrow(validation_1.NodeTypeNotAllowedError);
         });
         it('should allow any type when allowedTypes is empty', async () => {
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 getHierarchyLevel: {
                     id: 'level1',
                     levelNumber: 1,
@@ -82,29 +80,29 @@ describe('validation service', () => {
                     allowedTypes: []
                 }
             });
-            const result = await (0, validation_1.validateLevelIdAndAllowedType)('level1', 'any-type', 'hierarchy1');
+            const result = await (0, validation_1.validateLevelIdAndAllowedType)('level1', 'any-type', 'hierarchy1', mockTenantClient);
             expect(result).toBeDefined();
         });
         it('should throw InvalidLevelError for missing level', async () => {
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 getHierarchyLevel: null
             });
-            await expect((0, validation_1.validateLevelIdAndAllowedType)('nonexistent-level', 'concept', 'hierarchy1'))
+            await expect((0, validation_1.validateLevelIdAndAllowedType)('nonexistent-level', 'concept', 'hierarchy1', mockTenantClient))
                 .rejects
                 .toThrow(validation_1.InvalidLevelError);
         });
         it('should throw error for invalid input parameters', async () => {
-            await expect((0, validation_1.validateLevelIdAndAllowedType)(null, 'concept', 'hierarchy1'))
+            await expect((0, validation_1.validateLevelIdAndAllowedType)(null, 'concept', 'hierarchy1', mockTenantClient))
                 .rejects
                 .toThrow(validation_1.InvalidLevelError);
-            await expect((0, validation_1.validateLevelIdAndAllowedType)('level1', null, 'hierarchy1'))
+            await expect((0, validation_1.validateLevelIdAndAllowedType)('level1', null, 'hierarchy1', mockTenantClient))
                 .rejects
                 .toThrow('A valid nodeType string must be provided');
         });
     });
     describe('getLevelIdForNode', () => {
         it('should return level 1 when no parent provided', async () => {
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 queryHierarchy: [{
                         levels: [
                             { id: 'level1', levelNumber: 1 },
@@ -112,12 +110,12 @@ describe('validation service', () => {
                         ]
                     }]
             });
-            const result = await (0, validation_1.getLevelIdForNode)(null, 'hierarchy1');
+            const result = await (0, validation_1.getLevelIdForNode)(null, 'hierarchy1', mockTenantClient);
             expect(result).toBe('level1');
         });
         it('should return next level when parent has assignment in hierarchy', async () => {
             // Mock parent query
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 queryNode: [{
                         hierarchyAssignments: [{
                                 hierarchy: { id: 'hierarchy1' },
@@ -126,7 +124,7 @@ describe('validation service', () => {
                     }]
             });
             // Mock levels query
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 queryHierarchy: [{
                         levels: [
                             { id: 'level1', levelNumber: 1 },
@@ -134,12 +132,12 @@ describe('validation service', () => {
                         ]
                     }]
             });
-            const result = await (0, validation_1.getLevelIdForNode)('parent-node', 'hierarchy1');
+            const result = await (0, validation_1.getLevelIdForNode)('parent-node', 'hierarchy1', mockTenantClient);
             expect(result).toBe('level2');
         });
         it('should return level 1 when parent has no assignment in target hierarchy', async () => {
             // Mock parent query - parent exists but no assignment in target hierarchy
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 queryNode: [{
                         hierarchyAssignments: [{
                                 hierarchy: { id: 'other-hierarchy' },
@@ -148,7 +146,7 @@ describe('validation service', () => {
                     }]
             });
             // Mock levels query
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 queryHierarchy: [{
                         levels: [
                             { id: 'level1', levelNumber: 1 },
@@ -156,12 +154,12 @@ describe('validation service', () => {
                         ]
                     }]
             });
-            const result = await (0, validation_1.getLevelIdForNode)('parent-node', 'hierarchy1');
+            const result = await (0, validation_1.getLevelIdForNode)('parent-node', 'hierarchy1', mockTenantClient);
             expect(result).toBe('level1');
         });
         it('should throw InvalidLevelError when calculated level does not exist', async () => {
             // Mock parent query - parent at level 2
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 queryNode: [{
                         hierarchyAssignments: [{
                                 hierarchy: { id: 'hierarchy1' },
@@ -170,7 +168,7 @@ describe('validation service', () => {
                     }]
             });
             // Mock levels query - only has levels 1 and 2, so level 3 doesn't exist
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 queryHierarchy: [{
                         levels: [
                             { id: 'level1', levelNumber: 1 },
@@ -178,17 +176,17 @@ describe('validation service', () => {
                         ]
                     }]
             });
-            await expect((0, validation_1.getLevelIdForNode)('parent-node', 'hierarchy1'))
+            await expect((0, validation_1.getLevelIdForNode)('parent-node', 'hierarchy1', mockTenantClient))
                 .rejects
                 .toThrow(validation_1.InvalidLevelError);
         });
         it('should throw InvalidLevelError when hierarchy has no levels', async () => {
-            mockExecuteGraphQL.mockResolvedValueOnce({
+            mockTenantClient.executeGraphQL.mockResolvedValueOnce({
                 queryHierarchy: [{
                         levels: []
                     }]
             });
-            await expect((0, validation_1.getLevelIdForNode)(null, 'hierarchy1'))
+            await expect((0, validation_1.getLevelIdForNode)(null, 'hierarchy1', mockTenantClient))
                 .rejects
                 .toThrow(validation_1.InvalidLevelError);
         });

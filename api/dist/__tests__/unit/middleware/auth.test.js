@@ -6,9 +6,9 @@ describe('auth middleware', () => {
     let res;
     let next;
     beforeEach(() => {
-        req = testUtils.createMockReq();
-        res = testUtils.createMockRes();
-        next = testUtils.createMockNext();
+        req = global.testUtils.createMockReq();
+        res = global.testUtils.createMockRes();
+        next = global.testUtils.createMockNext();
         // ADMIN_API_KEY is already loaded from .env file via jest.setup.ts
     });
     describe('authenticateAdmin', () => {

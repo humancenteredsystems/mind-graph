@@ -4,6 +4,7 @@ import * as schemaRegistry from '../services/schemaRegistry';
 import { authenticateAdmin } from '../middleware/auth';
 import { pushSchemaViaHttp } from '../utils/pushSchema';
 import { AdminOperationResult } from '../src/types/graphql';
+import { createErrorResponseFromError } from '../utils/errorResponse';
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.get('/schemas', authenticateAdmin, async (req: Request, res: Response): P
   } catch (error) {
     const err = error as Error;
     console.error('[SCHEMAS] Error getting schemas:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(createErrorResponseFromError('Failed to get schemas', err));
   }
 });
 
@@ -47,7 +48,7 @@ router.get('/schemas/:id', authenticateAdmin, async (req: Request, res: Response
   } catch (error) {
     const err = error as Error;
     console.error(`[SCHEMAS] Error getting schema ${req.params.id}:`, err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(createErrorResponseFromError('Failed to get schema', err));
   }
 });
 
@@ -63,7 +64,7 @@ router.get('/schemas/:id/content', authenticateAdmin, async (req: Request, res: 
       res.status(404).json({ error: err.message });
       return;
     }
-    res.status(500).json({ error: err.message });
+    res.status(500).json(createErrorResponseFromError('Failed to get schema content', err));
   }
 });
 
@@ -87,7 +88,7 @@ router.post('/schemas', authenticateAdmin, async (req: Request, res: Response): 
   } catch (error) {
     const err = error as Error;
     console.error('[SCHEMAS] Error creating schema:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(createErrorResponseFromError('Failed to create schema', err));
   }
 });
 
@@ -110,7 +111,7 @@ router.put('/schemas/:id', authenticateAdmin, async (req: Request, res: Response
       res.status(404).json({ error: err.message });
       return;
     }
-    res.status(500).json({ error: err.message });
+    res.status(500).json(createErrorResponseFromError('Failed to update schema', err));
   }
 });
 
@@ -154,7 +155,7 @@ router.post('/schemas/:id/push', authenticateAdmin, async (req: Request, res: Re
       res.status(404).json({ error: err.message });
       return;
     }
-    res.status(500).json({ error: err.message });
+    res.status(500).json(createErrorResponseFromError('Failed to push schema', err));
   }
 });
 

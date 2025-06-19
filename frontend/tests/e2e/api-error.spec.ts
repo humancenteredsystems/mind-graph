@@ -1,5 +1,6 @@
 // tests/api-error.spec.ts
 import { test, expect } from '@playwright/test';
+import { TestWindow } from './types';
 
 test('Handles API error on initial load', async ({ page }) => {
   // Intercept the initial hierarchy API call and return an error
@@ -32,7 +33,7 @@ test('Handles API error on initial load', async ({ page }) => {
   // 5. Graph container should be visible, but graph itself (canvas) likely empty or not fully rendered.
   await expect(page.locator('[data-testid="graph-container"]')).toBeVisible();
   //    Check that no nodes are loaded (canvas might exist but be empty)
-  const nodeCount = await page.evaluate(() => (window as any).cyInstance?.nodes().length ?? 0);
+  const nodeCount = await page.evaluate(() => (window as TestWindow).cyInstance?.nodes().length ?? 0);
   expect(nodeCount).toBe(0);
 });
 
@@ -40,7 +41,7 @@ test('Handles API error on node expansion', async ({ page }) => {
   // Allow initial load to succeed
   await page.goto('/');
   await expect(page.locator('[data-testid="graph-container"] canvas').first()).toBeVisible({ timeout: 15000 });
-  await page.waitForFunction(() => (window as any).cyInstance && (window as any).cyInstance.nodes().length > 0, null, { timeout: 15000 });
+  await page.waitForFunction(() => (window as TestWindow).cyInstance && (window as TestWindow).cyInstance!.nodes().length > 0, null, { timeout: 15000 });
 
   // Now intercept subsequent API calls for expansion with an error
   await page.route('**/api/traverse', route => {
@@ -55,7 +56,7 @@ test('Handles API error on node expansion', async ({ page }) => {
 
   // Get the position of a node to click
   const nodePosition = await page.evaluate(() => {
-    const cy = (window as any).cyInstance;
+    const cy = (window as TestWindow).cyInstance;
     if (!cy || cy.nodes().length === 0) return null;
     
     // Get the first node position in renderer coordinates
@@ -64,6 +65,7 @@ test('Handles API error on node expansion', async ({ page }) => {
     
     // Get the container bounds
     const container = cy.container();
+    if (!container) return null;
     const rect = container.getBoundingClientRect();
     
     // Calculate screen coordinates
@@ -119,7 +121,7 @@ test('Handles API error on node expansion', async ({ page }) => {
       try {
         await expect(page.getByText(/Error|Failed|Could not/i)).toBeVisible({ timeout: 5000 });
         console.log('Error message detected after expansion attempt');
-      } catch (e) {
+      } catch {
         console.log('No error message found after expansion attempt');
       }
       

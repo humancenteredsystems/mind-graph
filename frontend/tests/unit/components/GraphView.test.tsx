@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { mockNodes, mockEdges } from '../../helpers/mockData';
 import GraphView from '../../../src/components/GraphView';
 import { UIProvider } from '../../../src/context/UIContext';
@@ -318,7 +318,7 @@ describe('GraphView', () => {
     );
     
     const elements = mockCytoscapeComponent.mock.calls[0][0].elements;
-    const edgeElements = elements.filter((el: any) => el.data.source);
+    const edgeElements = elements.filter((el: { data: { source?: string } }) => el.data.source);
     
     expect(edgeElements).toHaveLength(mockEdges.length);
     expect(edgeElements[0]).toEqual(
@@ -371,7 +371,7 @@ describe('GraphView', () => {
     // Should re-render with updated data
     const lastCall = mockCytoscapeComponent.mock.calls[mockCytoscapeComponent.mock.calls.length - 1];
     const elements = lastCall[0].elements;
-    const nodeElements = elements.filter((el: any) => !el.data.source);
+    const nodeElements = elements.filter((el: { data: { source?: string } }) => !el.data.source);
     
     expect(nodeElements[0].data.label).toBe('Updated Test Node 1');
   });

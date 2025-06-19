@@ -46,14 +46,14 @@ class AdaptiveTenantFactory {
         if (this.capabilities?.namespacesSupported) {
             // Enterprise mode: use namespace as requested
             console.log(`[ADAPTIVE_TENANT] Creating tenant for namespace: ${namespace || 'default'}`);
-            return new dgraphTenant_1.DgraphTenant(namespace);
+            return await dgraphTenant_1.DgraphTenantFactory.createTenant(namespace);
         }
         else {
             // OSS mode: ignore namespace, use default
             if (namespace && namespace !== '0x0') {
                 console.log(`[ADAPTIVE_TENANT] OSS mode: ignoring namespace ${namespace}, using default`);
             }
-            return new dgraphTenant_1.DgraphTenant(null);
+            return await dgraphTenant_1.DgraphTenantFactory.createTenant(null);
         }
     }
     /**

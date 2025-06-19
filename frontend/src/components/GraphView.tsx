@@ -1,16 +1,32 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
-import klay from 'cytoscape-klay';
+import coseBilkent from 'cytoscape-cose-bilkent';
+import dagre from 'cytoscape-dagre';
+import cola from 'cytoscape-cola';
+import euler from 'cytoscape-euler';
 import { NodeData, EdgeData } from '../types/graph';
-import { useContextMenu } from '../context/ContextMenuContext';
-import { useHierarchyContext } from '../context/HierarchyContext';
+import { 
+  CytoscapeTapEvent, 
+  CytoscapeSelectEvent, 
+  CytoscapeRemoveEvent,
+  CytoscapeContextEvent,
+  CytoscapeSelectHandler,
+  CytoscapeUnselectHandler,
+  CytoscapeRemoveHandler
+} from '../types/cytoscape';
+import { useContextMenu } from '../hooks/useContextMenu';
+import { useHierarchyContext } from '../hooks/useHierarchy';
+import { useLayoutContext } from '../context/LayoutContext';
 import { log } from '../utils/logger';
-import { theme, INTERACTIONS, config } from '../config';
+import { theme, config } from '../config';
 import { normalizeHierarchyId } from '../utils/graphUtils';
 
 // Register Cytoscape plugins ONCE at module load
-cytoscape.use(klay);
+cytoscape.use(coseBilkent);
+cytoscape.use(dagre);
+cytoscape.use(cola);
+cytoscape.use(euler);
 
 /**
  * Props interface for the GraphView component.
@@ -190,11 +206,10 @@ const GraphView: React.FC<GraphViewProps> = ({
   console.log(`[GraphView RENDER] Nodes prop length: ${nodes.length}, Edges prop length: ${edges.length}`); // Forceful log
 
   const cyRef = useRef<Core | null>(null);
-    const { openMenu } = useContextMenu();
-    const { hierarchyId, levels, allowedTypesMap } = useHierarchyContext();
-  const [selectedCount, setSelectedCount] = useState(0);
+  const { openMenu } = useContextMenu();
+  const { hierarchyId, levels } = useHierarchyContext();
+  const { layoutEngine, applyLayout, currentAlgorithm } = useLayoutContext();
   const selectedOrderRef = useRef<string[]>([]);
-  const [selectedEdgesCount, setSelectedEdgesCount] = useState(0);
   const selectedEdgesOrderRef = useRef<string[]>([]);
   /**
    * Refs for refined manual double-click detection algorithm.
@@ -228,7 +243,11 @@ const GraphView: React.FC<GraphViewProps> = ({
     
     const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => {
       // Find all matching assignments for this hierarchy using centralized utility
-      let matchingAssignments: any[] = [];
+      let matchingAssignments: Array<{
+        hierarchyId: string;
+        levelNumber: number;
+        levelLabel?: string;
+      }> = [];
       
       if (Array.isArray(assignments)) {
         matchingAssignments = assignments.filter(a => normalizeHierarchyId(hierarchyId, a.hierarchyId));
@@ -246,6 +265,12 @@ const GraphView: React.FC<GraphViewProps> = ({
       // Check if node is expanded for visual indicator
       const expanded = isNodeExpanded?.(id) ?? false;
       
+      // Use proper spacing like original - layout engine will handle centering
+      const simplePosition = {
+        x: levelNum * (config.nodeHorizontalSpacing || 200),
+        y: idx * (config.nodeVerticalSpacing || 100)
+      };
+      
       return {
         data: {
           id,
@@ -259,10 +284,7 @@ const GraphView: React.FC<GraphViewProps> = ({
           levelLabel: assignmentForCurrent?.levelLabel,
           expanded,
         },
-        position: { 
-          x: levelNum * config.nodeHorizontalSpacing, 
-          y: idx * config.nodeVerticalSpacing 
-        },
+        position: simplePosition,
       };
     });
     const validIds = new Set(visible.map(n => n.id));
@@ -333,11 +355,15 @@ const GraphView: React.FC<GraphViewProps> = ({
     },
   ];
 
-  // Attach Cytoscape instance reference
+  // Attach Cytoscape instance reference and initialize layout engine
   const attachCy = (cy: Core) => {
     cyRef.current = cy;
-    (window as any).cyInstance = cy; // Expose for E2E testing
-    log('GraphView', 'Cytoscape instance attached and exposed to window.cyInstance');
+    (window as unknown as { cyInstance: Core }).cyInstance = cy; // Expose for E2E testing
+    
+    // Initialize layout engine with current data
+    layoutEngine.initialize(cy, hierarchyId, nodes, edges);
+    
+    log('GraphView', 'Cytoscape instance attached and layout engine initialized');
   };
   
   // Set up all event handlers - SEPARATED from attachCy for clarity
@@ -352,8 +378,8 @@ const GraphView: React.FC<GraphViewProps> = ({
     
     // Completely disable selection
     cy.autounselectify(false);
-    if (typeof (cy as any).boxSelectionEnabled === 'function') {
-      (cy as any).boxSelectionEnabled(true);
+    if (typeof (cy as unknown as { boxSelectionEnabled?: (enabled: boolean) => void }).boxSelectionEnabled === 'function') {
+      (cy as unknown as { boxSelectionEnabled: (enabled: boolean) => void }).boxSelectionEnabled(true);
     }
     log('GraphView', 'Multi-select enabled: autounselectify(false) and boxSelectionEnabled(true)');
     
@@ -383,7 +409,7 @@ const GraphView: React.FC<GraphViewProps> = ({
      * 
      * @param e - Cytoscape tap event object
      */
-    const handleTap = (e: any) => {
+    const handleTap = (e: CytoscapeTapEvent) => {
       const targetNode = e.target;
       const nodeId = targetNode.id ? targetNode.id() : null;
       const now = Date.now();
@@ -461,7 +487,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     cy.on('tap', handleTap); // Also listen on background to reset
 
     // Listen for doubleTap event for direct double-click support
-    const handleDoubleTap = (e: any) => {
+    const handleDoubleTap = (e: CytoscapeTapEvent) => {
       const nodeId = e.target.id();
       if (onEditNode && nodeId) {
         const nodeData = nodes.find(n => n.id === nodeId);
@@ -489,7 +515,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     const cy = cyRef.current;
     if (!cy) return;
     
-    const handler = (e: any) => {
+    const handler = (e: CytoscapeContextEvent) => {
       const orig = e.originalEvent as MouseEvent;
       if (orig.button !== 2) return;
       
@@ -520,7 +546,6 @@ const GraphView: React.FC<GraphViewProps> = ({
         assignments.sort((a, b) => b.levelNumber - a.levelNumber);
         const parentLevelNum = assignments[0]?.levelNumber ?? 0;
         const nextLevelNum = parentLevelNum + 1;
-        const levelKeyNode = `${hierarchyId}l${nextLevelNum}`;
         // Allow child addition for any defined level (empty allowedTypes ⇒ no restriction)
         const canAddChild = levels.some(l => l.levelNumber === nextLevelNum);
         let canConnect = false;
@@ -563,28 +588,60 @@ const GraphView: React.FC<GraphViewProps> = ({
     return () => {
       cy.off('cxttap', handler);
     };
-  }, [openMenu, onAddNode, onNodeExpand, onExpandChildren, onExpandAll, onCollapseNode, isNodeExpanded, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, edges]);
+  }, [openMenu, onAddNode, onNodeExpand, onExpandChildren, onExpandAll, onCollapseNode, isNodeExpanded, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, onDeleteEdge, onDeleteEdges, edges, hierarchyId, levels]);
 
-  // Layout on elements update: use preset positions based on level
+  // Layout engine integration - apply layout when elements change
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || elements.length === 0) return;
+    
+    // Update layout engine with current data
+    layoutEngine.initialize(cy, hierarchyId, nodes, edges);
+    
+    // Apply current layout algorithm
+    applyLayout();
+  }, [elements, hierarchyId, nodes, edges, layoutEngine, applyLayout]);
+
+  // Live force-directed layout during node dragging
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    cy.layout({ name: 'preset', padding: config.graphPadding }).run();
-  }, [elements]);
+
+    const handleNodeGrab = () => {
+      if (currentAlgorithm === 'force-directed') {
+        log('GraphView', 'Starting live force-directed layout on node grab');
+        applyLayout(undefined, { liveUpdate: true });
+      }
+    };
+
+    const handleNodeFree = () => {
+      if (currentAlgorithm === 'force-directed') {
+        log('GraphView', 'Stopping live force-directed layout on node free');
+        // Stop live update and apply final layout
+        applyLayout();
+      }
+    };
+
+    cy.on('grab', 'node', handleNodeGrab);
+    cy.on('free', 'node', handleNodeFree);
+
+    return () => {
+      cy.off('grab', 'node', handleNodeGrab);
+      cy.off('free', 'node', handleNodeFree);
+    };
+  }, [currentAlgorithm, applyLayout]);
 
     // Track selection order for multi-node operations
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const onSelect = (e: any) => {
+    const onSelect: CytoscapeSelectHandler = (e: CytoscapeSelectEvent) => {
       const id = e.target.id();
       selectedOrderRef.current.push(id);
-      setSelectedCount(selectedOrderRef.current.length);
     };
-    const onUnselect = (e: any) => {
+    const onUnselect: CytoscapeUnselectHandler = (e: CytoscapeSelectEvent) => {
       const id = e.target.id();
       selectedOrderRef.current = selectedOrderRef.current.filter(x => x !== id);
-      setSelectedCount(selectedOrderRef.current.length);
     };
     cy.on('select', 'node', onSelect);
     cy.on('unselect', 'node', onUnselect);
@@ -598,15 +655,13 @@ const GraphView: React.FC<GraphViewProps> = ({
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const handleNodeRemove = (e: any) => {
+    const handleNodeRemove: CytoscapeRemoveHandler = (e: CytoscapeRemoveEvent) => {
       const removedId = e.target.id();
       selectedOrderRef.current = selectedOrderRef.current.filter(id => id !== removedId);
-      setSelectedCount(selectedOrderRef.current.length);
     };
-    const handleEdgeRemove = (e: any) => {
+    const handleEdgeRemove: CytoscapeRemoveHandler = (e: CytoscapeRemoveEvent) => {
       const removedId = e.target.id();
       selectedEdgesOrderRef.current = selectedEdgesOrderRef.current.filter(id => id !== removedId);
-      setSelectedEdgesCount(selectedEdgesOrderRef.current.length);
     };
     cy.on('remove', 'node', handleNodeRemove);
     cy.on('remove', 'edge', handleEdgeRemove);
@@ -620,15 +675,13 @@ const GraphView: React.FC<GraphViewProps> = ({
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    const onEdgeSelect = (e: any) => {
+    const onEdgeSelect: CytoscapeSelectHandler = (e: CytoscapeSelectEvent) => {
       const id = e.target.id();
       selectedEdgesOrderRef.current.push(id);
-      setSelectedEdgesCount(selectedEdgesOrderRef.current.length);
     };
-    const onEdgeUnselect = (e: any) => {
+    const onEdgeUnselect: CytoscapeUnselectHandler = (e: CytoscapeSelectEvent) => {
       const id = e.target.id();
       selectedEdgesOrderRef.current = selectedEdgesOrderRef.current.filter(x => x !== id);
-      setSelectedEdgesCount(selectedEdgesOrderRef.current.length);
     };
     cy.on('select', 'edge', onEdgeSelect);
     cy.on('unselect', 'edge', onEdgeUnselect);
