@@ -180,7 +180,68 @@ UI components use the centralized theme system for consistent styling across the
 
 > Keep this doc in sync: update here first, then adjust code and tests as needed.
 
-## 7. Hierarchy Selector
+## 7. Admin Modal
+
+Component: `<AdminModal>` (in `/frontend/src/components/AdminModal.tsx`); controlled by `UIContext`.
+
+### Architecture
+
+- **Uses shared modal components**: `<ModalOverlay>`, `<ModalContainer>`, `<ModalHeader>`, `<TabNavigation>`, `<ModalContent>`
+- **Consistent with other modals**: Follows the same architectural patterns as `SettingsModal` and `NodeFormModal`
+- **Theme-integrated styling**: Uses centralized theme system via `theme.components.adminModal.*`
+
+### Authentication
+
+- **Admin key authentication required**: Users must provide a valid admin API key to access admin tools
+- **Login form**: Displays when not authenticated, with password visibility toggle
+- **Logout functionality**: Proper state management and cleanup on logout
+
+### Tabs
+
+#### **Tests Tab**
+- **Test execution**: Unit, Integration, Integration-Real, and Linting tests
+- **StatusBadge integration**: Consistent status indicators for test results (`running`, `completed`, `failed`)
+- **Real-time updates**: Polling for test completion with live status updates
+- **Results display**: Detailed test summaries with pass/fail counts and error details
+
+#### **Tenants Tab**
+- **Multi-tenant management**: Create, delete, reset tenants (Enterprise features)
+- **Tenant operations**: Clear data, clear schema, push schema, seed data
+- **StatusBadge integration**: Health status indicators (`healthy`, `not-accessible`, `error`, `unknown`)
+- **Schema viewing**: Modal for viewing tenant schema content with copy functionality
+
+### Styling
+
+- **Shared modal architecture**: Uses `width={600}` and `height="70vh"` like other modals
+- **Theme-based buttons**: All action buttons use `buildTenantActionButtonStyle()` and `buildTestButtonStyle()`
+- **Consistent scrollbars**: Uses `buildScrollbarStyle()` for content areas
+- **StatusBadge components**: Replaces inline status spans for consistency
+
+### Testing
+
+- **Comprehensive unit tests**: Located in `frontend/tests/unit/components/AdminModal.test.tsx`
+- **Tests cover**: Modal visibility, authentication flow, tab navigation, shared architecture, theme integration
+- **Follows established patterns**: Similar test structure to `NodeFormModal.test.tsx`
+
+### Usage Example
+
+```tsx
+import { useUIContext } from '../hooks/useUI';
+
+function SomeComponent() {
+  const { openAdminModal } = useUIContext();
+  
+  return (
+    <button onClick={openAdminModal}>
+      Open Admin Tools
+    </button>
+  );
+}
+```
+
+---
+
+## 8. Hierarchy Selector
 
 The hierarchy selector is a dropdown, typically in the application header, allowing users to switch the active hierarchy for graph viewing and operations.
 

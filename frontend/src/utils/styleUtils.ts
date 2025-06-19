@@ -221,66 +221,6 @@ export const buildContextMenuShortcutStyle = () => css({
  */
 
 /**
- * Builds AdminModal container styles
- */
-export const buildAdminModalStyle = () => css({
-  position: 'fixed' as const,
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: theme.components.adminModal.overlay,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: theme.zIndex.modal,
-});
-
-/**
- * Builds AdminModal content styles
- */
-export const buildAdminModalContentStyle = () => css({
-  background: theme.components.adminModal.background,
-  borderRadius: theme.components.adminModal.borderRadius,
-  width: theme.components.adminModal.width,
-  height: theme.components.adminModal.height,
-  overflow: 'hidden',
-  boxShadow: theme.components.adminModal.shadow,
-  display: 'flex',
-  flexDirection: 'column' as const,
-});
-
-/**
- * Builds AdminModal header styles
- */
-export const buildAdminModalHeaderStyle = () => css({
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: theme.components.adminModal.header.padding,
-  borderBottom: `1px solid ${theme.components.adminModal.header.borderBottom}`,
-});
-
-/**
- * Builds AdminModal tab styles
- */
-export const buildAdminTabStyle = (isActive: boolean) => css({
-  flex: 1,
-  padding: '12px 16px',
-  border: 'none',
-  background: isActive 
-    ? theme.components.adminModal.tab.active.background 
-    : theme.components.adminModal.tab.inactive.background,
-  cursor: 'pointer',
-  fontWeight: isActive 
-    ? theme.components.adminModal.tab.active.fontWeight 
-    : theme.components.adminModal.tab.inactive.fontWeight,
-  borderBottom: `2px solid ${isActive 
-    ? theme.components.adminModal.tab.active.borderColor 
-    : theme.components.adminModal.tab.inactive.borderColor}`,
-});
-
-/**
  * Builds test button styles with type-specific colors
  */
 export const buildTestButtonStyle = (

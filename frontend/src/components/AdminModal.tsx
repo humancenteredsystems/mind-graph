@@ -2,22 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useUIContext } from '../hooks/useUI';
 import * as ApiService from '../services/ApiService';
 import {
-  buildAdminModalStyle,
-  buildAdminModalContentStyle,
-  buildAdminModalHeaderStyle,
-  buildAdminTabStyle,
   buildAdminLoginContainerStyle,
   buildAdminLoginInputStyle,
   buildAdminLoginSubmitStyle,
   buildAdminErrorStyle,
   buildTestButtonStyle,
   buildTenantActionButtonStyle,
+  buildScrollbarStyle,
 } from '../utils/styleUtils';
 import { theme } from '../config/theme';
 import ModalOverlay from './ModalOverlay';
 import ModalContainer, { ModalHeader, ModalContent } from './ModalContainer';
 import TabNavigation, { Tab } from './TabNavigation';
-import StatusBadge, { StatusIcon } from './StatusBadge';
+import StatusBadge from './StatusBadge';
 
 interface AdminLoginFormProps {
   onLogin: (key: string) => void;
@@ -418,18 +415,7 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <span style={{ fontWeight: 500 }}>{result.type} tests</span>
-                  <span style={{
-                    padding: '2px 8px',
-                    borderRadius: 12,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    background: result.status === 'running' ? '#dbeafe' : 
-                               result.status === 'completed' ? '#dcfce7' : '#fef2f2',
-                    color: result.status === 'running' ? '#1d4ed8' : 
-                           result.status === 'completed' ? '#166534' : '#dc2626',
-                  }}>
-                    {result.status}
-                  </span>
+                  <StatusBadge status={result.status} />
                 </div>
                 <div style={{ color: '#6b7280', fontSize: 12 }}>
                   Started: {result.startTime.toLocaleTimeString()}
@@ -1007,40 +993,17 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                   <div style={{ color: '#6b7280', fontSize: 12 }}>Namespace: {tenant.namespace}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span 
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: 12,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      background: tenant.health === 'healthy' ? '#dcfce7' : 
-                                 tenant.health === 'not-accessible' ? '#fef2f2' :
-                                 tenant.health === 'error' ? '#fef2f2' : '#f3f4f6',
-                      color: tenant.health === 'healthy' ? '#166534' : 
-                             tenant.health === 'not-accessible' ? '#dc2626' :
-                             tenant.health === 'error' ? '#dc2626' : '#6b7280',
-                      cursor: tenant.healthDetails ? 'help' : 'default',
-                    }}
+                  <StatusBadge 
+                    status={tenant.health} 
                     title={tenant.healthDetails || `Status: ${tenant.health}`}
-                  >
-                    {tenant.health}
-                  </span>
+                  />
                   
                   {/* Core tenant operations - available in both OSS and Enterprise modes */}
                   <>
                     <button
                       onClick={() => clearTenantData(tenant.tenantId)}
                       disabled={isLoading || tenant.health === 'not-accessible'}
-                      style={{
-                        padding: '4px 8px',
-                        background: tenant.health === 'not-accessible' ? '#9ca3af' : '#8b5cf6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        fontSize: 11,
-                        cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
-                        opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
-                      }}
+                      style={buildTenantActionButtonStyle('clearData', isLoading || tenant.health === 'not-accessible')}
                       title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Clear nodes & edges (safe deletion)'}
                     >
                       Clear Data
@@ -1049,16 +1012,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                     <button
                       onClick={() => clearTenantSchema(tenant.tenantId)}
                       disabled={isLoading || tenant.health === 'not-accessible'}
-                      style={{
-                        padding: '4px 8px',
-                        background: tenant.health === 'not-accessible' ? '#9ca3af' : '#f59e0b',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        fontSize: 11,
-                        cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
-                        opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
-                      }}
+                      style={buildTenantActionButtonStyle('clearSchema', isLoading || tenant.health === 'not-accessible')}
                       title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Clear schema (push minimal schema)'}
                     >
                       Clear Schema
@@ -1067,16 +1021,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                     <button
                       onClick={() => pushFreshSchema(tenant.tenantId)}
                       disabled={isLoading || tenant.health === 'not-accessible'}
-                      style={{
-                        padding: '4px 8px',
-                        background: tenant.health === 'not-accessible' ? '#9ca3af' : '#06b6d4',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        fontSize: 11,
-                        cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
-                        opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
-                      }}
+                      style={buildTenantActionButtonStyle('pushSchema', isLoading || tenant.health === 'not-accessible')}
                       title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Push fresh default schema'}
                     >
                       Push Schema
@@ -1085,16 +1030,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                     <button
                       onClick={() => ApiService.seedTenantData(tenant.tenantId, 'test', false, adminKey).then(() => loadTenants()).catch((error) => setError(`Failed to seed data: ${error.message}`))}
                       disabled={isLoading || tenant.health === 'not-accessible'}
-                      style={{
-                        padding: '4px 8px',
-                        background: tenant.health === 'not-accessible' ? '#9ca3af' : '#10b981',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        fontSize: 11,
-                        cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
-                        opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
-                      }}
+                      style={buildTenantActionButtonStyle('seedData', isLoading || tenant.health === 'not-accessible')}
                       title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Seed hierarchy data and sample nodes'}
                     >
                       Seed Data
@@ -1105,16 +1041,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                       <button
                         onClick={() => resetTenant(tenant.tenantId)}
                         disabled={isLoading || tenant.health === 'not-accessible'}
-                        style={{
-                          padding: '4px 8px',
-                          background: tenant.health === 'not-accessible' ? '#9ca3af' : '#f59e0b',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 4,
-                          fontSize: 11,
-                          cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
-                          opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
-                        }}
+                        style={buildTenantActionButtonStyle('reset', isLoading || tenant.health === 'not-accessible')}
                         title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Reset tenant (Enterprise only)'}
                       >
                         Reset
@@ -1125,16 +1052,7 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                       <button
                         onClick={() => deleteTenant(tenant.tenantId)}
                         disabled={isLoading || tenant.health === 'not-accessible'}
-                        style={{
-                          padding: '4px 8px',
-                          background: tenant.health === 'not-accessible' ? '#9ca3af' : '#dc2626',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 4,
-                          fontSize: 11,
-                          cursor: (isLoading || tenant.health === 'not-accessible') ? 'not-allowed' : 'pointer',
-                          opacity: (isLoading || tenant.health === 'not-accessible') ? 0.6 : 1,
-                        }}
+                        style={buildTenantActionButtonStyle('delete', isLoading || tenant.health === 'not-accessible')}
                         title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Delete tenant (Enterprise only)'}
                       >
                         Delete
@@ -1207,87 +1125,40 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
 
       {/* Schema Modal */}
       {schemaModal.isOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 3000,
-        }}>
-          <div style={{
-            background: '#fff',
-            borderRadius: 8,
-            width: '80%',
-            maxWidth: 800,
-            height: '80%',
-            overflow: 'hidden',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-            display: 'flex',
-            flexDirection: 'column',
-          }}>
-            {/* Schema Modal Header */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '16px 20px',
-              borderBottom: '1px solid #e5e7eb',
-              background: '#f9fafb',
-            }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
-                  Schema for Tenant: {schemaModal.tenantId}
-                </h3>
-                {schemaModal.schemaInfo && (
-                  <p style={{ margin: '4px 0 0 0', fontSize: 14, color: '#6b7280' }}>
-                    {schemaModal.schemaInfo.name} • {schemaModal.schemaInfo.isDefault ? 'Default Schema' : 'Custom Schema'}
-                  </p>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {schemaModal.content && (
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(schemaModal.content || '');
-                      // Could add a toast notification here
-                    }}
-                    style={{
-                      padding: '6px 12px',
-                      background: '#3b82f6',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 4,
-                      fontSize: 12,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Copy
-                  </button>
-                )}
+        <ModalOverlay 
+          isOpen={schemaModal.isOpen} 
+          onClose={() => setSchemaModal({ isOpen: false, tenantId: '', loading: false })}
+        >
+          <ModalContainer width="80%" maxWidth={800} height="80%">
+            <ModalHeader 
+              title={`Schema for Tenant: ${schemaModal.tenantId}`}
+              subtitle={schemaModal.schemaInfo ? 
+                `${schemaModal.schemaInfo.name} • ${schemaModal.schemaInfo.isDefault ? 'Default Schema' : 'Custom Schema'}` 
+                : undefined
+              }
+              onClose={() => setSchemaModal({ isOpen: false, tenantId: '', loading: false })}
+              actions={schemaModal.content ? (
                 <button
-                  onClick={() => setSchemaModal({ isOpen: false, tenantId: '', loading: false })}
+                  onClick={() => {
+                    navigator.clipboard.writeText(schemaModal.content || '');
+                    // Could add a toast notification here
+                  }}
                   style={{
-                    background: 'none',
+                    padding: '6px 12px',
+                    background: '#3b82f6',
+                    color: 'white',
                     border: 'none',
-                    fontSize: 20,
+                    borderRadius: 4,
+                    fontSize: 12,
                     cursor: 'pointer',
-                    color: '#6b7280',
-                    padding: 4,
-                    lineHeight: 1,
                   }}
                 >
-                  ×
+                  Copy
                 </button>
-              </div>
-            </div>
+              ) : undefined}
+            />
             
-            {/* Schema Content */}
-            <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
+            <ModalContent>
               {schemaModal.loading ? (
                 <div style={{ textAlign: 'center', padding: 40 }}>
                   <p style={{ color: '#6b7280' }}>Loading schema content...</p>
@@ -1310,9 +1181,9 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
                   {schemaModal.content || 'No schema content available'}
                 </pre>
               )}
-            </div>
-          </div>
-        </div>
+            </ModalContent>
+          </ModalContainer>
+        </ModalOverlay>
       )}
     </div>
   );
@@ -1355,128 +1226,71 @@ const AdminModal: React.FC = () => {
     setLoginError(null);
   };
 
-  if (!adminModalOpen) return null;
+  const tabs: Tab[] = [
+    { id: 'tests', label: 'Tests' },
+    { id: 'tenants', label: 'Tenants' },
+  ];
+
+  const scrollbarConfig = buildScrollbarStyle('admin-modal-content');
+
+  const logoutButton = adminAuthenticated ? (
+    <button
+      onClick={handleLogout}
+      style={{
+        padding: '4px 8px',
+        background: 'transparent',
+        border: `1px solid ${theme.colors.border.default}`,
+        borderRadius: 4,
+        fontSize: 12,
+        cursor: 'pointer',
+        color: theme.colors.text.secondary,
+      }}
+    >
+      Logout
+    </button>
+  ) : undefined;
 
   return (
-    <div style={buildAdminModalStyle()}>
-      <div style={buildAdminModalContentStyle()}>
-        {/* Modal Header */}
-        <div style={buildAdminModalHeaderStyle()}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>Admin Tools</h2>
-            {adminAuthenticated && (
-              <button
-                onClick={handleLogout}
-                style={{
-                  padding: '4px 8px',
-                  background: 'transparent',
-                  border: `1px solid ${theme.colors.border.default}`,
-                  borderRadius: 4,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  color: theme.colors.text.secondary,
-                }}
-              >
-                Logout
-              </button>
-            )}
-          </div>
-          <button
-            onClick={closeAdminModal}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: 24,
-              cursor: 'pointer',
-              color: theme.colors.text.secondary,
-              padding: 4,
-              lineHeight: 1,
-            }}
-            aria-label="Close Admin Tools"
-          >
-            ×
-          </button>
-        </div>
+    <ModalOverlay isOpen={adminModalOpen} onClose={closeAdminModal}>
+      <ModalContainer width={600} height="70vh">
+        <ModalHeader 
+          title="Admin Tools" 
+          onClose={closeAdminModal}
+          actions={logoutButton}
+        />
         
         {!adminAuthenticated ? (
-          <AdminLoginForm onLogin={handleLogin} error={loginError || undefined} />
+          <ModalContent>
+            <AdminLoginForm onLogin={handleLogin} error={loginError || undefined} />
+          </ModalContent>
         ) : (
           <>
-            {/* Tab Navigation */}
-            <div style={{
-              display: 'flex',
-              borderBottom: `1px solid ${theme.colors.border.light}`,
-            }}>
-              <button
-                onClick={() => setActiveTab('tests')}
-                style={buildAdminTabStyle(activeTab === 'tests')}
-              >
-                Tests
-              </button>
-              <button
-                onClick={() => setActiveTab('tenants')}
-                style={buildAdminTabStyle(activeTab === 'tenants')}
-              >
-                Tenants
-              </button>
-            </div>
+            <TabNavigation 
+              tabs={tabs}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              variant="admin"
+            />
             
-            {/* Tab Content */}
-            <div 
-              style={{ 
-                flex: 1, 
-                overflow: 'auto',
-                position: 'relative'
-              }}
-              className="admin-modal-content"
+            <ModalContent 
+              padding={false}
+              className={scrollbarConfig.className}
             >
               {activeTab === 'tests' && adminKey && (
                 <TestsTab adminKey={adminKey} />
               )}
               
-              
               {activeTab === 'tenants' && adminKey && (
                 <TenantsTab adminKey={adminKey} />
               )}
-            </div>
+            </ModalContent>
+            
+            {/* Shared scrollbar CSS */}
+            <style>{scrollbarConfig.cssString}</style>
           </>
         )}
-        
-        {/* Styled scrollbar CSS */}
-        <style>{`
-          .admin-modal-content {
-            /* Webkit browsers (Chrome, Safari, Edge) */
-            scrollbar-width: thin;
-            scrollbar-color: #9ca3af #f3f4f6;
-          }
-          
-          .admin-modal-content::-webkit-scrollbar {
-            width: 8px;
-          }
-          
-          .admin-modal-content::-webkit-scrollbar-track {
-            background: #f3f4f6;
-            border-radius: 4px;
-          }
-          
-          .admin-modal-content::-webkit-scrollbar-thumb {
-            background: #9ca3af;
-            border-radius: 4px;
-            transition: background 0.2s ease;
-          }
-          
-          .admin-modal-content::-webkit-scrollbar-thumb:hover {
-            background: #6b7280;
-          }
-          
-          /* Firefox */
-          .admin-modal-content {
-            scrollbar-width: thin;
-            scrollbar-color: #9ca3af #f3f4f6;
-          }
-        `}</style>
-      </div>
-    </div>
+      </ModalContainer>
+    </ModalOverlay>
   );
 };
 

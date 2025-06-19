@@ -27,21 +27,21 @@ const TabNavigation: React.FC<TabNavigationProps> = ({
 }) => {
   const getTabStyle = (tab: Tab, isActive: boolean) => {
     if (variant === 'admin') {
-      // Use admin-specific tab styling
+      // Use settings modal tab styling for admin tabs (consistent styling)
       return {
         flex: 1,
         padding: '12px 16px',
         border: 'none',
         background: isActive 
-          ? theme.components.adminModal.tab.active.background 
-          : theme.components.adminModal.tab.inactive.background,
+          ? theme.components.settingsModal.tab.active.background 
+          : theme.components.settingsModal.tab.inactive.background,
         cursor: tab.disabled ? 'not-allowed' : 'pointer',
         fontWeight: isActive 
-          ? theme.components.adminModal.tab.active.fontWeight 
-          : theme.components.adminModal.tab.inactive.fontWeight,
+          ? theme.components.settingsModal.tab.active.fontWeight 
+          : theme.components.settingsModal.tab.inactive.fontWeight,
         borderBottom: `2px solid ${isActive 
-          ? theme.components.adminModal.tab.active.borderColor 
-          : theme.components.adminModal.tab.inactive.borderColor}`,
+          ? theme.components.settingsModal.tab.active.borderColor 
+          : theme.components.settingsModal.tab.inactive.borderColor}`,
         opacity: tab.disabled ? 0.6 : 1,
       };
     }

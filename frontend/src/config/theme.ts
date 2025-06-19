@@ -308,31 +308,6 @@ export const theme = {
     },
     
     adminModal: {
-      overlay: 'rgba(0,0,0,0.3)',
-      background: colors.legacy.white,
-      shadow: '0 10px 25px rgba(0,0,0,0.2)',
-      borderRadius: radius.lg,
-      width: 600,
-      height: '70vh',
-      header: {
-        borderBottom: colors.gray[200],
-        padding: `${spacing.scale(5)}px ${spacing.scale(6)}px`, // 20px 24px
-      },
-      content: {
-        padding: spacing.scale(5), // 20px
-      },
-      tab: {
-        active: {
-          background: colors.gray[100],
-          borderColor: colors.primary[500],
-          fontWeight: 600,
-        },
-        inactive: {
-          background: 'transparent',
-          borderColor: 'transparent',
-          fontWeight: 400,
-        },
-      },
       login: {
         container: {
           padding: spacing.scale(10), // 40px
