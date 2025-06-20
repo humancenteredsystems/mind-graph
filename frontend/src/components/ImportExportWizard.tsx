@@ -6,9 +6,7 @@ import {
   executeImport, 
   getImportJobStatus,
   getExportFormats,
-  executeExport,
-  getExportJobStatus,
-  downloadExportFile,
+  executeDirectExport,
   cancelJob,
   type ImportFileAnalysis,
   type ImportPreview,
@@ -42,8 +40,6 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
   const [selectedFormat, setSelectedFormat] = useState<string>('json');
   const [exportFilters, setExportFilters] = useState<any>({});
   const [exportOptions, setExportOptions] = useState<any>({});
-  const [exportJobId, setExportJobId] = useState<string | null>(null);
-  const [exportJobStatus, setExportJobStatus] = useState<JobStatus | null>(null);
   
   // Common state
   const [loading, setLoading] = useState(false);
@@ -56,7 +52,7 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
     }
   }, [mode]);
 
-  // Poll job status when jobs are running
+  // Poll job status when import jobs are running
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
@@ -66,16 +62,10 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
       }, 2000);
     }
     
-    if (exportJobId && exportJobStatus?.status === 'running') {
-      interval = setInterval(() => {
-        pollExportJobStatus();
-      }, 2000);
-    }
-    
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [importJobId, importJobStatus?.status, exportJobId, exportJobStatus?.status]);
+  }, [importJobId, importJobStatus?.status]);
 
   const loadExportFormats = async () => {
     try {
@@ -138,6 +128,17 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
       
       const result = await executeImport(fileAnalysis.fileId, {});
       setImportJobId(result.jobId);
+      
+      // ✅ Immediately set initial job status to prevent modal content disappearing
+      setImportJobStatus({
+        jobId: result.jobId,
+        type: 'import',
+        status: 'running',
+        progress: 0,
+        message: 'Starting import...',
+        startedAt: new Date().toISOString()
+      });
+      
       setImportStep('progress');
       
       // Start polling immediately
@@ -166,39 +167,14 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
       setLoading(true);
       setError(null);
       
-      const result = await executeExport(selectedFormat, exportFilters, exportOptions);
-      setExportJobId(result.jobId);
-      setExportStep('progress');
+      // ✅ SIMPLE: Direct export with immediate download
+      await executeDirectExport(selectedFormat, exportFilters, exportOptions);
       
-      // Start polling immediately
-      setTimeout(pollExportJobStatus, 1000);
+      // ✅ SIMPLE: Close modal immediately after download
+      onClose();
       
     } catch (error) {
-      setError(`Export execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const pollExportJobStatus = async () => {
-    if (!exportJobId) return;
-    
-    try {
-      const result = await getExportJobStatus(exportJobId);
-      setExportJobStatus(result.job);
-    } catch (error) {
-      log('ImportExportWizard', 'Error polling export job status:', error);
-    }
-  };
-
-  const handleDownloadExport = async () => {
-    if (!exportJobId) return;
-    
-    try {
-      setLoading(true);
-      await downloadExportFile(exportJobId);
-    } catch (error) {
-      setError(`Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setError(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -209,9 +185,6 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
       await cancelJob(jobId);
       if (importJobId === jobId) {
         setImportJobStatus(prev => prev ? { ...prev, status: 'cancelled' } : null);
-      }
-      if (exportJobId === jobId) {
-        setExportJobStatus(prev => prev ? { ...prev, status: 'cancelled' } : null);
       }
     } catch (error) {
       setError(`Failed to cancel job: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -227,8 +200,6 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
     setImportPreview(null);
     setImportJobId(null);
     setImportJobStatus(null);
-    setExportJobId(null);
-    setExportJobStatus(null);
     setError(null);
   };
 
@@ -570,35 +541,6 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
         </div>
       </div>
       
-      {jobStatus.status === 'completed' && jobType === 'export' && (
-        <div style={{
-          padding: 16,
-          background: theme.colors.admin.tenant.healthy,
-          border: `1px solid ${theme.colors.admin.tenant.healthyText}`,
-          borderRadius: 6,
-          marginBottom: 16,
-          textAlign: 'center'
-        }}>
-          <p style={{ margin: '0 0 12px 0', color: theme.colors.admin.tenant.healthyText }}>
-            Export completed successfully!
-          </p>
-          <button
-            onClick={handleDownloadExport}
-            disabled={loading}
-            style={{
-              padding: '8px 16px',
-              background: theme.colors.admin.button.success,
-              color: 'white',
-              border: 'none',
-              borderRadius: 4,
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {loading ? 'Downloading...' : 'Download File'}
-          </button>
-        </div>
-      )}
-      
       {jobStatus.status === 'completed' && jobType === 'import' && jobStatus.result && (
         <div style={{
           padding: 16,
@@ -793,7 +735,7 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
             cursor: loading ? 'not-allowed' : 'pointer'
           }}
         >
-          {loading ? 'Starting...' : 'Start Export'}
+          {loading ? 'Exporting...' : 'Export Data'}
         </button>
       </div>
     </div>
@@ -836,7 +778,6 @@ const ImportExportWizard: React.FC<ImportExportWizardProps> = ({ onClose }) => {
       
       {mode === 'export' && exportStep === 'format' && renderExportFormat()}
       {mode === 'export' && exportStep === 'options' && renderExportOptions()}
-      {mode === 'export' && exportStep === 'progress' && exportJobStatus && renderJobProgress(exportJobStatus, 'export')}
     </div>
   );
 };

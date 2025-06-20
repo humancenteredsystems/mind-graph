@@ -830,6 +830,110 @@ export class ImportExportService {
     };
   }
 
+  async executeDirectExport(
+    tenantId: string,
+    namespace: string | undefined,
+    format: string,
+    filters: any,
+    options: any
+  ): Promise<{
+    content: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  }> {
+    console.log(`[IMPORT_EXPORT] Direct export for tenant ${tenantId}, format: ${format}`);
+
+    try {
+      const tenantClient = await DgraphTenantFactory.createTenant(namespace || '');
+
+      // Query all data (reusing existing query from processExport)
+      const allDataQuery = `{
+        queryNode {
+          id
+          label
+          type
+          status
+          branch
+        }
+        queryEdge {
+          fromId
+          toId
+          type
+        }
+        queryHierarchy {
+          id
+          name
+          levels {
+            id
+            levelNumber
+            label
+            allowedTypes {
+              id
+              typeName
+            }
+          }
+        }
+      }`;
+
+      const data = await tenantClient.executeGraphQL(allDataQuery);
+
+      // Generate export content (reusing existing format generation logic)
+      let exportContent: string;
+      let fileName: string;
+      let mimeType: string;
+
+      switch (format) {
+        case 'json':
+          exportContent = JSON.stringify({
+            metadata: {
+              exportedAt: new Date().toISOString(),
+              tenantId,
+              namespace,
+              version: '1.0',
+              nodeCount: data.queryNode?.length || 0,
+              edgeCount: data.queryEdge?.length || 0,
+              hierarchyCount: data.queryHierarchy?.length || 0
+            },
+            hierarchies: data.queryHierarchy || [],
+            nodes: data.queryNode || [],
+            edges: data.queryEdge || []
+          }, null, 2);
+          fileName = `${tenantId}-export-${new Date().toISOString().split('T')[0]}.json`;
+          mimeType = 'application/json';
+          break;
+
+        case 'csv-nodes':
+          exportContent = this.generateNodesCsv(data.queryNode || []);
+          fileName = `${tenantId}-nodes-${new Date().toISOString().split('T')[0]}.csv`;
+          mimeType = 'text/csv';
+          break;
+
+        case 'csv-edges':
+          exportContent = this.generateEdgesCsv(data.queryEdge || []);
+          fileName = `${tenantId}-edges-${new Date().toISOString().split('T')[0]}.csv`;
+          mimeType = 'text/csv';
+          break;
+
+        default:
+          throw new Error(`Unsupported export format: ${format}`);
+      }
+
+      console.log(`[IMPORT_EXPORT] Direct export completed: ${fileName} (${Buffer.byteLength(exportContent, 'utf-8')} bytes)`);
+
+      return {
+        content: exportContent,
+        fileName,
+        mimeType,
+        size: Buffer.byteLength(exportContent, 'utf-8')
+      };
+
+    } catch (error) {
+      console.error(`[IMPORT_EXPORT] Direct export failed:`, error);
+      throw new Error(`Direct export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   async cancelJob(jobId: string, tenantId: string): Promise<{ cancelled: boolean }> {
     const job = this.jobs.get(jobId);
     if (!job) {

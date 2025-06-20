@@ -249,6 +249,43 @@ router.post('/export/execute', async (req: Request, res: Response): Promise<void
 });
 
 /**
+ * Direct export - returns file immediately
+ * POST /api/export/direct
+ */
+router.post('/export/direct', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { format = 'json', filters = {}, options = {} } = req.body;
+
+    const tenantId = req.tenantContext?.tenantId || 'default';
+    const namespace = req.tenantContext?.namespace;
+
+    console.log(`[EXPORT] Direct export for tenant ${tenantId}, format: ${format}`);
+
+    // Execute direct export
+    const result = await importExportService.executeDirectExport(
+      tenantId,
+      namespace || undefined,
+      format,
+      filters,
+      options
+    );
+
+    // Set download headers
+    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Length', result.size.toString());
+
+    // Send file content
+    res.send(result.content);
+
+  } catch (error) {
+    const err = error as Error;
+    console.error('[EXPORT] Direct export failed:', error);
+    res.status(500).json(createErrorResponseFromError('Direct export failed', err));
+  }
+});
+
+/**
  * Get export job status
  * GET /api/export/status/:jobId
  */

@@ -1,0 +1,510 @@
+{
+  "metadata": {
+    "exportedAt": "2025-06-20T02:04:53.535Z",
+    "tenantId": "default",
+    "namespace": "0x0",
+    "version": "1.0",
+    "nodeCount": 11,
+    "edgeCount": 9,
+    "hierarchyCount": 2
+  },
+  "hierarchies": [
+    {
+      "id": "h1",
+      "name": "Primary Knowledge Graph",
+      "levels": [
+        {
+          "id": "0x249f2",
+          "levelNumber": 1,
+          "label": "Domains",
+          "allowedTypes": [
+            {
+              "id": "0x249f5",
+              "typeName": "domain"
+            },
+            {
+              "id": "0x249f6",
+              "typeName": "category"
+            }
+          ]
+        },
+        {
+          "id": "0x249f3",
+          "levelNumber": 2,
+          "label": "Key Concepts",
+          "allowedTypes": [
+            {
+              "id": "0x249f7",
+              "typeName": "concept"
+            },
+            {
+              "id": "0x249f8",
+              "typeName": "principle"
+            }
+          ]
+        },
+        {
+          "id": "0x249f4",
+          "levelNumber": 3,
+          "label": "Detailed Examples",
+          "allowedTypes": [
+            {
+              "id": "0x249f9",
+              "typeName": "application"
+            },
+            {
+              "id": "0x249fa",
+              "typeName": "example"
+            }
+          ]
+        },
+        {
+          "id": "0x27104",
+          "levelNumber": 1,
+          "label": "Domains",
+          "allowedTypes": [
+            {
+              "id": "0x27107",
+              "typeName": "domain"
+            },
+            {
+              "id": "0x27108",
+              "typeName": "category"
+            }
+          ]
+        },
+        {
+          "id": "0x27105",
+          "levelNumber": 2,
+          "label": "Key Concepts",
+          "allowedTypes": [
+            {
+              "id": "0x27109",
+              "typeName": "concept"
+            },
+            {
+              "id": "0x2710a",
+              "typeName": "principle"
+            }
+          ]
+        },
+        {
+          "id": "0x27106",
+          "levelNumber": 3,
+          "label": "Detailed Examples",
+          "allowedTypes": [
+            {
+              "id": "0x2710b",
+              "typeName": "application"
+            },
+            {
+              "id": "0x2710c",
+              "typeName": "example"
+            }
+          ]
+        },
+        {
+          "id": "0x2712c",
+          "levelNumber": 1,
+          "label": "Domains",
+          "allowedTypes": [
+            {
+              "id": "0x2712f",
+              "typeName": "domain"
+            },
+            {
+              "id": "0x27130",
+              "typeName": "category"
+            }
+          ]
+        },
+        {
+          "id": "0x2712d",
+          "levelNumber": 2,
+          "label": "Key Concepts",
+          "allowedTypes": [
+            {
+              "id": "0x27131",
+              "typeName": "concept"
+            },
+            {
+              "id": "0x27132",
+              "typeName": "principle"
+            }
+          ]
+        },
+        {
+          "id": "0x2712e",
+          "levelNumber": 3,
+          "label": "Detailed Examples",
+          "allowedTypes": [
+            {
+              "id": "0x27133",
+              "typeName": "example"
+            },
+            {
+              "id": "0x27134",
+              "typeName": "application"
+            }
+          ]
+        },
+        {
+          "id": "0x27135",
+          "levelNumber": 1,
+          "label": "Domains",
+          "allowedTypes": [
+            {
+              "id": "0x27138",
+              "typeName": "domain"
+            },
+            {
+              "id": "0x27139",
+              "typeName": "category"
+            }
+          ]
+        },
+        {
+          "id": "0x27136",
+          "levelNumber": 2,
+          "label": "Key Concepts",
+          "allowedTypes": [
+            {
+              "id": "0x2713a",
+              "typeName": "concept"
+            },
+            {
+              "id": "0x2713b",
+              "typeName": "principle"
+            }
+          ]
+        },
+        {
+          "id": "0x27137",
+          "levelNumber": 3,
+          "label": "Detailed Examples",
+          "allowedTypes": [
+            {
+              "id": "0x2713c",
+              "typeName": "example"
+            },
+            {
+              "id": "0x2713d",
+              "typeName": "application"
+            }
+          ]
+        },
+        {
+          "id": "0x2713e",
+          "levelNumber": 3,
+          "label": "Detailed Examples",
+          "allowedTypes": [
+            {
+              "id": "0x27145",
+              "typeName": "application"
+            },
+            {
+              "id": "0x27146",
+              "typeName": "example"
+            }
+          ]
+        },
+        {
+          "id": "0x2713f",
+          "levelNumber": 1,
+          "label": "Domains",
+          "allowedTypes": [
+            {
+              "id": "0x27141",
+              "typeName": "domain"
+            },
+            {
+              "id": "0x27142",
+              "typeName": "category"
+            }
+          ]
+        },
+        {
+          "id": "0x27140",
+          "levelNumber": 2,
+          "label": "Key Concepts",
+          "allowedTypes": [
+            {
+              "id": "0x27143",
+              "typeName": "concept"
+            },
+            {
+              "id": "0x27144",
+              "typeName": "principle"
+            }
+          ]
+        },
+        {
+          "id": "0x27147",
+          "levelNumber": 1,
+          "label": "Domains",
+          "allowedTypes": [
+            {
+              "id": "0x2714a",
+              "typeName": "domain"
+            },
+            {
+              "id": "0x2714b",
+              "typeName": "category"
+            }
+          ]
+        },
+        {
+          "id": "0x27148",
+          "levelNumber": 2,
+          "label": "Key Concepts",
+          "allowedTypes": [
+            {
+              "id": "0x2714c",
+              "typeName": "concept"
+            },
+            {
+              "id": "0x2714d",
+              "typeName": "principle"
+            }
+          ]
+        },
+        {
+          "id": "0x27149",
+          "levelNumber": 3,
+          "label": "Detailed Examples",
+          "allowedTypes": [
+            {
+              "id": "0x2714e",
+              "typeName": "application"
+            },
+            {
+              "id": "0x2714f",
+              "typeName": "example"
+            }
+          ]
+        },
+        {
+          "id": "0x29811",
+          "levelNumber": 1,
+          "label": "Domains",
+          "allowedTypes": [
+            {
+              "id": "0x29814",
+              "typeName": "domain"
+            },
+            {
+              "id": "0x29815",
+              "typeName": "category"
+            }
+          ]
+        },
+        {
+          "id": "0x29812",
+          "levelNumber": 2,
+          "label": "Key Concepts",
+          "allowedTypes": [
+            {
+              "id": "0x29816",
+              "typeName": "concept"
+            },
+            {
+              "id": "0x29817",
+              "typeName": "principle"
+            }
+          ]
+        },
+        {
+          "id": "0x29813",
+          "levelNumber": 3,
+          "label": "Detailed Examples",
+          "allowedTypes": [
+            {
+              "id": "0x29818",
+              "typeName": "example"
+            },
+            {
+              "id": "0x29819",
+              "typeName": "application"
+            }
+          ]
+        },
+        {
+          "id": "0x2bf21",
+          "levelNumber": 1,
+          "label": "Domains",
+          "allowedTypes": [
+            {
+              "id": "0x2bf24",
+              "typeName": "domain"
+            },
+            {
+              "id": "0x2bf25",
+              "typeName": "category"
+            }
+          ]
+        },
+        {
+          "id": "0x2bf22",
+          "levelNumber": 2,
+          "label": "Key Concepts",
+          "allowedTypes": [
+            {
+              "id": "0x2bf26",
+              "typeName": "concept"
+            },
+            {
+              "id": "0x2bf27",
+              "typeName": "principle"
+            }
+          ]
+        },
+        {
+          "id": "0x2bf23",
+          "levelNumber": 3,
+          "label": "Detailed Examples",
+          "allowedTypes": [
+            {
+              "id": "0x2bf28",
+              "typeName": "example"
+            },
+            {
+              "id": "0x2bf29",
+              "typeName": "application"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "h2",
+      "name": "Test Hierarchy",
+      "levels": []
+    }
+  ],
+  "nodes": [
+    {
+      "id": "dom2",
+      "label": "Data Science",
+      "type": "domain",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "con1",
+      "label": "API Design",
+      "type": "concept",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "app1",
+      "label": "Docker Container Setup",
+      "type": "application",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "dom1",
+      "label": "Software Engineering",
+      "type": "domain",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "con2",
+      "label": "Microservices",
+      "type": "concept",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "con3",
+      "label": "Machine Learning",
+      "type": "concept",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "pri1",
+      "label": "REST Principles",
+      "type": "principle",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "ex1",
+      "label": "GraphQL Implementation",
+      "type": "example",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "ex2",
+      "label": "Event Sourcing Pattern",
+      "type": "example",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "ex3",
+      "label": "Regression Analysis",
+      "type": "example",
+      "status": "approved",
+      "branch": "main"
+    },
+    {
+      "id": "cat1",
+      "label": "Development Methodologies",
+      "type": "category",
+      "status": "approved",
+      "branch": "main"
+    }
+  ],
+  "edges": [
+    {
+      "fromId": "con3",
+      "toId": "ex3",
+      "type": "simple"
+    },
+    {
+      "fromId": "pri1",
+      "toId": "app1",
+      "type": "simple"
+    },
+    {
+      "fromId": "con1",
+      "toId": "con2",
+      "type": "simple"
+    },
+    {
+      "fromId": "dom1",
+      "toId": "con1",
+      "type": "simple"
+    },
+    {
+      "fromId": "dom2",
+      "toId": "con3",
+      "type": "simple"
+    },
+    {
+      "fromId": "cat1",
+      "toId": "pri1",
+      "type": "simple"
+    },
+    {
+      "fromId": "con2",
+      "toId": "ex2",
+      "type": "simple"
+    },
+    {
+      "fromId": "dom1",
+      "toId": "con2",
+      "type": "simple"
+    },
+    {
+      "fromId": "con1",
+      "toId": "ex1",
+      "type": "simple"
+    }
+  ]
+}

@@ -1247,3 +1247,54 @@ export const cancelJob = async (
     throw error;
   }
 };
+
+/**
+ * Execute direct export and trigger download immediately
+ */
+export const executeDirectExport = async (
+  format: string,
+  filters: any,
+  options: any
+): Promise<void> => {
+  try {
+    const response = await apiClient.post('/export/direct', {
+      format,
+      filters,
+      options
+    }, {
+      responseType: 'blob'
+    });
+
+    // Extract filename from Content-Disposition header
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'export.json';
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+
+    // Create download link
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error executing direct export:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error executing direct export:', error);
+    }
+    throw error;
+  }
+};
