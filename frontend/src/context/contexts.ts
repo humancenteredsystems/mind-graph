@@ -90,6 +90,10 @@ interface UIContextValue {
   closeAdminModal: () => void;
   authenticateAdmin: () => boolean;
   logoutAdmin: () => void;
+  // Import/Export modal
+  importExportModalOpen: boolean;
+  openImportExportModal: () => void;
+  closeImportExportModal: () => void;
   // System status
   systemStatus: SystemStatus | null;
   refreshSystemStatus: () => Promise<void>;

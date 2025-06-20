@@ -914,3 +914,336 @@ export const fullTenantReset = async (
     };
   }
 };
+
+// Import/Export API Functions
+// -------------------------------------------------------------------
+
+export interface ImportFileAnalysis {
+  fileId: string;
+  format: 'json' | 'csv' | 'graphml';
+  nodeCount: number;
+  edgeCount: number;
+  hierarchyCount: number;
+  validation: {
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+  };
+  preview: {
+    nodes: any[];
+    edges: any[];
+    hierarchies: any[];
+    sampleSize: number;
+  };
+}
+
+export interface ImportPreview {
+  nodes: any[];
+  edges: any[];
+  hierarchies: any[];
+  validation: {
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+  };
+  conflicts: Array<{
+    type: 'node' | 'edge' | 'hierarchy';
+    id: string;
+    action: 'create' | 'update' | 'skip';
+    reason: string;
+  }>;
+}
+
+export interface JobStatus {
+  jobId: string;
+  type: 'import' | 'export';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  message: string;
+  startedAt: string;
+  completedAt?: string;
+  error?: string;
+  result?: any;
+}
+
+export interface ExportFormat {
+  id: string;
+  name: string;
+  description: string;
+  extension: string;
+  mimeType: string;
+  supportsFiltering: boolean;
+}
+
+/**
+ * Upload and analyze import file
+ */
+export const uploadImportFile = async (
+  file: File
+): Promise<{
+  success: boolean;
+  fileId: string;
+  analysis: ImportFileAnalysis;
+  uploadedAt: string;
+}> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await apiClient.post('/import/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error uploading import file:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error uploading import file:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Generate import preview with field mapping
+ */
+export const generateImportPreview = async (
+  fileId: string,
+  mapping: any
+): Promise<{
+  success: boolean;
+  preview: ImportPreview;
+}> => {
+  try {
+    const response = await apiClient.post('/import/preview', {
+      fileId,
+      mapping
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error generating import preview:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error generating import preview:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Execute import with specified options
+ */
+export const executeImport = async (
+  fileId: string,
+  options: any
+): Promise<{
+  success: boolean;
+  jobId: string;
+  message: string;
+  startedAt: string;
+}> => {
+  try {
+    const response = await apiClient.post('/import/execute', {
+      fileId,
+      options
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error executing import:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error executing import:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get import job status
+ */
+export const getImportJobStatus = async (
+  jobId: string
+): Promise<{
+  success: boolean;
+  job: JobStatus;
+}> => {
+  try {
+    const response = await apiClient.get(`/import/status/${jobId}`);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error getting import job status:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error getting import job status:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get available export formats
+ */
+export const getExportFormats = async (): Promise<{
+  success: boolean;
+  formats: ExportFormat[];
+}> => {
+  try {
+    const response = await apiClient.get('/export/formats');
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error getting export formats:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error getting export formats:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Execute export with specified options
+ */
+export const executeExport = async (
+  format: string,
+  filters: any,
+  options: any
+): Promise<{
+  success: boolean;
+  jobId: string;
+  format: string;
+  message: string;
+  startedAt: string;
+}> => {
+  try {
+    const response = await apiClient.post('/export/execute', {
+      format,
+      filters,
+      options
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error executing export:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error executing export:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get export job status
+ */
+export const getExportJobStatus = async (
+  jobId: string
+): Promise<{
+  success: boolean;
+  job: JobStatus;
+}> => {
+  try {
+    const response = await apiClient.get(`/export/status/${jobId}`);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error getting export job status:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error getting export job status:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Download exported file
+ */
+export const downloadExportFile = async (
+  jobId: string
+): Promise<void> => {
+  try {
+    const response = await apiClient.get(`/export/download/${jobId}`, {
+      responseType: 'blob'
+    });
+
+    // Extract filename from Content-Disposition header
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'export.json';
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+
+    // Create download link
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error downloading export file:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error downloading export file:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Cancel import/export job
+ */
+export const cancelJob = async (
+  jobId: string
+): Promise<{
+  success: boolean;
+  jobId: string;
+  message: string;
+  cancelledAt: string;
+}> => {
+  try {
+    const response = await apiClient.post(`/job/${jobId}/cancel`, {});
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error cancelling job:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error cancelling job:', error);
+    }
+    throw error;
+  }
+};

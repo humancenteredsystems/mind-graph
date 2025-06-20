@@ -1283,6 +1283,7 @@ const AdminModal: React.FC = () => {
               {activeTab === 'tenants' && adminKey && (
                 <TenantsTab adminKey={adminKey} />
               )}
+              
             </ModalContent>
             
             {/* Shared scrollbar CSS */}

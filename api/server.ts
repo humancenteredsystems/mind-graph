@@ -11,6 +11,7 @@ import adminTestRoutes from './routes/adminTest';
 import diagnosticRoutes from './routes/diagnostic';
 import hierarchyRoutes from './routes/hierarchy';
 import tenantRoutes from './routes/tenants';
+import importExportRoutes from './routes/importExport';
 
 // Import middleware
 import { setTenantContext, ensureTenant, validateTenantAccess } from './middleware/tenantContext';
@@ -90,6 +91,7 @@ app.use('/api', graphqlRoutes);
 app.use('/api', schemaRoutes);
 app.use('/api', diagnosticRoutes);
 app.use('/api', tenantRoutes);
+app.use('/api', importExportRoutes);
 // Mount admin routes last to prevent conflicts with public endpoints
 app.use('/api', adminRoutes);
 app.use('/api', adminTestRoutes);

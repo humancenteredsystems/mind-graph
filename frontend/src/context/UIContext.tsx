@@ -24,6 +24,7 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [adminAuthenticated, setAdminAuthenticated] = useState(false);
+  const [importExportModalOpen, setImportExportModalOpen] = useState(false);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const lastOpenTimeRef = useRef<number>(0);
 
@@ -88,6 +89,14 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     setAdminAuthenticated(false);
   };
 
+  // Import/Export modal functions
+  const openImportExportModal = () => {
+    setImportExportModalOpen(true);
+  };
+  const closeImportExportModal = () => {
+    setImportExportModalOpen(false);
+  };
+
   // System status functions
   const refreshSystemStatus = async () => {
     try {
@@ -119,6 +128,9 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         closeAdminModal,
         authenticateAdmin,
         logoutAdmin,
+        importExportModalOpen,
+        openImportExportModal,
+        closeImportExportModal,
         systemStatus,
         refreshSystemStatus,
       }}

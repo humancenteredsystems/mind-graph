@@ -15,7 +15,9 @@ import SettingsModal from './components/SettingsModal';
 import AdminButton from './components/AdminButton';
 import AdminModal from './components/AdminModal';
 import EmptyGraphState from './components/EmptyGraphState';
-import LayoutControls from './components/LayoutControls';
+import GraphToolsPanel from './components/GraphToolsPanel';
+import ImportExportWizard from './components/ImportExportWizard';
+import ModalOverlay from './components/ModalOverlay';
 
 function AppInner() {
   
@@ -74,6 +76,8 @@ function AppInner() {
   openEditDrawer,
   closeEditDrawer,
   setEditNode, // Get the new function from context
+  importExportModalOpen,
+  closeImportExportModal,
 } = useUIContext();
 
   console.log('[AppInner RENDER] nodes prop length:', nodes.length, 'isLoading:', isLoading, 'error:', error);
@@ -200,7 +204,7 @@ function AppInner() {
       {/* Controls Area - fixed width sidebar */}
       {!isLoading && (
         <div className="app-controls-area">
-          <LayoutControls />
+          <GraphToolsPanel />
         </div>
       )}
       <NodeFormModal
@@ -225,6 +229,13 @@ function AppInner() {
         }}
         onClose={closeEditDrawer}
       />
+      
+      {/* Import/Export Modal */}
+      {importExportModalOpen && (
+        <ModalOverlay isOpen={importExportModalOpen} onClose={closeImportExportModal}>
+          <ImportExportWizard onClose={closeImportExportModal} />
+        </ModalOverlay>
+      )}
 </div>
   );
 }

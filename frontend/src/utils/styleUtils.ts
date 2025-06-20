@@ -235,6 +235,36 @@ export const buildTestButtonStyle = (
 });
 
 /**
+ * Builds data tools button styles for graph tools panel
+ */
+export const buildDataToolsButtonStyle = (disabled: boolean = false) => css({
+  padding: '8px 12px',
+  border: `1px solid ${theme.colors.border.default}`,
+  borderRadius: '4px',
+  fontSize: '12px',
+  fontWeight: 500,
+  backgroundColor: disabled ? theme.colors.background.secondary : theme.colors.border.active,
+  color: disabled ? theme.colors.text.secondary : theme.colors.text.inverse,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  transition: 'all 0.2s ease',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  width: '100%',
+  justifyContent: 'center',
+  opacity: disabled ? 0.6 : 1,
+});
+
+/**
+ * Builds graph tools section styles
+ */
+export const buildGraphToolsSectionStyle = () => css({
+  display: 'flex',
+  flexDirection: 'column' as const,
+  gap: '8px',
+});
+
+/**
  * Builds tenant action button styles
  */
 export const buildTenantActionButtonStyle = (
