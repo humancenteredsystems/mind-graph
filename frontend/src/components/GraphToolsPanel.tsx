@@ -15,6 +15,7 @@ import { theme } from '../config';
 import { log } from '../utils/logger';
 import { buildDataToolsButtonStyle, buildGraphToolsSectionStyle, css } from '../utils/styleUtils';
 import CollapsibleSection from './CollapsibleSection';
+import ViewsSection from './ViewsSection';
 
 interface GraphToolsPanelProps {
   style?: React.CSSProperties;
@@ -239,6 +240,9 @@ const GraphToolsPanel: React.FC<GraphToolsPanelProps> = ({ style }) => {
         </div>
       </CollapsibleSection>
 
+      {/* Views Section - NEW: Graph Views/Lens System */}
+      <ViewsSection />
+
       {/* Analysis Section */}
       <CollapsibleSection 
         title="Analysis" 
@@ -264,10 +268,10 @@ const GraphToolsPanel: React.FC<GraphToolsPanelProps> = ({ style }) => {
         </div>
       </CollapsibleSection>
 
-      {/* View Section */}
+      {/* Filters Section - RENAMED from "View" to avoid confusion */}
       <CollapsibleSection 
-        title="View" 
-        icon="👁️"
+        title="Filters" 
+        icon="🔽"
         defaultExpanded={false}
       >
         <div style={buildGraphToolsSectionStyle()}>

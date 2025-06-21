@@ -18,6 +18,7 @@
     "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
+    "@mims/lens-types": "file:../packages/lens-types",
     "@types/cytoscape": "^3.21.9",
     "@types/cytoscape-context-menus": "^4.1.4",
     "axios": "^1.8.4",

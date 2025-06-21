@@ -2,11 +2,13 @@ import React, { useEffect } from 'react';
 import './App.css';
 import GraphView from './components/GraphView';
 import { useGraphState } from './hooks/useGraphState';
+import { useLens } from './hooks/useLens';
 import { log } from './utils/logger';
 import { theme } from './config';
 import { useUIContext } from './hooks/useUI';
 import { HierarchyProvider } from './context/HierarchyContext';
 import { LayoutProvider } from './context/LayoutContext';
+import { ViewProvider } from './context/ViewContext';
 import { useHierarchyContext } from './hooks/useHierarchy';
 import NodeFormModal from './components/NodeFormModal';
 import NodeDrawer from './components/NodeDrawer';
@@ -44,6 +46,16 @@ function AppInner() {
     hideNodes,
     connectNodes,
   } = useGraphState();
+
+  // Apply lens transformations to the raw graph data
+  const {
+    nodes: lensNodes,
+    edges: lensEdges,
+    layout,
+    styleFn,
+    isLoading: lensLoading,
+    error: lensError,
+  } = useLens({ nodes, edges });
 
   // useEffect to load the complete graph on initial mount
   const { hierarchies, hierarchyId, setHierarchyId } = useHierarchyContext();
@@ -113,16 +125,17 @@ function AppInner() {
         </select>
         
         {/* Loading and error states */}
-        {(isLoading || isExpanding) && <p>Loading graph data...</p>}
+        {(isLoading || isExpanding || lensLoading) && <p>Loading graph data...</p>}
         {error && <p style={{ color: theme.colors.text.error }}>Error: {error}</p>}
+        {lensError && <p style={{ color: theme.colors.text.error }}>View Error: {lensError}</p>}
       </div>
       
       {/* Graph Area - takes remaining space */}
       {!isLoading && (
         <div className="app-graph-area">
           <GraphView
-            nodes={nodes}
-            edges={edges}
+            nodes={lensNodes}
+            edges={lensEdges}
             hiddenNodeIds={hiddenNodeIds}
             onNodeExpand={(nodeId) => {
               log('App', `Expand node requested for: ${nodeId}`);
@@ -190,7 +203,7 @@ function AppInner() {
           />
           
           {/* Show empty state overlay when no nodes are present */}
-          {nodes.length === 0 && (
+          {lensNodes.length === 0 && (
             <EmptyGraphState
               onAddNode={(parentId, position) => {
                 log('App', `Add node requested from empty state at position: ${JSON.stringify(position)}`);
@@ -243,7 +256,9 @@ function AppInner() {
 const App = () => (
   <HierarchyProvider>
     <LayoutProvider>
-      <AppInner />
+      <ViewProvider>
+        <AppInner />
+      </ViewProvider>
     </LayoutProvider>
   </HierarchyProvider>
 );
