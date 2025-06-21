@@ -206,6 +206,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   console.log(`[GraphView RENDER] Nodes prop length: ${nodes.length}, Edges prop length: ${edges.length}`); // Forceful log
 
   const cyRef = useRef<Core | null>(null);
+  const isMountedRef = useRef<boolean>(true); // Track component mount status
   const { openMenu } = useContextMenu();
   const { hierarchyId, levels } = useHierarchyContext();
   const { layoutEngine, applyLayout, currentAlgorithm } = useLayoutContext();
@@ -224,10 +225,27 @@ const GraphView: React.FC<GraphViewProps> = ({
   const shortTermTapTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
   const potentialClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 });
 
+  // Component lifecycle management
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // Clean up any pending timeouts
+      if (shortTermTapTimeoutRef.current) {
+        clearTimeout(shortTermTapTimeoutRef.current);
+        shortTermTapTimeoutRef.current = null;
+      }
+      // Destroy layout engine to prevent operations on unmounted component
+      if (layoutEngine) {
+        layoutEngine.destroy();
+      }
+    };
+  }, [layoutEngine]);
+
   // Generate level styles dynamically using theme colors
   const generateLevelStyles = () => {
     return Object.entries(theme.colors.levels).map(([level, color]) => ({
-      selector: `node[levelNumber = ${level}]`,
+      selector: `node[levelNumber=${level}]`,
       style: {
         'background-color': color,
         ...(level === '1' && { shape: 'ellipse' }),
@@ -321,7 +339,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     // Dynamic level styles generated from theme
     ...generateLevelStyles(),
     {
-      selector: 'node[expanded = true]',
+      selector: 'node[expanded=true]',
       style: {
         'border-width': config.activeBorderWidth,
         'border-color': theme.colors.node.border.expanded,
@@ -593,29 +611,35 @@ const GraphView: React.FC<GraphViewProps> = ({
   // Layout engine integration - apply layout when elements change
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy || elements.length === 0) return;
+    if (!cy || elements.length === 0 || !isMountedRef.current) return;
     
     // Update layout engine with current data
     layoutEngine.initialize(cy, hierarchyId, nodes, edges);
     
-    // Apply current layout algorithm
-    applyLayout();
+    // Apply current layout algorithm with mount check
+    const applyLayoutSafely = async () => {
+      if (isMountedRef.current) {
+        await applyLayout();
+      }
+    };
+    
+    applyLayoutSafely();
   }, [elements, hierarchyId, nodes, edges, layoutEngine, applyLayout]);
 
   // Live force-directed layout during node dragging
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy) return;
+    if (!cy || !isMountedRef.current) return;
 
     const handleNodeGrab = () => {
-      if (currentAlgorithm === 'force-directed') {
+      if (currentAlgorithm === 'force-directed' && isMountedRef.current) {
         log('GraphView', 'Starting live force-directed layout on node grab');
         applyLayout(undefined, { liveUpdate: true });
       }
     };
 
     const handleNodeFree = () => {
-      if (currentAlgorithm === 'force-directed') {
+      if (currentAlgorithm === 'force-directed' && isMountedRef.current) {
         log('GraphView', 'Stopping live force-directed layout on node free');
         // Stop live update and apply final layout
         applyLayout();

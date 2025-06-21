@@ -255,6 +255,33 @@ const DEFAULT_CONFIGS: Record<LayoutAlgorithm, Partial<LayoutConfig>> = {
 };
 
 /**
+ * Check if Cytoscape renderer is valid before operations
+ */
+function isValidRenderer(cy: Core): boolean {
+  try {
+    const renderer = (cy as any)._private?.renderer;
+    return renderer !== null && renderer !== undefined;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Safe wrapper for Cytoscape operations that might fail with null renderer
+ */
+function safeCytoscapeOperation(cy: Core, operation: () => void, operationName: string): void {
+  try {
+    if (isValidRenderer(cy)) {
+      operation();
+    } else {
+      log('LayoutEngine', `Skipping ${operationName} - renderer is null`);
+    }
+  } catch (error) {
+    log('LayoutEngine', `Error during ${operationName}:`, error);
+  }
+}
+
+/**
  * Universal layout runner with timeout protection and error handling
  */
 async function runHierarchyAwareLayout(
@@ -267,14 +294,23 @@ async function runHierarchyAwareLayout(
 ): Promise<void> {
   return new Promise((resolve) => {
     try {
+      // Check renderer before starting layout
+      if (!isValidRenderer(cy)) {
+        log('LayoutEngine', 'Renderer is null, skipping layout');
+        resolve();
+        return;
+      }
+
       const layoutOptions = layoutFactories[algorithm](cy, config, nodes, edges, hierarchyId);
       const layout = cy.layout(layoutOptions);
       
       // Check if layout object has required methods (for test environment compatibility)
       if (!layout || typeof layout.on !== 'function' || typeof layout.run !== 'function') {
         log('LayoutEngine', `Layout object missing required methods, applying fallback centering`);
-        cy.center();
-        cy.fit(cy.nodes(), config.padding);
+        safeCytoscapeOperation(cy, () => {
+          cy.center();
+          cy.fit(cy.nodes(), config.padding);
+        }, 'fallback centering');
         resolve();
         return;
       }
@@ -285,8 +321,10 @@ async function runHierarchyAwareLayout(
           layout.stop();
         }
         log('LayoutEngine', `Layout ${layoutOptions.name} timed out after ${config.maxExecutionTime || 5000}ms, applying fallback centering`);
-        cy.center();
-        cy.fit(cy.nodes(), config.padding);
+        safeCytoscapeOperation(cy, () => {
+          cy.center();
+          cy.fit(cy.nodes(), config.padding);
+        }, 'timeout fallback centering');
         resolve();
       }, config.maxExecutionTime || 5000);
       
@@ -294,8 +332,10 @@ async function runHierarchyAwareLayout(
       layout.on('layouterror', (error: any) => {
         clearTimeout(timeout);
         log('LayoutEngine', `Layout ${layoutOptions.name} error:`, error);
-        cy.center();
-        cy.fit(cy.nodes(), config.padding);
+        safeCytoscapeOperation(cy, () => {
+          cy.center();
+          cy.fit(cy.nodes(), config.padding);
+        }, 'error fallback centering');
         resolve();
       });
       
@@ -303,8 +343,10 @@ async function runHierarchyAwareLayout(
       layout.on('layoutstop', () => {
         clearTimeout(timeout);
         log('LayoutEngine', `Layout ${layoutOptions.name} completed successfully`);
-        cy.center();
-        cy.fit(cy.nodes(), config.padding);
+        safeCytoscapeOperation(cy, () => {
+          cy.center();
+          cy.fit(cy.nodes(), config.padding);
+        }, 'success centering');
         resolve();
       });
       
@@ -312,8 +354,10 @@ async function runHierarchyAwareLayout(
       layout.run();
     } catch (error) {
       log('LayoutEngine', `Exception during layout ${algorithm} setup:`, error);
-      cy.center();
-      cy.fit(cy.nodes(), config.padding);
+      safeCytoscapeOperation(cy, () => {
+        cy.center();
+        cy.fit(cy.nodes(), config.padding);
+      }, 'exception fallback centering');
       resolve();
     }
   });
@@ -330,6 +374,7 @@ export class LayoutEngine {
   private nodes: NodeData[] = [];
   private edges: EdgeData[] = [];
   private currentLayout: any = null; // Track current layout instance for live updates
+  private isDestroyed: boolean = false; // Track if instance is destroyed
 
   constructor(initialConfig?: Partial<LayoutConfig>) {
     // Default to tree layout
@@ -343,11 +388,51 @@ export class LayoutEngine {
    * Initialize the layout engine with Cytoscape instance
    */
   initialize(cy: Core, hierarchyId: string, nodes: NodeData[], edges: EdgeData[]) {
+    this.isDestroyed = false;
     this.cy = cy;
     this.hierarchyId = hierarchyId;
     this.nodes = nodes;
     this.edges = edges;
     log('LayoutEngine', `Initialized with ${nodes.length} nodes, ${edges.length} edges`);
+  }
+
+  /**
+   * Check if Cytoscape instance and renderer are valid
+   */
+  private isValidCytoscape(): boolean {
+    if (this.isDestroyed) {
+      log('LayoutEngine', 'Layout engine is destroyed, skipping operation');
+      return false;
+    }
+    
+    if (!this.cy) {
+      log('LayoutEngine', 'No Cytoscape instance available');
+      return false;
+    }
+
+    // Check if renderer exists and is not null
+    try {
+      const renderer = (this.cy as any)._private?.renderer;
+      if (!renderer) {
+        log('LayoutEngine', 'Cytoscape renderer is null or undefined, skipping operation');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      log('LayoutEngine', 'Error checking renderer state:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Destroy the layout engine and clean up resources
+   */
+  destroy(): void {
+    log('LayoutEngine', 'Destroying layout engine');
+    this.isDestroyed = true;
+    this.stopCurrentLayout();
+    this.cy = null;
+    this.clearCache();
   }
 
   /**
@@ -381,8 +466,8 @@ export class LayoutEngine {
    * Apply a layout algorithm to the graph
    */
   async applyLayout(algorithm?: LayoutAlgorithm, customConfig?: Partial<LayoutConfig>): Promise<void> {
-    if (!this.cy) {
-      log('LayoutEngine', 'ERROR: Cytoscape instance not initialized');
+    // Validate Cytoscape instance and renderer before proceeding
+    if (!this.isValidCytoscape()) {
       return;
     }
 
@@ -400,6 +485,11 @@ export class LayoutEngine {
       // Stop any running layouts first
       this.stopCurrentLayout();
       
+      // Re-validate after stopping layout (renderer might have been destroyed)
+      if (!this.isValidCytoscape()) {
+        return;
+      }
+      
       // Clear position cache when switching algorithms for fresh start
       if (targetAlgorithm !== this.currentConfig.algorithm) {
         this.clearCache();
@@ -411,7 +501,7 @@ export class LayoutEngine {
 
       // Handle live update mode for force-directed layout
       if (config.liveUpdate && targetAlgorithm === 'force-directed') {
-        const layoutOptions = layoutFactories[targetAlgorithm](this.cy, config, this.nodes, this.edges, this.hierarchyId);
+        const layoutOptions = layoutFactories[targetAlgorithm](this.cy!, config, this.nodes, this.edges, this.hierarchyId);
         const layout = this.createLayout(layoutOptions);
         
         if (layout && typeof layout.run === 'function') {
@@ -422,7 +512,7 @@ export class LayoutEngine {
       } else {
         // Run standard one-shot layout
         await runHierarchyAwareLayout(
-          this.cy,
+          this.cy!,
           targetAlgorithm,
           config,
           this.nodes,
