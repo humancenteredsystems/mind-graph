@@ -286,6 +286,53 @@ router.post('/export/direct', async (req: Request, res: Response): Promise<void>
 });
 
 /**
+ * Direct import - processes file immediately and returns result
+ * POST /api/import/direct
+ */
+router.post('/import/direct', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'No file uploaded' });
+      return;
+    }
+
+    const tenantId = req.tenantContext?.tenantId || 'default';
+    const namespace = req.tenantContext?.namespace;
+
+    console.log(`[IMPORT] Direct import for tenant ${tenantId}: ${req.file.originalname}`);
+
+    // Execute direct import
+    const result = await importExportService.executeDirectImport(
+      req.file.path,
+      req.file.originalname,
+      tenantId,
+      namespace || undefined
+    );
+
+    res.json({
+      success: result.success,
+      message: result.message,
+      result: result.result,
+      importedAt: result.importedAt
+    });
+
+  } catch (error) {
+    // Clean up uploaded file on error
+    if (req.file) {
+      try {
+        await fs.unlink(req.file.path);
+      } catch (cleanupError) {
+        console.error('[IMPORT] Failed to cleanup uploaded file:', cleanupError);
+      }
+    }
+
+    const err = error as Error;
+    console.error('[IMPORT] Direct import failed:', error);
+    res.status(500).json(createErrorResponseFromError('Direct import failed', err));
+  }
+});
+
+/**
  * Get export job status
  * GET /api/export/status/:jobId
  */

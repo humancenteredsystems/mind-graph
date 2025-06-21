@@ -12,6 +12,9 @@ export { TenantManager } from './tenantManager';
 export { DgraphTenantFactory } from './dgraphTenant';
 export { AdaptiveTenantFactory } from './adaptiveTenantFactory';
 
+// Import/Export services
+export { ImportExportService } from './importExportService';
+
 // Validation functions and error types
 export { 
   InvalidLevelError,

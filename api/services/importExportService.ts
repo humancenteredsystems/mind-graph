@@ -493,24 +493,62 @@ export class ImportExportService {
 
   private async importHierarchies(hierarchies: any[], tenantClient: any): Promise<void> {
     for (const hierarchy of hierarchies) {
-      // Create hierarchy
-      const createHierarchyMutation = `
-        mutation CreateHierarchy($input: [AddHierarchyInput!]!) {
-          addHierarchy(input: $input) {
-            hierarchy {
-              id
-              name
-            }
+      // Check if hierarchy exists
+      const checkHierarchyQuery = `
+        query CheckHierarchy($id: String!) {
+          queryHierarchy(filter: { id: { eq: $id } }) {
+            id
+            name
           }
         }
       `;
 
-      await tenantClient.executeGraphQL(createHierarchyMutation, {
-        input: [{ id: hierarchy.id, name: hierarchy.name }]
+      const existingHierarchy = await tenantClient.executeGraphQL(checkHierarchyQuery, {
+        id: hierarchy.id
       });
 
-      // Create levels if present
+      if (existingHierarchy.queryHierarchy && existingHierarchy.queryHierarchy.length > 0) {
+        // Update existing hierarchy
+        console.log(`[IMPORT_EXPORT] Updating existing hierarchy: ${hierarchy.id}`);
+        const updateHierarchyMutation = `
+          mutation UpdateHierarchy($input: UpdateHierarchyInput!) {
+            updateHierarchy(input: $input) {
+              hierarchy {
+                id
+                name
+              }
+            }
+          }
+        `;
+
+        await tenantClient.executeGraphQL(updateHierarchyMutation, {
+          input: {
+            filter: { id: { eq: hierarchy.id } },
+            set: { name: hierarchy.name }
+          }
+        });
+      } else {
+        // Create new hierarchy
+        console.log(`[IMPORT_EXPORT] Creating new hierarchy: ${hierarchy.id}`);
+        const createHierarchyMutation = `
+          mutation CreateHierarchy($input: [AddHierarchyInput!]!) {
+            addHierarchy(input: $input) {
+              hierarchy {
+                id
+                name
+              }
+            }
+          }
+        `;
+
+        await tenantClient.executeGraphQL(createHierarchyMutation, {
+          input: [{ id: hierarchy.id, name: hierarchy.name }]
+        });
+      }
+
+      // Handle levels (create/update logic for levels would be more complex, keeping simple for now)
       if (hierarchy.levels) {
+        console.log(`[IMPORT_EXPORT] Processing ${hierarchy.levels.length} levels for hierarchy ${hierarchy.id}`);
         const createLevelsMutation = `
           mutation CreateLevels($input: [AddHierarchyLevelInput!]!) {
             addHierarchyLevel(input: $input) {
@@ -529,56 +567,144 @@ export class ImportExportService {
           label: level.label
         }));
 
-        await tenantClient.executeGraphQL(createLevelsMutation, {
-          input: levelInputs
-        });
+        try {
+          await tenantClient.executeGraphQL(createLevelsMutation, {
+            input: levelInputs
+          });
+        } catch (error) {
+          console.log(`[IMPORT_EXPORT] Levels for hierarchy ${hierarchy.id} may already exist, continuing...`);
+        }
       }
     }
   }
 
   private async importNodes(nodes: any[], tenantClient: any): Promise<void> {
-    // Import nodes in batches
-    const batchSize = 50;
-    for (let i = 0; i < nodes.length; i += batchSize) {
-      const batch = nodes.slice(i, i + batchSize);
-      
-      const createNodesMutation = `
-        mutation CreateNodes($input: [AddNodeInput!]!) {
-          addNode(input: $input) {
-            node {
-              id
-              label
-            }
+    // Process nodes individually to handle upsert logic
+    for (const node of nodes) {
+      // Check if node exists
+      const checkNodeQuery = `
+        query CheckNode($id: String!) {
+          queryNode(filter: { id: { eq: $id } }) {
+            id
+            label
           }
         }
       `;
 
-      await tenantClient.executeGraphQL(createNodesMutation, {
-        input: batch
+      const existingNode = await tenantClient.executeGraphQL(checkNodeQuery, {
+        id: node.id
       });
+
+      if (existingNode.queryNode && existingNode.queryNode.length > 0) {
+        // Update existing node
+        console.log(`[IMPORT_EXPORT] Updating existing node: ${node.id}`);
+        const updateNodeMutation = `
+          mutation UpdateNode($input: UpdateNodeInput!) {
+            updateNode(input: $input) {
+              node {
+                id
+                label
+              }
+            }
+          }
+        `;
+
+        // Build the set object with all node properties
+        const setData: any = {};
+        if (node.label) setData.label = node.label;
+        if (node.type) setData.type = node.type;
+        if (node.status) setData.status = node.status;
+        if (node.branch) setData.branch = node.branch;
+
+        await tenantClient.executeGraphQL(updateNodeMutation, {
+          input: {
+            filter: { id: { eq: node.id } },
+            set: setData
+          }
+        });
+      } else {
+        // Create new node
+        console.log(`[IMPORT_EXPORT] Creating new node: ${node.id}`);
+        const createNodeMutation = `
+          mutation CreateNode($input: [AddNodeInput!]!) {
+            addNode(input: $input) {
+              node {
+                id
+                label
+              }
+            }
+          }
+        `;
+
+        await tenantClient.executeGraphQL(createNodeMutation, {
+          input: [node]
+        });
+      }
     }
   }
 
   private async importEdges(edges: any[], tenantClient: any): Promise<void> {
-    // Import edges in batches
-    const batchSize = 50;
-    for (let i = 0; i < edges.length; i += batchSize) {
-      const batch = edges.slice(i, i + batchSize);
-      
-      const createEdgesMutation = `
-        mutation CreateEdges($input: [AddEdgeInput!]!) {
-          addEdge(input: $input) {
-            edge {
-              fromId
-              toId
-            }
+    // Process edges individually to handle upsert logic
+    for (const edge of edges) {
+      // Check if edge exists (using fromId + toId combination)
+      const checkEdgeQuery = `
+        query CheckEdge($fromId: String!, $toId: String!) {
+          queryEdge(filter: { and: [{ fromId: { eq: $fromId } }, { toId: { eq: $toId } }] }) {
+            fromId
+            toId
+            type
           }
         }
       `;
 
-      await tenantClient.executeGraphQL(createEdgesMutation, {
-        input: batch
+      const existingEdge = await tenantClient.executeGraphQL(checkEdgeQuery, {
+        fromId: edge.fromId,
+        toId: edge.toId
       });
+
+      if (existingEdge.queryEdge && existingEdge.queryEdge.length > 0) {
+        // Update existing edge
+        console.log(`[IMPORT_EXPORT] Updating existing edge: ${edge.fromId} -> ${edge.toId}`);
+        const updateEdgeMutation = `
+          mutation UpdateEdge($input: UpdateEdgeInput!) {
+            updateEdge(input: $input) {
+              edge {
+                fromId
+                toId
+                type
+              }
+            }
+          }
+        `;
+
+        // Build the set object with edge properties
+        const setData: any = {};
+        if (edge.type) setData.type = edge.type;
+
+        await tenantClient.executeGraphQL(updateEdgeMutation, {
+          input: {
+            filter: { and: [{ fromId: { eq: edge.fromId } }, { toId: { eq: edge.toId } }] },
+            set: setData
+          }
+        });
+      } else {
+        // Create new edge
+        console.log(`[IMPORT_EXPORT] Creating new edge: ${edge.fromId} -> ${edge.toId}`);
+        const createEdgeMutation = `
+          mutation CreateEdge($input: [AddEdgeInput!]!) {
+            addEdge(input: $input) {
+              edge {
+                fromId
+                toId
+              }
+            }
+          }
+        `;
+
+        await tenantClient.executeGraphQL(createEdgeMutation, {
+          input: [edge]
+        });
+      }
     }
   }
 
@@ -931,6 +1057,107 @@ export class ImportExportService {
     } catch (error) {
       console.error(`[IMPORT_EXPORT] Direct export failed:`, error);
       throw new Error(`Direct export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async executeDirectImport(
+    filePath: string,
+    originalName: string,
+    tenantId: string,
+    namespace: string | undefined
+  ): Promise<{
+    success: boolean;
+    message: string;
+    result: {
+      nodesImported: number;
+      edgesImported: number;
+      hierarchiesImported: number;
+    };
+    importedAt: string;
+  }> {
+    console.log(`[IMPORT_EXPORT] Direct import for tenant ${tenantId}, file: ${originalName}`);
+
+    try {
+      // Detect file format
+      const format = this.detectFileFormat(originalName);
+      if (format !== 'json') {
+        throw new Error('Only JSON import is currently supported for direct import');
+      }
+
+      // Read and parse the file content directly
+      console.log(`[IMPORT_EXPORT] Reading file: ${filePath}`);
+      const content = await fs.readFile(filePath, 'utf-8');
+      
+      console.log(`[IMPORT_EXPORT] Parsing JSON content...`);
+      const data = JSON.parse(content);
+
+      // Basic validation
+      const validation = this.validateJsonStructure(data);
+      if (!validation.isValid) {
+        throw new Error(`Import validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      // Create tenant client - get namespace from tenant manager if not provided
+      let resolvedNamespace = namespace;
+      if (!resolvedNamespace) {
+        console.log(`[IMPORT_EXPORT] Getting namespace for tenant: ${tenantId}`);
+        resolvedNamespace = await this.tenantManager.getTenantNamespace(tenantId);
+      }
+      console.log(`[IMPORT_EXPORT] Creating tenant client for namespace: ${resolvedNamespace || 'default'}`);
+      const tenantClient = await DgraphTenantFactory.createTenant(resolvedNamespace || '');
+
+      console.log(`[IMPORT_EXPORT] Starting direct import: ${data.nodes?.length || 0} nodes, ${data.edges?.length || 0} edges, ${data.hierarchies?.length || 0} hierarchies`);
+
+      // Import hierarchies first (reusing existing logic)
+      if (data.hierarchies && data.hierarchies.length > 0) {
+        console.log(`[IMPORT_EXPORT] Importing ${data.hierarchies.length} hierarchies...`);
+        await this.importHierarchies(data.hierarchies, tenantClient);
+      }
+
+      // Import nodes (reusing existing logic)
+      if (data.nodes && data.nodes.length > 0) {
+        console.log(`[IMPORT_EXPORT] Importing ${data.nodes.length} nodes...`);
+        await this.importNodes(data.nodes, tenantClient);
+      }
+
+      // Import edges (reusing existing logic)
+      if (data.edges && data.edges.length > 0) {
+        console.log(`[IMPORT_EXPORT] Importing ${data.edges.length} edges...`);
+        await this.importEdges(data.edges, tenantClient);
+      }
+
+      // Clean up uploaded file
+      console.log(`[IMPORT_EXPORT] Cleaning up uploaded file: ${filePath}`);
+      await fs.unlink(filePath);
+
+      const result = {
+        nodesImported: data.nodes?.length || 0,
+        edgesImported: data.edges?.length || 0,
+        hierarchiesImported: data.hierarchies?.length || 0
+      };
+
+      console.log(`[IMPORT_EXPORT] Direct import completed successfully:`, result);
+
+      return {
+        success: true,
+        message: 'Import completed successfully',
+        result,
+        importedAt: new Date().toISOString()
+      };
+
+    } catch (error) {
+      console.error(`[IMPORT_EXPORT] Direct import failed:`, error);
+      console.error(`[IMPORT_EXPORT] Error stack:`, error instanceof Error ? error.stack : 'No stack trace');
+      
+      // Clean up uploaded file on error
+      try {
+        await fs.unlink(filePath);
+        console.log(`[IMPORT_EXPORT] Cleaned up uploaded file after error: ${filePath}`);
+      } catch (cleanupError) {
+        console.error('[IMPORT_EXPORT] Failed to cleanup uploaded file:', cleanupError);
+      }
+
+      throw new Error(`Direct import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

@@ -1298,3 +1298,41 @@ export const executeDirectExport = async (
     throw error;
   }
 };
+
+/**
+ * Execute direct import and return result immediately
+ */
+export const executeDirectImport = async (
+  file: File
+): Promise<{
+  success: boolean;
+  message: string;
+  result: {
+    nodesImported: number;
+    edgesImported: number;
+    hierarchiesImported: number;
+  };
+  importedAt: string;
+}> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await apiClient.post('/import/direct', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error executing direct import:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error executing direct import:', error);
+    }
+    throw error;
+  }
+};
