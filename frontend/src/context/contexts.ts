@@ -102,4 +102,4 @@ interface UIContextValue {
 export const UIContext = createContext<UIContextValue | undefined>(undefined);
 
 // Re-export Layout Context for convenience
-export { useLayoutContext, LayoutProvider } from './LayoutContext';
+export { useLayout, LayoutProvider } from './LayoutContext';

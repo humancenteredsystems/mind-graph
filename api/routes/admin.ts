@@ -378,6 +378,30 @@ router.post('/admin/tenant/seed', authenticateAdmin, async (req: Request, res: R
         const createdNodes = nodesResult?.addNode?.node || [];
         console.log(`[ADMIN_TENANT] Created ${createdNodes.length} sample nodes`);
         
+        // CRITICAL: Wait for nodes to be fully persisted before creating assignments
+        console.log(`[ADMIN_TENANT] Waiting for node persistence...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // CRITICAL: Verify nodes actually exist before creating assignments
+        console.log(`[ADMIN_TENANT] Verifying nodes exist before creating assignments...`);
+        const verifyNodesQuery = `
+          query {
+            queryNode {
+              id
+              label
+              type
+            }
+          }
+        `;
+        
+        const verifyResult = await tenantClient.executeGraphQL(verifyNodesQuery);
+        const existingNodes = verifyResult?.queryNode || [];
+        console.log(`[ADMIN_TENANT] Verification: Found ${existingNodes.length} existing nodes`);
+        
+        if (existingNodes.length !== sampleNodes.length) {
+          throw new Error(`Node verification failed: Expected ${sampleNodes.length} nodes, found ${existingNodes.length}`);
+        }
+        
         // Create sample edges
         const sampleEdges = [
           { from: { id: 'dom1' }, fromId: 'dom1', to: { id: 'con1' }, toId: 'con1', type: 'simple' },

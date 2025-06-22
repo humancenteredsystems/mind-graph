@@ -1,57 +1,56 @@
 /**
- * LayoutSection - Layout algorithm selection and controls
+ * LayoutSection - Pure layout algorithm selection and controls
  * 
- * Extracted from GraphToolsPanel to be part of ViewsSubPanel.
- * Manages layout algorithm selection and configuration.
+ * Uses the new pure layout system with no hierarchy coupling.
+ * Manages spatial positioning algorithms independently.
  */
 
-import React from 'react';
-import { useLayoutContext, useLayoutAlgorithmNames } from '../context/LayoutContext';
+import React, { useState } from 'react';
+import { useLayout } from '../context/LayoutContext';
 import CollapsibleSection from './CollapsibleSection';
 import { theme } from '../config';
 import { log } from '../utils/logger';
 
 export const LayoutSection: React.FC = () => {
   const { 
-    currentAlgorithm, 
-    availableAlgorithms, 
-    applyLayout, 
-    isLayouting,
-    currentConfig,
-    updateConfig,
-    layoutEngine 
-  } = useLayoutContext();
+    activeLayout,
+    layoutConfig,
+    availableLayouts,
+    layoutDisplayNames,
+    setActiveLayout,
+    updateLayoutConfig,
+  } = useLayout();
   
-  const algorithmNames = useLayoutAlgorithmNames();
+  const [isApplying, setIsApplying] = useState(false);
 
   // Layout control handlers
   const handleAlgorithmChange = async (algorithm: string) => {
     log('LayoutSection', `Switching to ${algorithm} layout`);
-    await applyLayout(algorithm as any);
+    setIsApplying(true);
+    try {
+      setActiveLayout(algorithm as any);
+      // Layout will be applied automatically by GraphView when context changes
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   const handleAnimationToggle = () => {
-    const newValue = !currentConfig.animate;
-    updateConfig({ animate: newValue });
+    const newValue = !layoutConfig.animate;
+    updateLayoutConfig({ animate: newValue });
     log('LayoutSection', `Animation ${newValue ? 'enabled' : 'disabled'}`);
   };
 
   const handleFitToggle = () => {
-    const newValue = !currentConfig.fit;
-    updateConfig({ fit: newValue });
+    const newValue = !layoutConfig.fit;
+    updateLayoutConfig({ fit: newValue });
     log('LayoutSection', `Fit to view ${newValue ? 'enabled' : 'disabled'}`);
   };
 
-  const handleHierarchyToggle = () => {
-    const newValue = !currentConfig.respectHierarchy;
-    updateConfig({ respectHierarchy: newValue });
-    log('LayoutSection', `Hierarchy respect ${newValue ? 'enabled' : 'disabled'}`);
-  };
-
-  const handleResetLayout = async () => {
-    log('LayoutSection', 'Resetting layout and clearing cache');
-    layoutEngine.clearCache();
-    await applyLayout(currentAlgorithm);
+  const handleLiveUpdateToggle = () => {
+    const newValue = !layoutConfig.liveUpdate;
+    updateLayoutConfig({ liveUpdate: newValue });
+    log('LayoutSection', `Live update ${newValue ? 'enabled' : 'disabled'}`);
   };
 
   // Styles (reusing existing patterns)
@@ -83,14 +82,6 @@ export const LayoutSection: React.FC = () => {
     borderColor: theme.colors.border.active,
   };
 
-  const resetButtonStyle: React.CSSProperties = {
-    ...buttonStyle,
-    backgroundColor: theme.colors.background.error,
-    color: theme.colors.text.inverse,
-    fontSize: '11px',
-    padding: '3px 6px',
-  };
-
   const toggleRowStyle: React.CSSProperties = {
     display: 'flex',
     gap: '8px',
@@ -104,6 +95,9 @@ export const LayoutSection: React.FC = () => {
     textAlign: 'center' as const,
   };
 
+  // Show live update toggle only for force-directed layouts
+  const showLiveUpdate = activeLayout === 'fcose' || activeLayout === 'force';
+
   return (
     <CollapsibleSection 
       title="Layout" 
@@ -114,18 +108,18 @@ export const LayoutSection: React.FC = () => {
         {/* Algorithm Selection */}
         <div>
           <select
-            value={currentAlgorithm}
+            value={activeLayout}
             onChange={(e) => handleAlgorithmChange(e.target.value)}
-            disabled={isLayouting}
+            disabled={isApplying}
             style={{
               ...selectStyle,
-              opacity: isLayouting ? 0.6 : 1,
-              cursor: isLayouting ? 'not-allowed' : 'pointer',
+              opacity: isApplying ? 0.6 : 1,
+              cursor: isApplying ? 'not-allowed' : 'pointer',
             }}
           >
-            {availableAlgorithms.map(algorithm => (
+            {availableLayouts.map(algorithm => (
               <option key={algorithm} value={algorithm}>
-                {algorithmNames[algorithm]}
+                {layoutDisplayNames[algorithm]}
               </option>
             ))}
           </select>
@@ -135,43 +129,38 @@ export const LayoutSection: React.FC = () => {
         <div style={toggleRowStyle}>
           <button
             onClick={handleAnimationToggle}
-            style={currentConfig.animate ? activeButtonStyle : { ...buttonStyle, ...toggleStyle }}
-            disabled={isLayouting}
+            style={layoutConfig.animate ? activeButtonStyle : { ...buttonStyle, ...toggleStyle }}
+            disabled={isApplying}
+            title="Enable smooth animations when applying layouts"
           >
             Animate
           </button>
           
           <button
             onClick={handleFitToggle}
-            style={currentConfig.fit ? activeButtonStyle : { ...buttonStyle, ...toggleStyle }}
-            disabled={isLayouting}
+            style={layoutConfig.fit ? activeButtonStyle : { ...buttonStyle, ...toggleStyle }}
+            disabled={isApplying}
+            title="Automatically fit the graph to the viewport"
           >
             Fit View
           </button>
         </div>
 
-        <div>
-          <button
-            onClick={handleHierarchyToggle}
-            style={currentConfig.respectHierarchy ? activeButtonStyle : { ...buttonStyle, ...toggleStyle }}
-            disabled={isLayouting}
-          >
-            Respect Hierarchy
-          </button>
-        </div>
+        {/* Live Update Toggle (only for force-directed layouts) */}
+        {showLiveUpdate && (
+          <div>
+            <button
+              onClick={handleLiveUpdateToggle}
+              style={layoutConfig.liveUpdate ? activeButtonStyle : { ...buttonStyle, ...toggleStyle }}
+              disabled={isApplying}
+              title="Enable continuous simulation for force-directed layouts"
+            >
+              Live Update
+            </button>
+          </div>
+        )}
 
-        <div>
-          <button
-            onClick={handleResetLayout}
-            style={resetButtonStyle}
-            disabled={isLayouting}
-            title="Clear cached positions and reset layout"
-          >
-            Reset Layout
-          </button>
-        </div>
-
-        {isLayouting && (
+        {isApplying && (
           <div style={{
             fontSize: '12px',
             color: theme.colors.text.secondary,

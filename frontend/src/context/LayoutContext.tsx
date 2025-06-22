@@ -1,135 +1,126 @@
 /**
- * Layout Context - Manages layout state and configuration
+ * Layout Context - Pure layout state management
  * 
- * Provides centralized layout management with persistent preferences,
- * algorithm switching, and configuration updates.
+ * Manages layout algorithms independently of hierarchy concerns.
+ * Uses the pure layout engine for clean Cytoscape.js positioning.
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { LayoutAlgorithm, LayoutConfig, LayoutEngine, layoutEngine } from '../services/layoutEngine';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { PureLayoutAlgorithm, PureLayoutConfig } from '../services/pureLayoutEngine';
 import { log } from '../utils/logger';
 
-// Layout algorithm display names
-const ALGORITHM_NAMES: Record<LayoutAlgorithm, string> = {
-  tree: 'Tree',
-  hierarchical: 'Hierarchical',
-  'force-directed': 'Force-Directed',
-  circular: 'Circular',
-  grid: 'Grid',
-  deterministic: 'Deterministic',
-};
-
-// Default layout configuration - TREE AS DEFAULT
-const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
-  algorithm: 'tree',
-  animate: true,
-  animationDuration: 300,
-  fit: true,
-  padding: 20,
-  respectHierarchy: true,
-  levelSpacing: 200,
-  nodeSpacing: 100,
-};
-
-// Context interface
 interface LayoutContextType {
-  // Current state
-  currentAlgorithm: LayoutAlgorithm;
-  currentConfig: LayoutConfig;
-  availableAlgorithms: LayoutAlgorithm[];
-  isLayouting: boolean;
+  // Current layout state
+  activeLayout: PureLayoutAlgorithm;
+  layoutConfig: PureLayoutConfig;
   
-  // Layout engine access
-  layoutEngine: LayoutEngine;
+  // Layout control methods
+  setActiveLayout: (layout: PureLayoutAlgorithm) => void;
+  updateLayoutConfig: (updates: Partial<PureLayoutConfig>) => void;
   
-  // Actions
-  applyLayout: (algorithm?: LayoutAlgorithm, customConfig?: Partial<LayoutConfig>) => Promise<void>;
-  updateConfig: (updates: Partial<LayoutConfig>) => void;
-  resetToDefaults: () => void;
+  // Layout application (will be called by GraphView)
+  applyLayoutToGraph: (cy: any) => Promise<void>;
+  
+  // Available layouts
+  availableLayouts: PureLayoutAlgorithm[];
+  layoutDisplayNames: Record<PureLayoutAlgorithm, string>;
 }
 
-// Create context
 const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
 
-// Storage key for persistence
-const STORAGE_KEY = 'mims-graph-layout-config';
+interface LayoutProviderProps {
+  children: ReactNode;
+}
 
-/**
- * Layout Provider Component
- */
-export const LayoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentConfig, setCurrentConfig] = useState<LayoutConfig>(() => {
-    // Load from localStorage if available
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return { ...DEFAULT_LAYOUT_CONFIG, ...parsed };
-      }
-    } catch (error) {
-      log('LayoutContext', 'Error loading layout config from storage:', error);
-    }
-    return DEFAULT_LAYOUT_CONFIG;
+export const LayoutProvider: React.FC<LayoutProviderProps> = ({ children }) => {
+  // Default to fcose layout
+  const [activeLayout, setActiveLayoutState] = useState<PureLayoutAlgorithm>('fcose');
+  const [layoutConfig, setLayoutConfig] = useState<PureLayoutConfig>({
+    algorithm: 'fcose',
+    animate: true,
+    animationDuration: 500,
+    fit: true,
+    padding: 50,
+    forceStrength: 0.45,
+    repulsionStrength: 4500,
+    springLength: 50,
   });
-  
-  const [isLayouting, setIsLayouting] = useState(false);
-  // Override the order to match requested sequence: Tree, Hierarchical, Force-Directed, Circular, Grid, Deterministic
-  const availableAlgorithms: LayoutAlgorithm[] = ['tree', 'hierarchical', 'force-directed', 'circular', 'grid', 'deterministic'];
 
-  // Persist config changes to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentConfig));
-    } catch (error) {
-      log('LayoutContext', 'Error saving layout config to storage:', error);
+  // Available layouts and display names
+  const availableLayouts: PureLayoutAlgorithm[] = [
+    'fcose',
+    'tree', 
+    'hierarchical',
+    'force',
+    'circular',
+    'concentric',
+    'grid'
+  ];
+
+  const layoutDisplayNames: Record<PureLayoutAlgorithm, string> = {
+    fcose: 'Force-Directed (Modern)',
+    tree: 'Tree Structure',
+    hierarchical: 'Hierarchical (Dagre)',
+    force: 'Force-Directed (Classic)',
+    circular: 'Circular',
+    concentric: 'Concentric Circles',
+    grid: 'Grid Layout',
+  };
+
+  // Set active layout and update config
+  const setActiveLayout = useCallback((layout: PureLayoutAlgorithm) => {
+    log('LayoutContext', `Setting active layout to: ${layout}`);
+    setActiveLayoutState(layout);
+    
+    // Update config to match new layout
+    setLayoutConfig(prev => ({
+      ...prev,
+      algorithm: layout,
+    }));
+  }, []);
+
+  // Update layout configuration
+  const updateLayoutConfig = useCallback((updates: Partial<PureLayoutConfig>) => {
+    log('LayoutContext', `Updating layout config:`, updates);
+    setLayoutConfig(prev => ({
+      ...prev,
+      ...updates,
+    }));
+  }, []);
+
+  // Apply layout to Cytoscape graph (called by GraphView)
+  const applyLayoutToGraph = useCallback(async (cy: any) => {
+    if (!cy) {
+      log('LayoutContext', 'No Cytoscape instance provided');
+      return;
     }
-  }, [currentConfig]);
 
-  // Update layout engine config when context config changes
-  useEffect(() => {
-    layoutEngine.updateConfig(currentConfig);
-  }, [currentConfig]);
-
-  const applyLayout = useCallback(async (algorithm?: LayoutAlgorithm, customConfig?: Partial<LayoutConfig>) => {
-    setIsLayouting(true);
+    log('LayoutContext', `Applying ${activeLayout} layout to graph`);
+    
     try {
-      await layoutEngine.applyLayout(algorithm, customConfig);
+      // Import the pure layout engine dynamically to avoid circular dependencies
+      const { pureLayoutEngine } = await import('../services/pureLayoutEngine');
       
-      // Update current config if algorithm changed
-      if (algorithm && algorithm !== currentConfig.algorithm) {
-        const newConfig = {
-          ...currentConfig,
-          ...LayoutEngine.getDefaultConfig(algorithm),
-          ...customConfig,
-          algorithm,
-        };
-        setCurrentConfig(newConfig);
-      }
+      // Initialize with current Cytoscape instance
+      pureLayoutEngine.initialize(cy);
+      
+      // Apply the current layout
+      await pureLayoutEngine.applyLayout(activeLayout, layoutConfig);
+      
+      log('LayoutContext', `Successfully applied ${activeLayout} layout`);
     } catch (error) {
-      log('LayoutContext', 'Error applying layout:', error);
-    } finally {
-      setIsLayouting(false);
+      log('LayoutContext', `Error applying ${activeLayout} layout:`, error);
     }
-  }, [currentConfig]);
-
-  const updateConfig = useCallback((updates: Partial<LayoutConfig>) => {
-    setCurrentConfig(prev => ({ ...prev, ...updates }));
-  }, []);
-
-  const resetToDefaults = useCallback(() => {
-    setCurrentConfig(DEFAULT_LAYOUT_CONFIG);
-    layoutEngine.clearCache();
-  }, []);
+  }, [activeLayout, layoutConfig]);
 
   const contextValue: LayoutContextType = {
-    currentAlgorithm: currentConfig.algorithm,
-    currentConfig,
-    availableAlgorithms,
-    isLayouting,
-    layoutEngine,
-    applyLayout,
-    updateConfig,
-    resetToDefaults,
+    activeLayout,
+    layoutConfig,
+    setActiveLayout,
+    updateLayoutConfig,
+    applyLayoutToGraph,
+    availableLayouts,
+    layoutDisplayNames,
   };
 
   return (
@@ -139,40 +130,14 @@ export const LayoutProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 };
 
-/**
- * Hook to use layout context
- */
-export const useLayoutContext = (): LayoutContextType => {
+// Hook to use layout context
+export const useLayout = (): LayoutContextType => {
   const context = useContext(LayoutContext);
-  if (!context) {
-    throw new Error('useLayoutContext must be used within a LayoutProvider');
+  if (context === undefined) {
+    throw new Error('useLayout must be used within a LayoutProvider');
   }
   return context;
 };
 
-/**
- * Hook to get algorithm display names
- */
-export const useLayoutAlgorithmNames = (): Record<LayoutAlgorithm, string> => {
-  return ALGORITHM_NAMES;
-};
-
-/**
- * Hook for layout configuration management
- */
-export const useLayoutConfig = () => {
-  const { currentConfig, updateConfig, resetToDefaults } = useLayoutContext();
-  
-  return {
-    config: currentConfig,
-    updateConfig,
-    resetToDefaults,
-    
-    // Convenience setters
-    setAnimate: (animate: boolean) => updateConfig({ animate }),
-    setFit: (fit: boolean) => updateConfig({ fit }),
-    setRespectHierarchy: (respectHierarchy: boolean) => updateConfig({ respectHierarchy }),
-    setAnimationDuration: (animationDuration: number) => updateConfig({ animationDuration }),
-    setPadding: (padding: number) => updateConfig({ padding }),
-  };
-};
+// Export context for testing
+export { LayoutContext };

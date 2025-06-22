@@ -399,23 +399,23 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
     return;
   }
 
-  // Simplified query to avoid potential schema issues
+  // Use inverse relationship approach - query hierarchy to get its assignments
   const query = `
     query GetHierarchyView($hierarchyId: String!) {
-      queryHierarchyAssignment(filter: { hierarchy: { id: { eq: $hierarchyId } } }) {
-        node {
-          id
-          label
-          type
-        }
-        hierarchy {
-          id
-          name
-        }
-        level {
-          id
-          levelNumber
-          label
+      getHierarchy(id: $hierarchyId) {
+        id
+        name
+        hierarchyAssignments {
+          node {
+            id
+            label
+            type
+          }
+          level {
+            id
+            levelNumber
+            label
+          }
         }
       }
       
@@ -423,8 +423,7 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
         id
         label
         type
-        edges {
-          from { id }
+        outgoing {
           to { id }
           type
         }
@@ -437,14 +436,26 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
     console.log('[HIERARCHY] Executing GraphQL query...');
     
     const data = await tenantClient.executeGraphQL(query, { hierarchyId });
+    
+    // Check if hierarchy exists
+    if (!data.getHierarchy) {
+      console.log('[HIERARCHY] Hierarchy not found:', hierarchyId);
+      res.status(404).json({
+        error: 'Hierarchy not found',
+        hierarchyId
+      });
+      return;
+    }
+    
+    const assignments = data.getHierarchy.hierarchyAssignments || [];
     console.log('[HIERARCHY] Query result:', {
-      assignments: data.queryHierarchyAssignment?.length || 0,
+      hierarchyName: data.getHierarchy.name,
+      assignments: assignments.length,
       allNodes: data.queryNode?.length || 0
     });
     
     // Extract unique nodes from assignments
     const nodeMap = new Map();
-    const assignments = data.queryHierarchyAssignment || [];
     
     if (assignments.length === 0) {
       console.log('[HIERARCHY] No assignments found for hierarchy:', hierarchyId);
@@ -453,6 +464,7 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
         edges: [],
         metadata: {
           hierarchyId,
+          hierarchyName: data.getHierarchy.name,
           totalNodes: 0,
           totalEdges: 0,
           truncated: false,
@@ -488,16 +500,15 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
     const edgeSet = new Set(); // To avoid duplicates
     
     (data.queryNode || []).forEach((node: any) => {
-      if (nodeIds.has(node.id) && node.edges) {
-        node.edges.forEach((edge: any) => {
-          if (edge.from?.id && edge.to?.id && 
-              nodeIds.has(edge.from.id) && nodeIds.has(edge.to.id)) {
-            const edgeId = `${edge.from.id}-${edge.to.id}`;
+      if (nodeIds.has(node.id) && node.outgoing) {
+        node.outgoing.forEach((edge: any) => {
+          if (edge.to?.id && nodeIds.has(edge.to.id)) {
+            const edgeId = `${node.id}-${edge.to.id}`;
             if (!edgeSet.has(edgeId)) {
               edgeSet.add(edgeId);
               edges.push({
                 id: edgeId,
-                source: edge.from.id,
+                source: node.id,
                 target: edge.to.id,
                 type: edge.type || 'default',
               });

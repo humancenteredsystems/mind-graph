@@ -5,6 +5,7 @@ import coseBilkent from 'cytoscape-cose-bilkent';
 import dagre from 'cytoscape-dagre';
 import cola from 'cytoscape-cola';
 import euler from 'cytoscape-euler';
+import fcose from 'cytoscape-fcose';
 import { NodeData, EdgeData } from '../types/graph';
 import { 
   CytoscapeTapEvent, 
@@ -17,7 +18,7 @@ import {
 } from '../types/cytoscape';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useHierarchyContext } from '../hooks/useHierarchy';
-import { useLayoutContext } from '../context/LayoutContext';
+import { useLayout } from '../context/LayoutContext';
 import { log } from '../utils/logger';
 import { theme, config } from '../config';
 import { normalizeHierarchyId } from '../utils/graphUtils';
@@ -27,6 +28,7 @@ cytoscape.use(coseBilkent);
 cytoscape.use(dagre);
 cytoscape.use(cola);
 cytoscape.use(euler);
+cytoscape.use(fcose);
 
 /**
  * Props interface for the GraphView component.
@@ -209,7 +211,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   const isMountedRef = useRef<boolean>(true); // Track component mount status
   const { openMenu } = useContextMenu();
   const { hierarchyId, levels } = useHierarchyContext();
-  const { layoutEngine, applyLayout, currentAlgorithm } = useLayoutContext();
+  const { applyLayoutToGraph, activeLayout } = useLayout();
   const selectedOrderRef = useRef<string[]>([]);
   const selectedEdgesOrderRef = useRef<string[]>([]);
   /**
@@ -235,12 +237,8 @@ const GraphView: React.FC<GraphViewProps> = ({
         clearTimeout(shortTermTapTimeoutRef.current);
         shortTermTapTimeoutRef.current = null;
       }
-      // Destroy layout engine to prevent operations on unmounted component
-      if (layoutEngine) {
-        layoutEngine.destroy();
-      }
     };
-  }, [layoutEngine]);
+  }, []);
 
   // Generate level styles dynamically using theme colors
   const generateLevelStyles = () => {
@@ -373,15 +371,12 @@ const GraphView: React.FC<GraphViewProps> = ({
     },
   ];
 
-  // Attach Cytoscape instance reference and initialize layout engine
+  // Attach Cytoscape instance reference
   const attachCy = (cy: Core) => {
     cyRef.current = cy;
     (window as unknown as { cyInstance: Core }).cyInstance = cy; // Expose for E2E testing
     
-    // Initialize layout engine with current data
-    layoutEngine.initialize(cy, hierarchyId, nodes, edges);
-    
-    log('GraphView', 'Cytoscape instance attached and layout engine initialized');
+    log('GraphView', 'Cytoscape instance attached');
   };
   
   // Set up all event handlers - SEPARATED from attachCy for clarity
@@ -608,23 +603,20 @@ const GraphView: React.FC<GraphViewProps> = ({
     };
   }, [openMenu, onAddNode, onNodeExpand, onExpandChildren, onExpandAll, onCollapseNode, isNodeExpanded, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, onDeleteEdge, onDeleteEdges, edges, hierarchyId, levels]);
 
-  // Layout engine integration - apply layout when elements change
+  // Pure layout integration - apply layout when elements change
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy || elements.length === 0 || !isMountedRef.current) return;
     
-    // Update layout engine with current data
-    layoutEngine.initialize(cy, hierarchyId, nodes, edges);
-    
     // Apply current layout algorithm with mount check
     const applyLayoutSafely = async () => {
       if (isMountedRef.current) {
-        await applyLayout();
+        await applyLayoutToGraph(cy);
       }
     };
     
     applyLayoutSafely();
-  }, [elements, hierarchyId, nodes, edges, layoutEngine, applyLayout]);
+  }, [elements, applyLayoutToGraph]);
 
   // Live force-directed layout during node dragging
   useEffect(() => {
@@ -632,17 +624,17 @@ const GraphView: React.FC<GraphViewProps> = ({
     if (!cy || !isMountedRef.current) return;
 
     const handleNodeGrab = () => {
-      if (currentAlgorithm === 'force-directed' && isMountedRef.current) {
-        log('GraphView', 'Starting live force-directed layout on node grab');
-        applyLayout(undefined, { liveUpdate: true });
+      if ((activeLayout === 'fcose' || activeLayout === 'force') && isMountedRef.current) {
+        log('GraphView', `Starting live ${activeLayout} layout on node grab`);
+        // Live update will be handled by the layout context
       }
     };
 
     const handleNodeFree = () => {
-      if (currentAlgorithm === 'force-directed' && isMountedRef.current) {
-        log('GraphView', 'Stopping live force-directed layout on node free');
-        // Stop live update and apply final layout
-        applyLayout();
+      if ((activeLayout === 'fcose' || activeLayout === 'force') && isMountedRef.current) {
+        log('GraphView', `Stopping live ${activeLayout} layout on node free`);
+        // Re-apply layout after dragging
+        applyLayoutToGraph(cy);
       }
     };
 
@@ -653,7 +645,7 @@ const GraphView: React.FC<GraphViewProps> = ({
       cy.off('grab', 'node', handleNodeGrab);
       cy.off('free', 'node', handleNodeFree);
     };
-  }, [currentAlgorithm, applyLayout]);
+  }, [activeLayout, applyLayoutToGraph]);
 
     // Track selection order for multi-node operations
   useEffect(() => {
