@@ -1,8 +1,10 @@
 /**
  * useLens Hook - Core hook for filtering and transforming graph data using lenses
  * 
- * Integrates with ViewContext to apply the active lens to graph data,
- * handling filtering, mapping, styling, and optional backend computation.
+ * New Architecture:
+ * - Layout is always applied (managed by LayoutContext)
+ * - Hierarchy lens is optionally applied on top (when not 'none')
+ * - Filters will be applied in the future
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -11,6 +13,7 @@ import { useView } from '../context/ViewContext';
 import { useHierarchyContext } from '../hooks/useHierarchy';
 import { getLens } from '../lenses';
 import { log } from '../utils/logger';
+import { filterNodesByAssociation, getNodeAssociationClasses } from '../utils/hierarchyUtils';
 
 interface GraphData {
   nodes: any[];
@@ -30,25 +33,30 @@ interface UseLensResult {
  * Hook for applying lens transformations to graph data
  */
 export function useLens(rawGraphData: GraphData): UseLensResult {
-  const { active } = useView();
+  const viewContext = useView() as any; // Type assertion to work around caching issue
+  const { active, hideUnassociated } = viewContext;
   const { hierarchies } = useHierarchyContext();
   const [computed, setComputed] = useState<Graph | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Get the active lens
-  const lens = useMemo(() => {
+  // Get the active hierarchy lens (if not 'none')
+  const hierarchyLens = useMemo(() => {
+    if (active === 'none') {
+      return null; // No hierarchy lens applied
+    }
+    
     const foundLens = getLens(active, hierarchies);
     if (!foundLens) {
-      log('useLens', `Warning: Lens '${active}' not found, falling back to default`);
-      return getLens('default', hierarchies);
+      log('useLens', `Warning: Hierarchy lens '${active}' not found`);
+      return null;
     }
     return foundLens;
   }, [active, hierarchies]);
 
-  // Handle backend computation if required
+  // Handle backend computation if required (only for hierarchy lenses)
   useEffect(() => {
-    if (!lens?.compute) {
+    if (!hierarchyLens?.compute) {
       setComputed(null);
       setIsLoading(false);
       setError(null);
@@ -60,14 +68,14 @@ export function useLens(rawGraphData: GraphData): UseLensResult {
       setError(null);
       
       try {
-        log('useLens', `Fetching computed data from ${lens.compute!.endpoint}`);
+        log('useLens', `Fetching computed data from ${hierarchyLens.compute!.endpoint}`);
         
-        const response = await fetch(lens.compute!.endpoint, {
+        const response = await fetch(hierarchyLens.compute!.endpoint, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(lens.compute!.params),
+          body: JSON.stringify(hierarchyLens.compute!.params),
         });
 
         if (!response.ok) {
@@ -81,7 +89,7 @@ export function useLens(rawGraphData: GraphData): UseLensResult {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         log('useLens', `Error fetching computed data: ${errorMessage}`);
-        setError(`Failed to load ${lens.label} view: ${errorMessage}`);
+        setError(`Failed to load ${hierarchyLens.label} view: ${errorMessage}`);
         setComputed(null);
       } finally {
         setIsLoading(false);
@@ -89,59 +97,93 @@ export function useLens(rawGraphData: GraphData): UseLensResult {
     };
 
     fetchComputedData();
-  }, [lens?.compute, active]);
+  }, [hierarchyLens?.compute, active]);
 
-  // Apply lens transformations
+  // Apply hierarchy lens transformations and association filtering
   const transformedData = useMemo(() => {
-    if (!lens) {
+    // Use computed data if available, otherwise use raw data
+    const baseData = computed || rawGraphData;
+    
+    // If no hierarchy lens is active, return raw data (no association filtering)
+    if (!hierarchyLens) {
+      log('useLens', `No hierarchy lens active, using raw data: ${baseData.nodes.length} nodes, ${baseData.edges.length} edges`);
       return {
-        nodes: rawGraphData.nodes,
-        edges: rawGraphData.edges,
-        layout: { name: 'fcose' },
+        nodes: baseData.nodes,
+        edges: baseData.edges,
+        layout: { name: 'fcose' }, // Default layout (will be overridden by LayoutContext)
         styleFn: undefined,
       };
     }
 
     try {
-      // Use computed data if available, otherwise use raw data
-      const baseData = computed || rawGraphData;
-      
-      log('useLens', `Applying lens '${lens.id}' to ${baseData.nodes.length} nodes, ${baseData.edges.length} edges`);
+      log('useLens', `Applying hierarchy lens '${hierarchyLens.id}' to ${baseData.nodes.length} nodes, ${baseData.edges.length} edges`);
 
       // Apply filtering
       let filteredNodes = baseData.nodes;
       let filteredEdges = baseData.edges;
 
-      if (lens.filter) {
-        filteredNodes = baseData.nodes.filter(node => lens.filter!(node));
+      if (hierarchyLens.filter) {
+        filteredNodes = baseData.nodes.filter(node => hierarchyLens.filter!(node));
         
         // Filter edges to only include those between visible nodes
         const visibleNodeIds = new Set(filteredNodes.map(n => n.id));
         filteredEdges = baseData.edges.filter(edge => 
-          lens.filter!(null, edge) && 
+          hierarchyLens.filter!(null, edge) && 
           visibleNodeIds.has(edge.source) && 
           visibleNodeIds.has(edge.target)
         );
       }
 
       // Apply mapping transformations
-      if (lens.map) {
-        filteredNodes = filteredNodes.map(node => ({ ...node, ...lens.map!(node) }));
-        filteredEdges = filteredEdges.map(edge => ({ ...edge, ...lens.map!(edge) }));
+      if (hierarchyLens.map) {
+        filteredNodes = filteredNodes.map(node => ({ ...node, ...hierarchyLens.map!(node) }));
+        filteredEdges = filteredEdges.map(edge => ({ ...edge, ...hierarchyLens.map!(edge) }));
       }
 
-      log('useLens', `Lens transformation complete: ${filteredNodes.length} nodes, ${filteredEdges.length} edges`);
+      // Apply association filtering (after hierarchy lens transformations)
+      const associationFilteredNodes = filterNodesByAssociation(filteredNodes, active, hideUnassociated);
+      
+      // Filter edges to only include those between visible nodes after association filtering
+      const visibleNodeIds = new Set(associationFilteredNodes.map(n => n.id));
+      const associationFilteredEdges = filteredEdges.filter(edge => 
+        visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
+      );
+
+      // Create enhanced style function that includes association styling
+      const enhancedStyleFn = (el: any) => {
+        const baseStyle = hierarchyLens.style ? hierarchyLens.style(el) : {};
+        
+        // Add association styling for nodes
+        if (el.group && el.group() === 'nodes') {
+          const node = el.data();
+          const associationClasses = getNodeAssociationClasses(node, active, hideUnassociated);
+          
+          // Apply grayed-out styling for unassociated nodes when they're visible
+          if (associationClasses.includes('hierarchy-grayed')) {
+            return {
+              ...baseStyle,
+              opacity: 0.4,
+              'background-color': '#9ca3af',
+              'border-color': '#6b7280',
+            };
+          }
+        }
+        
+        return baseStyle;
+      };
+
+      log('useLens', `Hierarchy lens and association filtering complete: ${associationFilteredNodes.length} nodes, ${associationFilteredEdges.length} edges`);
 
       return {
-        nodes: filteredNodes,
-        edges: filteredEdges,
-        layout: lens.layout || { name: 'fcose' },
-        styleFn: lens.style,
+        nodes: associationFilteredNodes,
+        edges: associationFilteredEdges,
+        layout: hierarchyLens.layout || { name: 'fcose' }, // Layout from hierarchy lens (will be overridden by LayoutContext)
+        styleFn: enhancedStyleFn,
       };
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      log('useLens', `Error applying lens transformations: ${errorMessage}`);
+      log('useLens', `Error applying hierarchy lens transformations: ${errorMessage}`);
       
       // Return raw data on error
       return {
@@ -151,7 +193,7 @@ export function useLens(rawGraphData: GraphData): UseLensResult {
         styleFn: undefined,
       };
     }
-  }, [lens, rawGraphData, computed]);
+  }, [hierarchyLens, rawGraphData, computed, active, hideUnassociated]);
 
   return {
     ...transformedData,

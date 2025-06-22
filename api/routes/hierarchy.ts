@@ -392,11 +392,14 @@ router.delete('/hierarchy/assignment/:id', async (req: Request, res: Response): 
 router.post('/compute/hierarchyView', async (req: Request, res: Response): Promise<void> => {
   const { hierarchyId }: { hierarchyId: string } = req.body;
   
+  console.log('[HIERARCHY] Computing hierarchy view for hierarchyId:', hierarchyId);
+  
   if (!hierarchyId) {
     res.status(400).json({ error: 'Missing required field: hierarchyId' });
     return;
   }
 
+  // Simplified query to avoid potential schema issues
   const query = `
     query GetHierarchyView($hierarchyId: String!) {
       queryHierarchyAssignment(filter: { hierarchy: { id: { eq: $hierarchyId } } }) {
@@ -404,13 +407,6 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
           id
           label
           type
-          status
-          branch
-          assignments: ~assignments {
-            hierarchyId: hierarchy { id }
-            levelNumber: level { levelNumber }
-            levelLabel: level { label }
-          }
         }
         hierarchy {
           id
@@ -423,23 +419,48 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
         }
       }
       
-      # Get edges between nodes in this hierarchy
-      queryEdge {
+      queryNode {
         id
-        source: from { id }
-        target: to { id }
+        label
         type
+        edges {
+          from { id }
+          to { id }
+          type
+        }
       }
     }
   `;
 
   try {
     const tenantClient = await getTenantClient(req);
+    console.log('[HIERARCHY] Executing GraphQL query...');
+    
     const data = await tenantClient.executeGraphQL(query, { hierarchyId });
+    console.log('[HIERARCHY] Query result:', {
+      assignments: data.queryHierarchyAssignment?.length || 0,
+      allNodes: data.queryNode?.length || 0
+    });
     
     // Extract unique nodes from assignments
     const nodeMap = new Map();
     const assignments = data.queryHierarchyAssignment || [];
+    
+    if (assignments.length === 0) {
+      console.log('[HIERARCHY] No assignments found for hierarchy:', hierarchyId);
+      res.json({
+        nodes: [],
+        edges: [],
+        metadata: {
+          hierarchyId,
+          totalNodes: 0,
+          totalEdges: 0,
+          truncated: false,
+          message: 'No nodes assigned to this hierarchy'
+        }
+      });
+      return;
+    }
     
     assignments.forEach((assignment: any) => {
       if (assignment.node) {
@@ -449,9 +470,6 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
             id: node.id,
             label: node.label,
             type: node.type,
-            status: node.status,
-            branch: node.branch,
-            assignments: node.assignments || [],
             // Add hierarchy-specific metadata
             hierarchyLevel: assignment.level?.levelNumber,
             levelLabel: assignment.level?.label,
@@ -463,18 +481,33 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
     const nodes = Array.from(nodeMap.values());
     const nodeIds = new Set(nodes.map(n => n.id));
     
-    // Filter edges to only include those between nodes in this hierarchy
-    const edges = (data.queryEdge || [])
-      .filter((edge: any) => 
-        edge.source?.id && edge.target?.id &&
-        nodeIds.has(edge.source.id) && nodeIds.has(edge.target.id)
-      )
-      .map((edge: any) => ({
-        id: edge.id,
-        source: edge.source.id,
-        target: edge.target.id,
-        type: edge.type,
-      }));
+    console.log('[HIERARCHY] Processed nodes:', nodes.length);
+    
+    // Get edges between nodes in this hierarchy from the node data
+    const edges: any[] = [];
+    const edgeSet = new Set(); // To avoid duplicates
+    
+    (data.queryNode || []).forEach((node: any) => {
+      if (nodeIds.has(node.id) && node.edges) {
+        node.edges.forEach((edge: any) => {
+          if (edge.from?.id && edge.to?.id && 
+              nodeIds.has(edge.from.id) && nodeIds.has(edge.to.id)) {
+            const edgeId = `${edge.from.id}-${edge.to.id}`;
+            if (!edgeSet.has(edgeId)) {
+              edgeSet.add(edgeId);
+              edges.push({
+                id: edgeId,
+                source: edge.from.id,
+                target: edge.to.id,
+                type: edge.type || 'default',
+              });
+            }
+          }
+        });
+      }
+    });
+
+    console.log('[HIERARCHY] Processed edges:', edges.length);
 
     // Cap results to prevent performance issues
     const maxNodes = 500;
@@ -491,13 +524,16 @@ router.post('/compute/hierarchyView', async (req: Request, res: Response): Promi
       }
     };
 
+    console.log('[HIERARCHY] Returning response with', response.nodes.length, 'nodes and', response.edges.length, 'edges');
     res.json(response);
   } catch (error) {
     const err = error as Error;
     console.error('[HIERARCHY] Failed to compute hierarchy view:', error);
+    console.error('[HIERARCHY] Error stack:', err.stack);
     res.status(500).json({ 
       error: 'Failed to compute hierarchy view', 
-      details: err.message 
+      details: err.message,
+      hierarchyId 
     });
   }
 });

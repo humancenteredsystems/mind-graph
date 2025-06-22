@@ -88,6 +88,8 @@ interface HierarchyLevel {
 interface ViewState {
     active: string;
     setActive: (id: string) => void;
+    hideUnassociated: boolean;
+    setHideUnassociated: (hide: boolean) => void;
 }
 /**
  * Lens registry type for organizing available lenses

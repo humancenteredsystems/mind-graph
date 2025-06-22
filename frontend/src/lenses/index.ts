@@ -1,21 +1,15 @@
 /**
  * Lens Registry - Central registry for all available graph lenses
  * 
- * Manages static lenses and provides utilities for dynamic hierarchy lens generation
+ * Manages dynamic hierarchy lens generation only.
+ * Layout is handled separately by LayoutContext.
  */
 
 import { LensDefinition, LensRegistry, Hierarchy } from '@mims/lens-types';
 import { theme } from '../config';
 
-// Import static lenses
-import defaultLens from './default';
-import typeClusterLens from './typeCluster';
-
-// Static lens registry
-export const staticLensRegistry: LensRegistry = {
-  default: defaultLens,
-  'type-cluster': typeClusterLens,
-};
+// No static lenses - only dynamic hierarchy lenses
+export const staticLensRegistry: LensRegistry = {};
 
 /**
  * Generate a hierarchy-specific lens dynamically

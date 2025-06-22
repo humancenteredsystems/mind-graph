@@ -5,17 +5,8 @@
 import { staticLensRegistry, generateHierarchyLens, getLensRegistry } from '../index';
 
 describe('Lens Registry', () => {
-  it('should have default and type-cluster lenses', () => {
-    expect(staticLensRegistry).toHaveProperty('default');
-    expect(staticLensRegistry).toHaveProperty('type-cluster');
-    
-    expect(staticLensRegistry.default.id).toBe('default');
-    expect(staticLensRegistry.default.label).toBe('Default');
-    expect(staticLensRegistry.default.icon).toBe('⚪');
-    
-    expect(staticLensRegistry['type-cluster'].id).toBe('type-cluster');
-    expect(staticLensRegistry['type-cluster'].label).toBe('Type Clusters');
-    expect(staticLensRegistry['type-cluster'].icon).toBe('📦');
+  it('should have empty static lens registry', () => {
+    expect(Object.keys(staticLensRegistry)).toHaveLength(0);
   });
 
   it('should generate hierarchy lens correctly', () => {
@@ -36,7 +27,7 @@ describe('Lens Registry', () => {
     expect(lens.layout?.name).toBe('dagre');
   });
 
-  it('should generate complete lens registry with hierarchies', () => {
+  it('should generate complete lens registry with only hierarchy lenses', () => {
     const mockHierarchies = [
       { id: 'h1', name: 'Hierarchy 1' },
       { id: 'h2', name: 'Hierarchy 2' }
@@ -44,10 +35,9 @@ describe('Lens Registry', () => {
 
     const registry = getLensRegistry(mockHierarchies);
     
-    expect(registry).toHaveProperty('default');
-    expect(registry).toHaveProperty('type-cluster');
     expect(registry).toHaveProperty('hierarchy-h1');
     expect(registry).toHaveProperty('hierarchy-h2');
+    expect(Object.keys(registry)).toHaveLength(2);
     
     expect(registry['hierarchy-h1'].label).toBe('Hierarchy 1');
     expect(registry['hierarchy-h2'].label).toBe('Hierarchy 2');
@@ -62,5 +52,10 @@ describe('Lens Registry', () => {
     const lens = generateHierarchyLens(mockHierarchy);
     
     expect(lens.label).toBe('Test Hierarchy');
+  });
+
+  it('should return empty registry when no hierarchies provided', () => {
+    const registry = getLensRegistry([]);
+    expect(Object.keys(registry)).toHaveLength(0);
   });
 });

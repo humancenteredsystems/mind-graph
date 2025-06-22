@@ -13,17 +13,29 @@ interface ViewProviderProps {
 }
 
 export const ViewContext = createContext<ViewState>({
-  active: 'default',
+  active: 'none',
   setActive: () => {},
+  hideUnassociated: false,
+  setHideUnassociated: () => {},
 });
 
 export const ViewProvider: React.FC<ViewProviderProps> = ({ children }) => {
   const [active, setActive] = useState<string>(() => {
     try {
-      return localStorage.getItem('mims-active-view') ?? 'default';
+      return localStorage.getItem('mims-active-view') ?? 'none';
     } catch (error) {
       console.error('[ViewContext] Error reading from localStorage:', error);
-      return 'default';
+      return 'none';
+    }
+  });
+
+  const [hideUnassociated, setHideUnassociated] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('mims-hide-unassociated');
+      return stored ? JSON.parse(stored) : false;
+    } catch (error) {
+      console.error('[ViewContext] Error reading hideUnassociated from localStorage:', error);
+      return false;
     }
   });
 
@@ -36,8 +48,22 @@ export const ViewProvider: React.FC<ViewProviderProps> = ({ children }) => {
     }
   };
 
+  const wrappedSetHideUnassociated = (hide: boolean) => {
+    setHideUnassociated(hide);
+    try {
+      localStorage.setItem('mims-hide-unassociated', JSON.stringify(hide));
+    } catch (error) {
+      console.error('[ViewContext] Error writing hideUnassociated to localStorage:', error);
+    }
+  };
+
   return (
-    <ViewContext.Provider value={{ active, setActive: wrappedSetActive }}>
+    <ViewContext.Provider value={{ 
+      active, 
+      setActive: wrappedSetActive,
+      hideUnassociated,
+      setHideUnassociated: wrappedSetHideUnassociated
+    }}>
       {children}
     </ViewContext.Provider>
   );

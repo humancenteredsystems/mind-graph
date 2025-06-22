@@ -98,6 +98,8 @@ export interface HierarchyLevel {
 export interface ViewState {
   active: string;
   setActive: (id: string) => void;
+  hideUnassociated: boolean;
+  setHideUnassociated: (hide: boolean) => void;
 }
 
 /**

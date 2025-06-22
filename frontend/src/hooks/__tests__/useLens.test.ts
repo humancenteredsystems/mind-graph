@@ -4,83 +4,86 @@
 
 import { renderHook } from '@testing-library/react';
 import { useLens } from '../useLens';
-import { ViewProvider } from '../../context/ViewContext';
-import { HierarchyProvider } from '../../context/HierarchyContext';
-import React from 'react';
+import { useView } from '../../context/ViewContext';
+import { useHierarchyContext } from '../useHierarchy';
 
-// Mock the API service
-const mockExecuteQuery = jest.fn();
-const mockFetchTraversalData = jest.fn();
-
-jest.mock('../../services/ApiService', () => ({
-  executeQuery: mockExecuteQuery,
-  fetchTraversalData: mockFetchTraversalData,
+// Mock dependencies
+vi.mock('../../context/ViewContext');
+vi.mock('../useHierarchy');
+vi.mock('../../lenses', () => ({
+  getLens: vi.fn(),
+}));
+vi.mock('../../utils/logger', () => ({
+  log: vi.fn(),
 }));
 
-// Mock the logger
-const mockLog = jest.fn();
-jest.mock('../../utils/logger', () => ({
-  log: mockLog,
-}));
-
-const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <HierarchyProvider>
-    <ViewProvider>
-      {children}
-    </ViewProvider>
-  </HierarchyProvider>
-);
+const mockUseView = useView as any;
+const mockUseHierarchyContext = useHierarchyContext as any;
 
 describe('useLens', () => {
   const mockGraphData = {
     nodes: [
-      { id: 'node1', label: 'Node 1', type: 'Person' },
-      { id: 'node2', label: 'Node 2', type: 'Organization' },
+      { id: '1', label: 'Node 1', type: 'test' },
+      { id: '2', label: 'Node 2', type: 'test' }
     ],
     edges: [
-      { id: 'edge1', source: 'node1', target: 'node2', type: 'WORKS_FOR' },
-    ],
+      { id: 'e1', source: '1', target: '2', type: 'test' }
+    ]
   };
 
-  it('should apply default lens transformations', () => {
-    const { result } = renderHook(
-      () => useLens(mockGraphData),
-      { wrapper: TestWrapper }
-    );
+  beforeEach(() => {
+    vi.clearAllMocks();
+    
+    mockUseView.mockReturnValue({
+      active: 'none',
+      setActive: vi.fn(),
+    });
+    
+    mockUseHierarchyContext.mockReturnValue({
+      hierarchies: [],
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+  });
 
-    expect(result.current.nodes).toHaveLength(2);
-    expect(result.current.edges).toHaveLength(1);
-    expect(result.current.layout.name).toBe('fcose');
+  it('should return raw data when active view is "none"', () => {
+    const { result } = renderHook(() => useLens(mockGraphData));
+
+    expect(result.current.nodes).toEqual(mockGraphData.nodes);
+    expect(result.current.edges).toEqual(mockGraphData.edges);
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
+    expect(result.current.error).toBe(null);
+    expect(result.current.styleFn).toBeUndefined();
+  });
+
+  it('should return raw data when hierarchy lens is not found', () => {
+    mockUseView.mockReturnValue({
+      active: 'hierarchy-nonexistent',
+      setActive: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useLens(mockGraphData));
+
+    expect(result.current.nodes).toEqual(mockGraphData.nodes);
+    expect(result.current.edges).toEqual(mockGraphData.edges);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBe(null);
   });
 
   it('should handle empty graph data', () => {
     const emptyData = { nodes: [], edges: [] };
-    
-    const { result } = renderHook(
-      () => useLens(emptyData),
-      { wrapper: TestWrapper }
-    );
+    const { result } = renderHook(() => useLens(emptyData));
 
-    expect(result.current.nodes).toHaveLength(0);
-    expect(result.current.edges).toHaveLength(0);
+    expect(result.current.nodes).toEqual([]);
+    expect(result.current.edges).toEqual([]);
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
+    expect(result.current.error).toBe(null);
   });
 
-  it('should provide style function when available', () => {
-    const { result } = renderHook(
-      () => useLens(mockGraphData),
-      { wrapper: TestWrapper }
-    );
+  it('should provide default layout when no hierarchy lens is active', () => {
+    const { result } = renderHook(() => useLens(mockGraphData));
 
-    expect(result.current.styleFn).toBeDefined();
-    
-    if (result.current.styleFn) {
-      const nodeStyle = result.current.styleFn(mockGraphData.nodes[0]);
-      expect(nodeStyle).toHaveProperty('background-color');
-      expect(nodeStyle).toHaveProperty('border-color');
-    }
+    expect(result.current.layout).toEqual({ name: 'fcose' });
   });
 });
