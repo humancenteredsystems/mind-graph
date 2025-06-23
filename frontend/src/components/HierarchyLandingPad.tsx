@@ -9,6 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import { useView } from '../context/ViewContext';
 import { useHierarchyContext } from '../hooks/useHierarchy';
+import { useHierarchyAssignment } from '../hooks/useHierarchyAssignment';
 import { executeQuery } from '../services/ApiService';
 import { GET_LEVELS_FOR_HIERARCHY } from '../graphql/queries';
 import { HierarchyLevel, AllowedType, GraphQLError } from '../types/hierarchy';
@@ -193,6 +194,7 @@ const LevelSection: React.FC<LevelSectionProps> = ({ level, onDrop }) => {
 export const HierarchyLandingPad: React.FC = () => {
   const { hierarchyPanelOpen, setHierarchyPanelOpen, active } = useView();
   const { hierarchies } = useHierarchyContext();
+  const { assignNodeToLevel, isAssigning, assignmentError, clearAssignmentError } = useHierarchyAssignment();
   const [levels, setLevels] = useState<
     { id: string; levelNumber: number; label?: string; allowedTypes: { id: string; typeName: string }[] }[]
   >([]);
@@ -229,9 +231,24 @@ export const HierarchyLandingPad: React.FC = () => {
       });
   }, [currentHierarchyId]);
 
-  const handleDrop = (levelId: string, nodeType: string) => {
-    console.log(`[HierarchyLandingPad] Drop received: levelId=${levelId}, nodeType=${nodeType}`);
-    // TODO: Implement assignment logic
+  const handleDrop = async (levelId: string, nodeType: string, nodeData?: any) => {
+    console.log(`[HierarchyLandingPad] Drop received: levelId=${levelId}, nodeType=${nodeType}`, nodeData);
+    
+    // Clear any previous assignment errors
+    clearAssignmentError();
+    
+    if (nodeData && nodeData.id) {
+      try {
+        console.log(`[HierarchyLandingPad] Assigning node ${nodeData.id} to level ${levelId}`);
+        await assignNodeToLevel(nodeData.id, levelId, nodeData);
+        console.log(`[HierarchyLandingPad] Successfully assigned node ${nodeData.id} to level ${levelId}`);
+      } catch (error) {
+        console.error(`[HierarchyLandingPad] Failed to assign node ${nodeData.id}:`, error);
+        // Error is already handled by the hook and will be displayed in UI
+      }
+    } else {
+      console.warn('[HierarchyLandingPad] Drop received but no valid node data provided');
+    }
   };
 
   const handleToggle = () => {
@@ -317,8 +334,36 @@ export const HierarchyLandingPad: React.FC = () => {
               borderBottom: `1px solid ${theme.colors.border.default}`,
               backgroundColor: theme.colors.background.secondary,
             }}>
-              Drag grayed-out nodes from the graph to assign them to hierarchy levels
+              {isAssigning ? 'Assigning node...' : 'Drag grayed-out nodes from the graph to assign them to hierarchy levels'}
             </div>
+            {assignmentError && (
+              <div style={{
+                padding: '8px 16px',
+                fontSize: '12px',
+                color: theme.colors.text.error,
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                borderBottom: `1px solid ${theme.colors.border.default}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <span>Error: {assignmentError}</span>
+                <button
+                  onClick={clearAssignmentError}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: theme.colors.text.error,
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    padding: '2px 4px',
+                  }}
+                  title="Dismiss error"
+                >
+                  ×
+                </button>
+              </div>
+            )}
             {levels
               .sort((a, b) => a.levelNumber - b.levelNumber)
               .map((level) => (

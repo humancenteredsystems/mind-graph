@@ -18,9 +18,9 @@ export const HierarchiesSection: React.FC = () => {
   const { active, setActive } = useView();
   const { hierarchies } = useHierarchyContext();
 
-  // Set default hierarchy when hierarchies are loaded
+  // Set default hierarchy when hierarchies are loaded (only on initial load, not when user explicitly selects "None")
   useEffect(() => {
-    if (hierarchies.length > 0 && (!active || active === 'none')) {
+    if (hierarchies.length > 0 && !active) {
       // Default to 'h1' (Primary Knowledge Graph) if available, otherwise use first hierarchy
       const defaultHierarchy = hierarchies.find(h => h.id === 'h1') || hierarchies[0];
       setActive(`hierarchy-${defaultHierarchy.id}`);

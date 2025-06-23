@@ -649,6 +649,59 @@ const GraphView: React.FC<GraphViewProps> = ({
           graphContainer.classList.add('dragging');
         }
         
+        // Create HTML5 drag data for hierarchy assignment
+        // This enables dragging from Cytoscape nodes to external drop zones
+        const dragData = {
+          nodeId,
+          nodeData,
+          sourceType: 'graph-node'
+        };
+        
+        // Create a temporary drag element to enable HTML5 drag-and-drop
+        const dragElement = document.createElement('div');
+        dragElement.style.position = 'absolute';
+        dragElement.style.top = '-1000px';
+        dragElement.style.left = '-1000px';
+        dragElement.style.width = '1px';
+        dragElement.style.height = '1px';
+        dragElement.style.opacity = '0';
+        dragElement.draggable = true;
+        
+        // Set drag data
+        dragElement.addEventListener('dragstart', (dragEvent) => {
+          if (dragEvent.dataTransfer) {
+            dragEvent.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+            dragEvent.dataTransfer.effectAllowed = 'copy';
+          }
+          log('GraphView', `[HTML5 Drag] Started dragging node: ${nodeId}`, dragData);
+        });
+        
+        // Add to DOM temporarily
+        document.body.appendChild(dragElement);
+        
+        // Trigger HTML5 drag
+        setTimeout(() => {
+          const dragEvent = new DragEvent('dragstart', {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: new DataTransfer()
+          });
+          
+          if (dragEvent.dataTransfer) {
+            dragEvent.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+            dragEvent.dataTransfer.effectAllowed = 'copy';
+          }
+          
+          dragElement.dispatchEvent(dragEvent);
+          
+          // Clean up after a short delay
+          setTimeout(() => {
+            if (document.body.contains(dragElement)) {
+              document.body.removeChild(dragElement);
+            }
+          }, 100);
+        }, 10);
+        
         log('GraphView', `[Drag] Started dragging node: ${nodeId}`);
       }
 
