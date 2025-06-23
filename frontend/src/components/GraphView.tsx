@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import coseBilkent from 'cytoscape-cose-bilkent';
@@ -18,6 +18,7 @@ import {
 } from '../types/cytoscape';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { useHierarchyContext } from '../hooks/useHierarchy';
+import { useView } from '../context/ViewContext';
 import { useLayout } from '../context/LayoutContext';
 import { log } from '../utils/logger';
 import { theme, config } from '../config';
@@ -210,10 +211,20 @@ const GraphView: React.FC<GraphViewProps> = ({
   const cyRef = useRef<Core | null>(null);
   const isMountedRef = useRef<boolean>(true); // Track component mount status
   const { openMenu } = useContextMenu();
-  const { hierarchyId, levels } = useHierarchyContext();
+  const { levels } = useHierarchyContext();
+  const { active } = useView();
   const { applyLayoutToGraph, activeLayout } = useLayout();
+  
+  // Extract hierarchy ID from active view (e.g., 'hierarchy-h1' -> 'h1')
+  const hierarchyId = active && active.startsWith('hierarchy-') 
+    ? active.replace('hierarchy-', '') 
+    : '';
   const selectedOrderRef = useRef<string[]>([]);
   const selectedEdgesOrderRef = useRef<string[]>([]);
+  
+  // Drag state management for HTML5 drag-and-drop
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedNodeData, setDraggedNodeData] = useState<NodeData | null>(null);
   /**
    * Refs for refined manual double-click detection algorithm.
    * 
@@ -618,19 +629,50 @@ const GraphView: React.FC<GraphViewProps> = ({
     applyLayoutSafely();
   }, [elements, applyLayoutToGraph]);
 
-  // Live force-directed layout during node dragging
+  // Live force-directed layout during node dragging and HTML5 drag-and-drop
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy || !isMountedRef.current) return;
 
-    const handleNodeGrab = () => {
+    const handleNodeGrab = (e: any) => {
+      const nodeId = e.target.id();
+      const nodeData = nodes.find(n => n.id === nodeId);
+      
+      if (nodeData) {
+        // Set drag state for HTML5 drag-and-drop
+        setIsDragging(true);
+        setDraggedNodeData(nodeData);
+        
+        // Add visual drag indicator to parent container
+        const graphContainer = document.querySelector('.app-graph-area');
+        if (graphContainer) {
+          graphContainer.classList.add('dragging');
+        }
+        
+        log('GraphView', `[Drag] Started dragging node: ${nodeId}`);
+      }
+
       if ((activeLayout === 'fcose' || activeLayout === 'force') && isMountedRef.current) {
         log('GraphView', `Starting live ${activeLayout} layout on node grab`);
         // Live update will be handled by the layout context
       }
     };
 
-    const handleNodeFree = () => {
+    const handleNodeFree = (e: any) => {
+      const nodeId = e.target.id();
+      
+      // Clear drag state
+      setIsDragging(false);
+      setDraggedNodeData(null);
+      
+      // Remove drag indicator
+      const graphContainer = document.querySelector('.app-graph-area');
+      if (graphContainer) {
+        graphContainer.classList.remove('dragging');
+      }
+      
+      log('GraphView', `[Drag] Finished dragging node: ${nodeId}`);
+
       if ((activeLayout === 'fcose' || activeLayout === 'force') && isMountedRef.current) {
         log('GraphView', `Stopping live ${activeLayout} layout on node free`);
         // Re-apply layout after dragging
@@ -645,7 +687,7 @@ const GraphView: React.FC<GraphViewProps> = ({
       cy.off('grab', 'node', handleNodeGrab);
       cy.off('free', 'node', handleNodeFree);
     };
-  }, [activeLayout, applyLayoutToGraph]);
+  }, [activeLayout, applyLayoutToGraph, nodes]);
 
     // Track selection order for multi-node operations
   useEffect(() => {

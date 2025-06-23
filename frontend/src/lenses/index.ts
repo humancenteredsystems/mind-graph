@@ -23,13 +23,8 @@ export const generateHierarchyLens = (hierarchy: Hierarchy): LensDefinition => (
     params: { hierarchyId: hierarchy.id }
   },
   filter: (node) => {
-    // Filter nodes that have assignments to this hierarchy
-    if (!node || !node.assignments) return false;
-    return Array.isArray(node.assignments) && 
-           node.assignments.some((assignment: any) => 
-             assignment.hierarchyId === hierarchy.id || 
-             assignment.hierarchy?.id === hierarchy.id
-           );
+    // Show ALL nodes - association filtering handled by styling layer
+    return true;
   },
   map: (el) => {
     // Add hierarchy-specific data to elements

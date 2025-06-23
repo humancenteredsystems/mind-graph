@@ -1336,3 +1336,183 @@ export const executeDirectImport = async (
     throw error;
   }
 };
+
+// Hierarchy Assignment Management Functions
+// -------------------------------------------------------------------
+
+/**
+ * Create a new hierarchy assignment
+ */
+export const createHierarchyAssignment = async (
+  nodeId: string,
+  hierarchyId: string,
+  levelId: string
+): Promise<{
+  id: string;
+  node: { id: string; label: string };
+  hierarchy: { id: string; name: string };
+  level: { id: string; label: string; levelNumber: number };
+}> => {
+  try {
+    const response = await apiClient.post('/hierarchy/assignment', {
+      nodeId,
+      hierarchyId,
+      levelId
+    });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error creating hierarchy assignment:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error creating hierarchy assignment:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Delete a hierarchy assignment
+ */
+export const deleteHierarchyAssignment = async (
+  assignmentId: string
+): Promise<{ msg: string; numUids: number }> => {
+  try {
+    const response = await apiClient.delete(`/hierarchy/assignment/${assignmentId}`);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      log('ApiService', 'Error deleting hierarchy assignment:', error.toJSON());
+      if (error.response) {
+        log('ApiService', 'Error response data:', error.response.data);
+      }
+    } else {
+      log('ApiService', 'Generic error deleting hierarchy assignment:', error);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Find all assignments for a node in a specific hierarchy
+ */
+export const findNodeAssignmentsInHierarchy = async (
+  nodeId: string,
+  hierarchyId: string
+): Promise<Array<{
+  id: string;
+  level: {
+    id: string;
+    levelNumber: number;
+    label: string;
+  };
+}>> => {
+  const query = `
+    query FindNodeAssignmentsInHierarchy($nodeId: String!, $hierarchyId: String!) {
+      queryHierarchyAssignment(filter: {
+        and: [
+          { node: { id: { eq: $nodeId } } },
+          { hierarchy: { id: { eq: $hierarchyId } } }
+        ]
+      }) {
+        id
+        level {
+          id
+          levelNumber
+          label
+        }
+      }
+    }
+  `;
+
+  try {
+    const result = await executeQuery(query, { nodeId, hierarchyId });
+    return (result as any).queryHierarchyAssignment || [];
+  } catch (error) {
+    log('ApiService', 'Error finding node assignments in hierarchy:', error);
+    throw error;
+  }
+};
+
+/**
+ * Reassign a node to a new level in a hierarchy (removes existing assignments first)
+ */
+export const reassignNodeToLevel = async (
+  nodeId: string,
+  hierarchyId: string,
+  levelId: string
+): Promise<{
+  success: boolean;
+  assignment: {
+    id: string;
+    node: { id: string; label: string };
+    hierarchy: { id: string; name: string };
+    level: { id: string; label: string; levelNumber: number };
+  };
+  removedAssignments: number;
+}> => {
+  try {
+    // Step 1: Find existing assignments
+    const existingAssignments = await findNodeAssignmentsInHierarchy(nodeId, hierarchyId);
+    
+    // Step 2: Remove existing assignments
+    let removedCount = 0;
+    if (existingAssignments.length > 0) {
+      await Promise.all(
+        existingAssignments.map(async (assignment) => {
+          await deleteHierarchyAssignment(assignment.id);
+          removedCount++;
+        })
+      );
+    }
+    
+    // Step 3: Create new assignment
+    const newAssignment = await createHierarchyAssignment(nodeId, hierarchyId, levelId);
+    
+    return {
+      success: true,
+      assignment: newAssignment,
+      removedAssignments: removedCount
+    };
+  } catch (error) {
+    log('ApiService', 'Error reassigning node to level:', error);
+    throw error;
+  }
+};
+
+/**
+ * Remove all assignments for a node in a specific hierarchy
+ */
+export const removeNodeFromHierarchy = async (
+  nodeId: string,
+  hierarchyId: string
+): Promise<{
+  success: boolean;
+  removedAssignments: number;
+}> => {
+  try {
+    // Find existing assignments
+    const existingAssignments = await findNodeAssignmentsInHierarchy(nodeId, hierarchyId);
+    
+    // Remove all assignments
+    let removedCount = 0;
+    if (existingAssignments.length > 0) {
+      await Promise.all(
+        existingAssignments.map(async (assignment) => {
+          await deleteHierarchyAssignment(assignment.id);
+          removedCount++;
+        })
+      );
+    }
+    
+    return {
+      success: true,
+      removedAssignments: removedCount
+    };
+  } catch (error) {
+    log('ApiService', 'Error removing node from hierarchy:', error);
+    throw error;
+  }
+};

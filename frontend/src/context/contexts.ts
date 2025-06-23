@@ -21,7 +21,6 @@ export const ContextMenuContext = createContext<ContextMenuContextValue | undefi
 // Hierarchy Context
 interface HierarchyContextType {
   hierarchies: { id: string; name: string }[];
-  hierarchyId: string;
   levels: {
     id: string;
     levelNumber: number;
@@ -30,16 +29,13 @@ interface HierarchyContextType {
   }[];
   allowedTypesMap: Record<string, string[]>;
   allNodeTypes: string[];
-  setHierarchyId: (id: string) => void;
 }
 
 export const HierarchyContext = createContext<HierarchyContextType>({
   hierarchies: [],
-  hierarchyId: '',
   levels: [],
   allowedTypesMap: {},
   allNodeTypes: [],
-  setHierarchyId: () => {},
 });
 
 // Tenant Context

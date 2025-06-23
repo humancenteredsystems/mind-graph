@@ -5,9 +5,11 @@
  * including dynamic hierarchy views generated from available hierarchies.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useView } from '../context/ViewContext';
 import { useHierarchyContext } from '../hooks/useHierarchy';
+import { executeQuery } from '../services/ApiService';
+import { GET_LEVELS_FOR_HIERARCHY } from '../graphql/queries';
 import { theme } from '../config';
 import { css } from '../utils/styleUtils';
 import CollapsibleSection from './CollapsibleSection';
@@ -15,6 +17,15 @@ import CollapsibleSection from './CollapsibleSection';
 export const HierarchiesSection: React.FC = () => {
   const { active, setActive } = useView();
   const { hierarchies } = useHierarchyContext();
+
+  // Set default hierarchy when hierarchies are loaded
+  useEffect(() => {
+    if (hierarchies.length > 0 && (!active || active === 'none')) {
+      // Default to 'h1' (Primary Knowledge Graph) if available, otherwise use first hierarchy
+      const defaultHierarchy = hierarchies.find(h => h.id === 'h1') || hierarchies[0];
+      setActive(`hierarchy-${defaultHierarchy.id}`);
+    }
+  }, [hierarchies, active, setActive]);
 
   // Hierarchy options with "None" at the top
   const hierarchyOptions = [

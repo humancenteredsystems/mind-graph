@@ -12,11 +12,18 @@ interface ViewProviderProps {
   children: ReactNode;
 }
 
-export const ViewContext = createContext<ViewState>({
+interface ExtendedViewState extends ViewState {
+  hierarchyPanelOpen: boolean;
+  setHierarchyPanelOpen: (open: boolean) => void;
+}
+
+export const ViewContext = createContext<ExtendedViewState>({
   active: 'none',
   setActive: () => {},
   hideUnassociated: false,
   setHideUnassociated: () => {},
+  hierarchyPanelOpen: false,
+  setHierarchyPanelOpen: () => {},
 });
 
 export const ViewProvider: React.FC<ViewProviderProps> = ({ children }) => {
@@ -39,6 +46,16 @@ export const ViewProvider: React.FC<ViewProviderProps> = ({ children }) => {
     }
   });
 
+  const [hierarchyPanelOpen, setHierarchyPanelOpen] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('mims-hierarchy-panel-open');
+      return stored ? JSON.parse(stored) : false;
+    } catch (error) {
+      console.error('[ViewContext] Error reading hierarchyPanelOpen from localStorage:', error);
+      return false;
+    }
+  });
+
   const wrappedSetActive = (id: string) => {
     setActive(id);
     try {
@@ -57,12 +74,23 @@ export const ViewProvider: React.FC<ViewProviderProps> = ({ children }) => {
     }
   };
 
+  const wrappedSetHierarchyPanelOpen = (open: boolean) => {
+    setHierarchyPanelOpen(open);
+    try {
+      localStorage.setItem('mims-hierarchy-panel-open', JSON.stringify(open));
+    } catch (error) {
+      console.error('[ViewContext] Error writing hierarchyPanelOpen to localStorage:', error);
+    }
+  };
+
   return (
     <ViewContext.Provider value={{ 
       active, 
       setActive: wrappedSetActive,
       hideUnassociated,
-      setHideUnassociated: wrappedSetHideUnassociated
+      setHideUnassociated: wrappedSetHideUnassociated,
+      hierarchyPanelOpen,
+      setHierarchyPanelOpen: wrappedSetHierarchyPanelOpen
     }}>
       {children}
     </ViewContext.Provider>

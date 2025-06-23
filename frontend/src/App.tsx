@@ -8,8 +8,7 @@ import { theme } from './config';
 import { useUIContext } from './hooks/useUI';
 import { HierarchyProvider } from './context/HierarchyContext';
 import { LayoutProvider } from './context/LayoutContext';
-import { ViewProvider } from './context/ViewContext';
-import { useHierarchyContext } from './hooks/useHierarchy';
+import { ViewProvider, useView } from './context/ViewContext';
 import NodeFormModal from './components/NodeFormModal';
 import NodeDrawer from './components/NodeDrawer';
 import SettingsIcon from './components/SettingsIcon';
@@ -20,6 +19,7 @@ import EmptyGraphState from './components/EmptyGraphState';
 import GraphToolsPanel from './components/GraphToolsPanel';
 import ImportExportWizard from './components/ImportExportWizard';
 import ModalOverlay from './components/ModalOverlay';
+import HierarchyLandingPad from './components/HierarchyLandingPad';
 
 function AppInner() {
   
@@ -57,26 +57,26 @@ function AppInner() {
     error: lensError,
   } = useLens({ nodes, edges });
 
-  // useEffect to load the complete graph on initial mount
-  const { hierarchies, hierarchyId, setHierarchyId } = useHierarchyContext();
+  // Load graph when view changes
+  const { hierarchyPanelOpen, active } = useView();
 
   useEffect(() => {
-    if (hierarchyId) {
-      log('App', `Hierarchy set to ${hierarchyId}: loading full graph`);
+    if (active && active !== 'none') {
+      log('App', `View set to ${active}: loading full graph`);
       loadCompleteGraph();
     } else {
-      // If no hierarchyId is set after a reasonable time, still try to load the graph
+      // If no view is set after a reasonable time, still try to load the graph
       // This handles cases where hierarchy loading fails but we still want to show empty state
       const fallbackTimer = setTimeout(() => {
-        if (!hierarchyId) {
-          log('App', 'No hierarchy loaded, attempting to load graph anyway for empty state');
+        if (!active || active === 'none') {
+          log('App', 'No hierarchy view active, attempting to load graph anyway for empty state');
           loadCompleteGraph();
         }
-      }, 3000); // Wait 3 seconds for hierarchy to load
+      }, 3000); // Wait 3 seconds for view to load
       
       return () => clearTimeout(fallbackTimer);
     }
-  }, [hierarchyId, loadCompleteGraph]);
+  }, [active, loadCompleteGraph]);
 
   const {
   addModalOpen,
@@ -114,15 +114,6 @@ function AppInner() {
         >
           📚 Documentation
         </a>
-        
-        <select
-          value={hierarchyId}
-          onChange={e => setHierarchyId(e.target.value)}
-        >
-          {hierarchies.map(h => (
-            <option key={h.id} value={h.id}>{h.name}</option>
-          ))}
-        </select>
         
         {/* Loading and error states */}
         {(isLoading || isExpanding || lensLoading) && <p>Loading graph data...</p>}
@@ -211,6 +202,13 @@ function AppInner() {
               }}
             />
           )}
+        </div>
+      )}
+      
+      {/* Hierarchy Panel - collapsible middle panel */}
+      {!isLoading && (
+        <div className={`app-hierarchy-panel ${hierarchyPanelOpen ? 'open' : ''}`}>
+          <HierarchyLandingPad />
         </div>
       )}
       
