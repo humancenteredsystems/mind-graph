@@ -686,7 +686,7 @@ router.get('/admin/tenant/:tenantId/schema', authenticateAdmin, async (req: Requ
 });
 
 /**
- * Clear nodes and edges from a tenant (safe namespace-scoped deletion)
+ * Clear all data from a tenant (safe namespace-scoped deletion)
  * 
  * POST /api/admin/tenant/clear-data
  * 
@@ -704,19 +704,113 @@ router.post('/admin/tenant/clear-data', authenticateAdmin, async (req: Request, 
       return;
     }
     
-    console.log(`[ADMIN_TENANT] Clearing data for tenant ${tenantId}`);
+    console.log(`[ADMIN_TENANT] Clearing all data for tenant ${tenantId}`);
     
     // Get tenant namespace and create client for namespace-scoped operations
     const namespace = await tenantManager.getTenantNamespace(tenantId);
     const tenantClient = await DgraphTenantFactory.createTenant(namespace);
     
-    // Step 1: Query all edges and delete them first
+    // Delete in proper dependency order to avoid orphaned references
+    // 1. HierarchyAssignment (depends on Node, Hierarchy, HierarchyLevel)
+    // 2. HierarchyLevelType (depends on HierarchyLevel)
+    // 3. HierarchyLevel (depends on Hierarchy)
+    // 4. Hierarchy (independent)
+    // 5. Edge (depends on Node)
+    // 6. Node (independent)
+    
+    let deletedAssignments = 0;
+    let deletedLevelTypes = 0;
+    let deletedLevels = 0;
+    let deletedHierarchies = 0;
+    let deletedEdges = 0;
+    let deletedNodes = 0;
+    
+    // Step 1: Query and delete HierarchyAssignments
+    console.log(`[ADMIN_TENANT] Querying hierarchy assignments for tenant ${tenantId}`);
+    const assignmentQuery = `{ queryHierarchyAssignment { id } }`;
+    const assignmentResult = await tenantClient.executeGraphQL(assignmentQuery);
+    const assignments = assignmentResult?.queryHierarchyAssignment || [];
+    
+    if (assignments.length > 0) {
+      console.log(`[ADMIN_TENANT] Deleting ${assignments.length} hierarchy assignments for tenant ${tenantId}`);
+      const deleteAssignmentsMutation = `
+        mutation {
+          deleteHierarchyAssignment(filter: {}) {
+            numUids
+          }
+        }
+      `;
+      const assignmentDeleteResult = await tenantClient.executeGraphQL(deleteAssignmentsMutation);
+      deletedAssignments = assignmentDeleteResult?.deleteHierarchyAssignment?.numUids || 0;
+      console.log(`[ADMIN_TENANT] Deleted ${deletedAssignments} hierarchy assignments for tenant ${tenantId}`);
+    }
+    
+    // Step 2: Query and delete HierarchyLevelTypes
+    console.log(`[ADMIN_TENANT] Querying hierarchy level types for tenant ${tenantId}`);
+    const levelTypeQuery = `{ queryHierarchyLevelType { id } }`;
+    const levelTypeResult = await tenantClient.executeGraphQL(levelTypeQuery);
+    const levelTypes = levelTypeResult?.queryHierarchyLevelType || [];
+    
+    if (levelTypes.length > 0) {
+      console.log(`[ADMIN_TENANT] Deleting ${levelTypes.length} hierarchy level types for tenant ${tenantId}`);
+      const deleteLevelTypesMutation = `
+        mutation {
+          deleteHierarchyLevelType(filter: {}) {
+            numUids
+          }
+        }
+      `;
+      const levelTypeDeleteResult = await tenantClient.executeGraphQL(deleteLevelTypesMutation);
+      deletedLevelTypes = levelTypeDeleteResult?.deleteHierarchyLevelType?.numUids || 0;
+      console.log(`[ADMIN_TENANT] Deleted ${deletedLevelTypes} hierarchy level types for tenant ${tenantId}`);
+    }
+    
+    // Step 3: Query and delete HierarchyLevels
+    console.log(`[ADMIN_TENANT] Querying hierarchy levels for tenant ${tenantId}`);
+    const levelQuery = `{ queryHierarchyLevel { id } }`;
+    const levelResult = await tenantClient.executeGraphQL(levelQuery);
+    const levels = levelResult?.queryHierarchyLevel || [];
+    
+    if (levels.length > 0) {
+      console.log(`[ADMIN_TENANT] Deleting ${levels.length} hierarchy levels for tenant ${tenantId}`);
+      const deleteLevelsMutation = `
+        mutation {
+          deleteHierarchyLevel(filter: {}) {
+            numUids
+          }
+        }
+      `;
+      const levelDeleteResult = await tenantClient.executeGraphQL(deleteLevelsMutation);
+      deletedLevels = levelDeleteResult?.deleteHierarchyLevel?.numUids || 0;
+      console.log(`[ADMIN_TENANT] Deleted ${deletedLevels} hierarchy levels for tenant ${tenantId}`);
+    }
+    
+    // Step 4: Query and delete Hierarchies
+    console.log(`[ADMIN_TENANT] Querying hierarchies for tenant ${tenantId}`);
+    const hierarchyQuery = `{ queryHierarchy { id } }`;
+    const hierarchyResult = await tenantClient.executeGraphQL(hierarchyQuery);
+    const hierarchies = hierarchyResult?.queryHierarchy || [];
+    
+    if (hierarchies.length > 0) {
+      console.log(`[ADMIN_TENANT] Deleting ${hierarchies.length} hierarchies for tenant ${tenantId}`);
+      const deleteHierarchiesMutation = `
+        mutation {
+          deleteHierarchy(filter: {}) {
+            numUids
+          }
+        }
+      `;
+      const hierarchyDeleteResult = await tenantClient.executeGraphQL(deleteHierarchiesMutation);
+      deletedHierarchies = hierarchyDeleteResult?.deleteHierarchy?.numUids || 0;
+      console.log(`[ADMIN_TENANT] Deleted ${deletedHierarchies} hierarchies for tenant ${tenantId}`);
+    }
+    
+    // Step 5: Query and delete Edges
     console.log(`[ADMIN_TENANT] Querying edges for tenant ${tenantId}`);
     const edgeQuery = `{ queryEdge { fromId toId type } }`;
     const edgeResult = await tenantClient.executeGraphQL(edgeQuery);
     const edges = edgeResult?.queryEdge || [];
     
-    let deletedEdges = 0;
     if (edges.length > 0) {
       console.log(`[ADMIN_TENANT] Deleting ${edges.length} edges for tenant ${tenantId}`);
       const deleteEdgesMutation = `
@@ -731,13 +825,12 @@ router.post('/admin/tenant/clear-data', authenticateAdmin, async (req: Request, 
       console.log(`[ADMIN_TENANT] Deleted ${deletedEdges} edges for tenant ${tenantId}`);
     }
     
-    // Step 2: Query all nodes and delete them
+    // Step 6: Query and delete Nodes
     console.log(`[ADMIN_TENANT] Querying nodes for tenant ${tenantId}`);
     const nodeQuery = `{ queryNode { id } }`;
     const nodeResult = await tenantClient.executeGraphQL(nodeQuery);
     const nodes = nodeResult?.queryNode || [];
     
-    let deletedNodes = 0;
     if (nodes.length > 0) {
       console.log(`[ADMIN_TENANT] Deleting ${nodes.length} nodes for tenant ${tenantId}`);
       const deleteNodesMutation = `
@@ -752,11 +845,21 @@ router.post('/admin/tenant/clear-data', authenticateAdmin, async (req: Request, 
       console.log(`[ADMIN_TENANT] Deleted ${deletedNodes} nodes for tenant ${tenantId}`);
     }
     
+    const totalDeleted = deletedAssignments + deletedLevelTypes + deletedLevels + deletedHierarchies + deletedEdges + deletedNodes;
+    console.log(`[ADMIN_TENANT] Data clearing completed for tenant ${tenantId}: ${totalDeleted} total entities deleted`);
+    
     res.json({
       success: true,
-      message: `Data cleared for tenant ${tenantId}`,
-      deletedNodes,
-      deletedEdges,
+      message: `All data cleared for tenant ${tenantId}`,
+      deletedCounts: {
+        hierarchyAssignments: deletedAssignments,
+        hierarchyLevelTypes: deletedLevelTypes,
+        hierarchyLevels: deletedLevels,
+        hierarchies: deletedHierarchies,
+        edges: deletedEdges,
+        nodes: deletedNodes,
+        total: totalDeleted
+      },
       tenantId,
       clearedAt: new Date()
     });
