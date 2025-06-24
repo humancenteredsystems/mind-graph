@@ -52,6 +52,22 @@ interface QueryResponse {
       }>;
     }>;
   }>;
+  getNode?: {
+    id: string;
+    label: string;
+    type: string;
+    hierarchyAssignments?: Array<{
+      id: string;
+      hierarchy: {
+        id: string;
+      };
+      level: {
+        id: string;
+        levelNumber: number;
+        label: string;
+      };
+    }>;
+  };
 }
 
 
@@ -1409,27 +1425,43 @@ export const findNodeAssignmentsInHierarchy = async (
     label: string;
   };
 }>> => {
+  // Use inverse relationship query since HierarchyAssignmentFilter doesn't support nested filtering
   const query = `
-    query FindNodeAssignmentsInHierarchy($nodeId: String!, $hierarchyId: String!) {
-      queryHierarchyAssignment(filter: {
-        and: [
-          { node: { id: { eq: $nodeId } } },
-          { hierarchy: { id: { eq: $hierarchyId } } }
-        ]
-      }) {
-        id
-        level {
+    query FindNodeAssignmentsInHierarchy($nodeId: String!) {
+      getNode(id: $nodeId) {
+        hierarchyAssignments {
           id
-          levelNumber
-          label
+          hierarchy {
+            id
+          }
+          level {
+            id
+            levelNumber
+            label
+          }
         }
       }
     }
   `;
 
   try {
-    const result = await executeQuery(query, { nodeId, hierarchyId });
-    return (result as any).queryHierarchyAssignment || [];
+    const result = await executeQuery(query, { nodeId });
+    const assignments = result.getNode?.hierarchyAssignments || [];
+    
+    // Filter assignments for the specific hierarchy on the client side
+    const filteredAssignments = assignments.filter((assignment: any) => 
+      assignment.hierarchy?.id === hierarchyId
+    );
+    
+    log('ApiService', `Found ${filteredAssignments.length} assignments for node ${nodeId} in hierarchy ${hierarchyId}`);
+    return filteredAssignments.map((assignment: any) => ({
+      id: assignment.id,
+      level: {
+        id: assignment.level.id,
+        levelNumber: assignment.level.levelNumber,
+        label: assignment.level.label
+      }
+    }));
   } catch (error) {
     log('ApiService', 'Error finding node assignments in hierarchy:', error);
     throw error;

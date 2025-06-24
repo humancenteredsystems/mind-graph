@@ -324,3 +324,102 @@ export const logExpansionOperation = (
     log('useGraphState', `No ${operation.toLowerCase()} found for Level ${level} node ${nodeId}`);
   }
 };
+
+/**
+ * Simple drag preview utilities - replaces complex ghost system
+ */
+
+/**
+ * Creates a visible drag preview element that follows the mouse
+ */
+export const createDragPreview = (nodeData: NodeData): HTMLDivElement => {
+  log('GraphUtils', `Creating drag preview for node: ${nodeData.id}`);
+  
+  const preview = document.createElement('div');
+  preview.id = 'drag-preview';
+  preview.style.cssText = `
+    position: fixed;
+    background: rgba(59, 130, 246, 0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    pointer-events: none;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transform: translate(-50%, -100%);
+    white-space: nowrap;
+  `;
+  
+  preview.textContent = `📦 ${nodeData.label || nodeData.id}`;
+  document.body.appendChild(preview);
+  return preview;
+};
+
+/**
+ * Updates drag preview position to follow mouse cursor
+ */
+export const updateDragPreview = (element: HTMLDivElement, x: number, y: number): void => {
+  element.style.left = `${x}px`;
+  element.style.top = `${y - 10}px`; // Offset above cursor
+};
+
+/**
+ * Removes drag preview from DOM
+ */
+export const removeDragPreview = (element: HTMLDivElement | null): void => {
+  if (element && document.body.contains(element)) {
+    try {
+      document.body.removeChild(element);
+      log('GraphUtils', 'Drag preview removed');
+    } catch (error) {
+      log('GraphUtils', 'Error removing drag preview:', error);
+    }
+  }
+};
+
+/**
+ * Checks if mouse position is over a valid drop zone
+ */
+export const getDropZoneUnderMouse = (x: number, y: number): Element | null => {
+  const elementUnderMouse = document.elementFromPoint(x, y);
+  if (!elementUnderMouse) return null;
+  
+  // Look for hierarchy drop zone
+  return elementUnderMouse.closest('[data-drop-zone]');
+};
+
+/**
+ * Adds visual feedback to drop zones during drag
+ */
+export const highlightDropZone = (dropZone: Element): void => {
+  dropZone.classList.add('drop-zone-active');
+};
+
+/**
+ * Removes visual feedback from drop zones
+ */
+export const unhighlightDropZone = (dropZone: Element): void => {
+  dropZone.classList.remove('drop-zone-active');
+};
+
+/**
+ * Adds visual drag feedback to graph container
+ */
+export const addDragFeedback = (): void => {
+  const graphContainer = document.querySelector('.app-graph-area');
+  if (graphContainer) {
+    graphContainer.classList.add('dragging');
+  }
+};
+
+/**
+ * Removes visual drag feedback from graph container
+ */
+export const removeDragFeedback = (): void => {
+  const graphContainer = document.querySelector('.app-graph-area');
+  if (graphContainer) {
+    graphContainer.classList.remove('dragging');
+  }
+};

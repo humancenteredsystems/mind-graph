@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import cytoscape, { Core, ElementDefinition } from 'cytoscape';
 import coseBilkent from 'cytoscape-cose-bilkent';
@@ -7,19 +7,10 @@ import cola from 'cytoscape-cola';
 import euler from 'cytoscape-euler';
 import fcose from 'cytoscape-fcose';
 import { NodeData, EdgeData } from '../types/graph';
-import { 
-  CytoscapeTapEvent, 
-  CytoscapeSelectEvent, 
-  CytoscapeRemoveEvent,
-  CytoscapeContextEvent,
-  CytoscapeSelectHandler,
-  CytoscapeUnselectHandler,
-  CytoscapeRemoveHandler
-} from '../types/cytoscape';
-import { useContextMenu } from '../hooks/useContextMenu';
 import { useHierarchyContext } from '../hooks/useHierarchy';
 import { useView } from '../context/ViewContext';
 import { useLayout } from '../context/LayoutContext';
+import { useGraphEvents } from '../hooks/useGraphEvents';
 import { log } from '../utils/logger';
 import { theme, config } from '../config';
 import { normalizeHierarchyId } from '../utils/graphUtils';
@@ -196,7 +187,7 @@ const GraphView: React.FC<GraphViewProps> = ({
   isNodeExpanded,
   onAddNode,
   onEditNode,
-  onNodeSelect, // Add new prop
+  onNodeSelect,
   onLoadCompleteGraph,
   onDeleteNode,
   onDeleteNodes,
@@ -206,50 +197,39 @@ const GraphView: React.FC<GraphViewProps> = ({
   onHideNodes,
   onConnect,
 }) => {
-  console.log(`[GraphView RENDER] Nodes prop length: ${nodes.length}, Edges prop length: ${edges.length}`); // Forceful log
+  console.log(`[GraphView RENDER] Nodes prop length: ${nodes.length}, Edges prop length: ${edges.length}`);
 
   const cyRef = useRef<Core | null>(null);
-  const isMountedRef = useRef<boolean>(true); // Track component mount status
-  const { openMenu } = useContextMenu();
-  const { levels } = useHierarchyContext();
   const { active } = useView();
-  const { applyLayoutToGraph, activeLayout } = useLayout();
+  const { applyLayoutToGraph } = useLayout();
   
   // Extract hierarchy ID from active view (e.g., 'hierarchy-h1' -> 'h1')
   const hierarchyId = active && active.startsWith('hierarchy-') 
     ? active.replace('hierarchy-', '') 
     : '';
-  const selectedOrderRef = useRef<string[]>([]);
-  const selectedEdgesOrderRef = useRef<string[]>([]);
-  
-  // Drag state management for HTML5 drag-and-drop
-  const [isDragging, setIsDragging] = useState(false);
-  const [draggedNodeData, setDraggedNodeData] = useState<NodeData | null>(null);
-  /**
-   * Refs for refined manual double-click detection algorithm.
-   * 
-   * Manual double-click detection is required because Cytoscape.js event system
-   * can fire duplicate tap events, making the built-in doubleTap unreliable.
-   * This implementation uses a three-ref system with timing-based detection.
-   * 
-   * @see handleTap for the complete algorithm implementation
-   */
-  const lastConfirmedClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 }); 
-  const shortTermTapTimeoutRef = useRef<NodeJS.Timeout | null>(null); 
-  const potentialClickRef = useRef<{ nodeId: string | null; time: number }>({ nodeId: null, time: 0 });
 
-  // Component lifecycle management
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      // Clean up any pending timeouts
-      if (shortTermTapTimeoutRef.current) {
-        clearTimeout(shortTermTapTimeoutRef.current);
-        shortTermTapTimeoutRef.current = null;
-      }
-    };
-  }, []);
+  // Use the new comprehensive event handling hook
+  const { isDragging, draggedNodeData } = useGraphEvents(
+    cyRef,
+    nodes,
+    edges,
+    onEditNode,
+    onNodeSelect,
+    onAddNode,
+    onNodeExpand,
+    onExpandChildren,
+    onExpandAll,
+    onCollapseNode,
+    isNodeExpanded,
+    onDeleteNode,
+    onDeleteNodes,
+    onDeleteEdge,
+    onDeleteEdges,
+    onHideNode,
+    onHideNodes,
+    onConnect,
+    onLoadCompleteGraph
+  );
 
   // Generate level styles dynamically using theme colors
   const generateLevelStyles = () => {
@@ -314,18 +294,20 @@ const GraphView: React.FC<GraphViewProps> = ({
         position: simplePosition,
       };
     });
+    
     const validIds = new Set(visible.map(n => n.id));
     const edgeEls = edges
       .filter(e => validIds.has(e.source) && validIds.has(e.target))
       .map(({ id, source, target, type }) => ({
         data: { id: id ?? `${source}_${target}`, source, target, type },
       }));
+    
     const finalElements = [...nodeEls, ...edgeEls];
     log('GraphView:useMemo[elements]', `Generated ${nodeEls.length} node elements, ${edgeEls.length} edge elements. Total: ${finalElements.length}`);
     return finalElements;
   }, [nodes, edges, hiddenNodeIds, hierarchyId, isNodeExpanded]);
 
-  // Stylesheet: disable selection and style nodes/edges
+  // Stylesheet: style nodes/edges with drag feedback
   const stylesheet = [
     {
       selector: 'node',
@@ -389,421 +371,26 @@ const GraphView: React.FC<GraphViewProps> = ({
     
     log('GraphView', 'Cytoscape instance attached');
   };
-  
-  // Set up all event handlers - SEPARATED from attachCy for clarity
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) {
-      log('GraphView', 'ERROR: No Cytoscape instance available');
-      return;
-    }
-    
-    log('GraphView', 'Setting up event handlers');
-    
-    // Completely disable selection
-    cy.autounselectify(false);
-    if (typeof (cy as unknown as { boxSelectionEnabled?: (enabled: boolean) => void }).boxSelectionEnabled === 'function') {
-      (cy as unknown as { boxSelectionEnabled: (enabled: boolean) => void }).boxSelectionEnabled(true);
-    }
-    log('GraphView', 'Multi-select enabled: autounselectify(false) and boxSelectionEnabled(true)');
-    
-    // Refined manual double-click detection logic
-    const DOUBLE_CLICK_DELAY = config.doubleClickDelay; // Max time between clicks for double-click (ms)
-    const SHORT_TERM_DEBOUNCE = config.shortTermDebounce; // Time to wait to confirm a single tap isn't a duplicate firing (ms)
-
-    /**
-     * Manual double-click detection algorithm for Cytoscape.js nodes.
-     * 
-     * Required because Cytoscape.js can fire duplicate tap events, making built-in
-     * doubleTap unreliable. This algorithm uses three-ref timing system:
-     * 
-     * 1. **potentialClickRef**: Stores immediate tap for short-term duplicate detection
-     * 2. **shortTermTapTimeoutRef**: 50ms timeout to confirm single clicks aren't duplicates  
-     * 3. **lastConfirmedClickRef**: Stores confirmed clicks for double-click comparison
-     * 
-     * **Algorithm Flow:**
-     * - Clear any pending timeout (handles duplicate firing)
-     * - If same nodeId within DOUBLE_CLICK_DELAY: trigger double-click action
-     * - Else: store as potential click with 50ms confirmation timeout
-     * - After timeout: confirm as single click and store for future double-click detection
-     * 
-     * **Timing Constants:**
-     * - DOUBLE_CLICK_DELAY (300ms): Max time between clicks for double-click
-     * - SHORT_TERM_DEBOUNCE (50ms): Duplicate event detection window
-     * 
-     * @param e - Cytoscape tap event object
-     */
-    const handleTap = (e: CytoscapeTapEvent) => {
-      const targetNode = e.target;
-      const nodeId = targetNode.id ? targetNode.id() : null;
-      const now = Date.now();
-
-      // Clear any pending short-term timeout - this handles the duplicate firing case
-      if (shortTermTapTimeoutRef.current) {
-        clearTimeout(shortTermTapTimeoutRef.current);
-        shortTermTapTimeoutRef.current = null;
-        // We might still need to check if this completes a double-click
-      }
-      
-      if (!nodeId) {
-        lastConfirmedClickRef.current = { nodeId: null, time: 0 }; // Reset on background tap
-        potentialClickRef.current = { nodeId: null, time: 0 };
-        return;
-      }
-
-      // Check if this tap completes a double-click sequence with the last *confirmed* click
-      const { nodeId: lastConfirmedNodeId, time: lastConfirmedTime } = lastConfirmedClickRef.current;
-      const timeDiffFromConfirmed = now - lastConfirmedTime;
-
-      if (nodeId === lastConfirmedNodeId && timeDiffFromConfirmed < DOUBLE_CLICK_DELAY) {
-        // --- Double-click detected ---
-        
-        // Reset state immediately
-        lastConfirmedClickRef.current = { nodeId: null, time: 0 }; 
-        potentialClickRef.current = { nodeId: null, time: 0 };
-        if (shortTermTapTimeoutRef.current) { // Clear just in case
-           clearTimeout(shortTermTapTimeoutRef.current);
-           shortTermTapTimeoutRef.current = null;
-        }
-
-        // Trigger the action
-        if (onEditNode) {
-          const nodeData = nodes.find(n => n.id === nodeId);
-            if (nodeData) {
-              onEditNode(nodeData);
-          } else {
-            log('GraphView', `[handleTap] Warning: Node data not found for ID: ${nodeId}`);
-          }
-        }
-        
-        // Prevent default behavior for the second tap
-        e.preventDefault(); 
-        e.stopPropagation();
-        return false; 
-      } else {
-         // --- Potential Single Click ---
-         // Store this tap temporarily
-         potentialClickRef.current = { nodeId, time: now };
-
-         // Set a short timeout. If no other tap event clears this timeout within ~50ms, 
-         // then confirm this as the first click of a potential double-click sequence.
-         shortTermTapTimeoutRef.current = setTimeout(() => {
-             const confirmedNodeId = potentialClickRef.current.nodeId;
-             lastConfirmedClickRef.current = { ...potentialClickRef.current };
-             shortTermTapTimeoutRef.current = null;
-              
-              // If single click confirmed, call onNodeSelect if provided
-              if (onNodeSelect && confirmedNodeId) {
-                  const nodeData = nodes.find(n => n.id === confirmedNodeId);
-                  if (nodeData) {
-                      onNodeSelect(nodeData);
-                  } else {
-                      log('GraphView', `[handleTap] Warning: Node data not found for ID: ${confirmedNodeId} after confirming single click.`);
-                  }
-              }
-          }, SHORT_TERM_DEBOUNCE);
-       }
-     };
-
-     // Register tap handler
-    log('GraphView', 'Registering tap event handler for manual double-click detection');
-    cy.on('tap', 'node', handleTap);
-    cy.on('tap', handleTap); // Also listen on background to reset
-
-    // Listen for doubleTap event for direct double-click support
-    const handleDoubleTap = (e: CytoscapeTapEvent) => {
-      const nodeId = e.target.id();
-      if (onEditNode && nodeId) {
-        const nodeData = nodes.find(n => n.id === nodeId);
-        if (nodeData) {
-          onEditNode(nodeData);
-        }
-      }
-    };
-    cy.on('doubleTap', 'node', handleDoubleTap);
-
-    // Clean up handlers and timeout on unmount
-    return () => {
-      log('GraphView', 'Cleaning up tap event handler and timeout');
-      cy.off('tap', 'node', handleTap);
-      cy.off('tap', handleTap);
-      cy.off('doubleTap', 'node', handleDoubleTap);
-      if (shortTermTapTimeoutRef.current) {
-       clearTimeout(shortTermTapTimeoutRef.current);
-       }
-     };
-   }, [onEditNode, onNodeSelect, nodes]); // Dependencies: onEditNode, onNodeSelect, and nodes (used in handler)
-
-  // Context menu (right-click) handling
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    
-    const handler = (e: CytoscapeContextEvent) => {
-      const orig = e.originalEvent as MouseEvent;
-      if (orig.button !== 2) return;
-      
-      const pos = { x: orig.clientX, y: orig.clientY };
-      const tgt = e.target;
-      
-      if (tgt === cy) {
-        // Background context menu
-        openMenu('background', pos, { 
-          onAddNode, 
-          loadInitialGraph: onLoadCompleteGraph 
-        });
-      } else if (tgt.isEdge && tgt.isEdge()) {
-        const sel = selectedEdgesOrderRef.current;
-        const type = sel.length > 1 ? 'multi-edge' : 'edge';
-        openMenu(type, pos, {
-          edgeIds: sel,
-          onDeleteEdge,
-          onDeleteEdges,
-        });
-        } else if (tgt.isNode && tgt.isNode()) {
-        // Node context menu
-        const sel = selectedOrderRef.current;
-        const type = sel.length > 1 ? 'multi-node' : 'node';
-        const data = tgt.data() as NodeData;
-        // Determine if adding a child is valid via allowedTypesMap context
-        const assignments = data.assignments?.filter(a => normalizeHierarchyId(hierarchyId, a.hierarchyId)) || [];
-        assignments.sort((a, b) => b.levelNumber - a.levelNumber);
-        const parentLevelNum = assignments[0]?.levelNumber ?? 0;
-        const nextLevelNum = parentLevelNum + 1;
-        // Allow child addition for any defined level (empty allowedTypes ⇒ no restriction)
-        const canAddChild = levels.some(l => l.levelNumber === nextLevelNum);
-        let canConnect = false;
-        let connectFrom: string | undefined;
-        let connectTo: string | undefined;
-        if (sel.length === 2 && onConnect) {
-          const [from, to] = sel;
-          const exists = edges.some(edge => edge.source === from && edge.target === to);
-          canConnect = !exists;
-          connectFrom = from;
-          connectTo = to;
-        }
-
-        openMenu(type, pos, {
-          node: data,
-          nodeIds: sel,
-          ...(canAddChild ? { onAddNode } : {}),
-          onNodeExpand,
-          onExpandChildren,
-          onExpandAll,
-          onCollapseNode,
-          isNodeExpanded,
-          onEditNode,
-          onDeleteNode,
-          onDeleteNodes,
-          onHideNode,
-          onHideNodes,
-          onConnect,
-          canConnect,
-          connectFrom,
-          connectTo,
-        });
-      }
-      
-      orig.preventDefault();
-    };
-    
-    cy.on('cxttap', handler);
-    
-    return () => {
-      cy.off('cxttap', handler);
-    };
-  }, [openMenu, onAddNode, onNodeExpand, onExpandChildren, onExpandAll, onCollapseNode, isNodeExpanded, onEditNode, onLoadCompleteGraph, onDeleteNode, onDeleteNodes, onHideNode, onHideNodes, onConnect, onDeleteEdge, onDeleteEdges, edges, hierarchyId, levels]);
 
   // Pure layout integration - apply layout when elements change
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy || elements.length === 0 || !isMountedRef.current) return;
+    if (!cy || elements.length === 0) return;
     
-    // Apply current layout algorithm with mount check
+    // Apply current layout algorithm
     const applyLayoutSafely = async () => {
-      if (isMountedRef.current) {
-        await applyLayoutToGraph(cy);
-      }
+      await applyLayoutToGraph(cy);
     };
     
     applyLayoutSafely();
   }, [elements, applyLayoutToGraph]);
 
-  // Live force-directed layout during node dragging and HTML5 drag-and-drop
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy || !isMountedRef.current) return;
-
-    const handleNodeGrab = (e: any) => {
-      const nodeId = e.target.id();
-      const nodeData = nodes.find(n => n.id === nodeId);
-      
-      if (nodeData) {
-        // Set drag state for HTML5 drag-and-drop
-        setIsDragging(true);
-        setDraggedNodeData(nodeData);
-        
-        // Add visual drag indicator to parent container
-        const graphContainer = document.querySelector('.app-graph-area');
-        if (graphContainer) {
-          graphContainer.classList.add('dragging');
-        }
-        
-        // Create HTML5 drag data for hierarchy assignment
-        // This enables dragging from Cytoscape nodes to external drop zones
-        const dragData = {
-          nodeId,
-          nodeData,
-          sourceType: 'graph-node'
-        };
-        
-        // Create a temporary drag element to enable HTML5 drag-and-drop
-        const dragElement = document.createElement('div');
-        dragElement.style.position = 'absolute';
-        dragElement.style.top = '-1000px';
-        dragElement.style.left = '-1000px';
-        dragElement.style.width = '1px';
-        dragElement.style.height = '1px';
-        dragElement.style.opacity = '0';
-        dragElement.draggable = true;
-        
-        // Set drag data
-        dragElement.addEventListener('dragstart', (dragEvent) => {
-          if (dragEvent.dataTransfer) {
-            dragEvent.dataTransfer.setData('text/plain', JSON.stringify(dragData));
-            dragEvent.dataTransfer.effectAllowed = 'copy';
-          }
-          log('GraphView', `[HTML5 Drag] Started dragging node: ${nodeId}`, dragData);
-        });
-        
-        // Add to DOM temporarily
-        document.body.appendChild(dragElement);
-        
-        // Trigger HTML5 drag
-        setTimeout(() => {
-          const dragEvent = new DragEvent('dragstart', {
-            bubbles: true,
-            cancelable: true,
-            dataTransfer: new DataTransfer()
-          });
-          
-          if (dragEvent.dataTransfer) {
-            dragEvent.dataTransfer.setData('text/plain', JSON.stringify(dragData));
-            dragEvent.dataTransfer.effectAllowed = 'copy';
-          }
-          
-          dragElement.dispatchEvent(dragEvent);
-          
-          // Clean up after a short delay
-          setTimeout(() => {
-            if (document.body.contains(dragElement)) {
-              document.body.removeChild(dragElement);
-            }
-          }, 100);
-        }, 10);
-        
-        log('GraphView', `[Drag] Started dragging node: ${nodeId}`);
-      }
-
-      if ((activeLayout === 'fcose' || activeLayout === 'force') && isMountedRef.current) {
-        log('GraphView', `Starting live ${activeLayout} layout on node grab`);
-        // Live update will be handled by the layout context
-      }
-    };
-
-    const handleNodeFree = (e: any) => {
-      const nodeId = e.target.id();
-      
-      // Clear drag state
-      setIsDragging(false);
-      setDraggedNodeData(null);
-      
-      // Remove drag indicator
-      const graphContainer = document.querySelector('.app-graph-area');
-      if (graphContainer) {
-        graphContainer.classList.remove('dragging');
-      }
-      
-      log('GraphView', `[Drag] Finished dragging node: ${nodeId}`);
-
-      if ((activeLayout === 'fcose' || activeLayout === 'force') && isMountedRef.current) {
-        log('GraphView', `Stopping live ${activeLayout} layout on node free`);
-        // Re-apply layout after dragging
-        applyLayoutToGraph(cy);
-      }
-    };
-
-    cy.on('grab', 'node', handleNodeGrab);
-    cy.on('free', 'node', handleNodeFree);
-
-    return () => {
-      cy.off('grab', 'node', handleNodeGrab);
-      cy.off('free', 'node', handleNodeFree);
-    };
-  }, [activeLayout, applyLayoutToGraph, nodes]);
-
-    // Track selection order for multi-node operations
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    const onSelect: CytoscapeSelectHandler = (e: CytoscapeSelectEvent) => {
-      const id = e.target.id();
-      selectedOrderRef.current.push(id);
-    };
-    const onUnselect: CytoscapeUnselectHandler = (e: CytoscapeSelectEvent) => {
-      const id = e.target.id();
-      selectedOrderRef.current = selectedOrderRef.current.filter(x => x !== id);
-    };
-    cy.on('select', 'node', onSelect);
-    cy.on('unselect', 'node', onUnselect);
-    return () => {
-      cy.off('select', 'node', onSelect);
-      cy.off('unselect', 'node', onUnselect);
-    };
-  }, []);
-
-  // Keep selection arrays in sync when nodes or edges are removed
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    const handleNodeRemove: CytoscapeRemoveHandler = (e: CytoscapeRemoveEvent) => {
-      const removedId = e.target.id();
-      selectedOrderRef.current = selectedOrderRef.current.filter(id => id !== removedId);
-    };
-    const handleEdgeRemove: CytoscapeRemoveHandler = (e: CytoscapeRemoveEvent) => {
-      const removedId = e.target.id();
-      selectedEdgesOrderRef.current = selectedEdgesOrderRef.current.filter(id => id !== removedId);
-    };
-    cy.on('remove', 'node', handleNodeRemove);
-    cy.on('remove', 'edge', handleEdgeRemove);
-    return () => {
-      cy.off('remove', 'node', handleNodeRemove);
-      cy.off('remove', 'edge', handleEdgeRemove);
-    };
-  }, []);
-
-  // Track selection order for multi-edge operations
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    const onEdgeSelect: CytoscapeSelectHandler = (e: CytoscapeSelectEvent) => {
-      const id = e.target.id();
-      selectedEdgesOrderRef.current.push(id);
-    };
-    const onEdgeUnselect: CytoscapeUnselectHandler = (e: CytoscapeSelectEvent) => {
-      const id = e.target.id();
-      selectedEdgesOrderRef.current = selectedEdgesOrderRef.current.filter(x => x !== id);
-    };
-    cy.on('select', 'edge', onEdgeSelect);
-    cy.on('unselect', 'edge', onEdgeUnselect);
-    return () => {
-      cy.off('select', 'edge', onEdgeSelect);
-      cy.off('unselect', 'edge', onEdgeUnselect);
-    };
-  }, []);
-
   return (
-    <div data-testid="graph-container" style={{ width: '100%', height: '100%', ...style }}>
+    <div 
+      data-testid="graph-container" 
+      style={{ width: '100%', height: '100%', ...style }}
+      className={isDragging ? 'dragging' : ''}
+    >
       <CytoscapeComponent
         elements={elements}
         stylesheet={stylesheet}

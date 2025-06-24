@@ -100,6 +100,9 @@ const DropZone: React.FC<DropZoneProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      data-drop-zone="true"
+      data-level-id={levelId}
+      data-node-type={nodeType}
       title={`Drop nodes here to assign to Level ${levelNumber} as ${nodeType}`}
     >
       {nodeType}
