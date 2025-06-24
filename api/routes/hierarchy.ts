@@ -34,7 +34,18 @@ router.get('/hierarchy', async (req: Request, res: Response): Promise<void> => {
   try {
     const tenantClient = await getTenantClient(req);
     const data = await tenantClient.executeGraphQL(query);
-    res.json(data.queryHierarchy);
+    
+    // Ensure h0 is always included in the response
+    const hierarchies = data.queryHierarchy || [];
+    const hasH0 = hierarchies.some((h: any) => h.id === 'h0');
+    
+    if (!hasH0) {
+      // Add h0 if it's missing (should not happen if system initialization worked)
+      console.warn('[HIERARCHY] h0 hierarchy missing from query results, adding manually');
+      hierarchies.unshift({ id: 'h0', name: 'None' });
+    }
+    
+    res.json(hierarchies);
   } catch (error) {
     const err = error as Error;
     console.error('[HIERARCHY] Failed to fetch hierarchies:', error);
@@ -153,6 +164,12 @@ router.delete('/hierarchy/:id', async (req: Request, res: Response): Promise<voi
     res.status(400).json({ error: 'Invalid hierarchy ID: must be a non-empty string.' });
     return;
   }
+
+  // Prevent deletion of h0 hierarchy
+  if (id === 'h0') {
+    res.status(400).json({ error: 'Cannot delete h0 hierarchy. h0 is a system hierarchy for categorization.' });
+    return;
+  }
   const mutation = `
     mutation ($id: ID!) {
       deleteHierarchy(filter: { id: { eq: $id } }) {
@@ -179,6 +196,12 @@ router.post('/hierarchy/level', async (req: Request, res: Response): Promise<voi
   const { hierarchyId, levelNumber, label }: { hierarchyId: string; levelNumber: number; label: string } = req.body;
   if (!hierarchyId || !levelNumber || !label) {
     res.status(400).json({ error: 'Missing required fields: hierarchyId, levelNumber, and label' });
+    return;
+  }
+
+  // Prevent level operations on h0 hierarchy
+  if (hierarchyId === 'h0') {
+    res.status(400).json({ error: 'Cannot add levels to h0 hierarchy. h0 is restricted to a single level for categorization.' });
     return;
   }
 
@@ -289,6 +312,204 @@ router.delete('/hierarchy/level/:id', async (req: Request, res: Response): Promi
     const err = error as Error;
     console.error('[HIERARCHY] Failed to delete hierarchy level:', error);
     res.status(500).json({ error: 'Failed to delete hierarchy level', details: err.message });
+  }
+});
+
+// --- Hierarchy Level Type Management for h0 ---
+
+// Add a new hierarchy level type to a hierarchy level (specifically for h0 categorization)
+router.post('/hierarchy/:hierarchyId/level/:levelId/hierarchyLevelTypes', async (req: Request, res: Response): Promise<void> => {
+  const { hierarchyId, levelId } = req.params;
+  const { typeName }: { typeName: string } = req.body;
+  
+  if (!typeName) {
+    res.status(400).json({ error: 'Missing required field: typeName' });
+    return;
+  }
+  
+  // Validate hierarchy and level exist
+  const validateQuery = `
+    query ValidateHierarchyLevel($hierarchyId: String!, $levelId: String!) {
+      getHierarchy(id: $hierarchyId) {
+        id
+        name
+        levels(filter: { id: { eq: $levelId } }) {
+          id
+          levelNumber
+          allowedTypes {
+            id
+            typeName
+          }
+        }
+      }
+    }
+  `;
+  
+  try {
+    const tenantClient = await getTenantClient(req);
+    
+    // Validate hierarchy and level
+    const validateResult = await tenantClient.executeGraphQL(validateQuery, { hierarchyId, levelId });
+    const hierarchy = validateResult.getHierarchy;
+    
+    if (!hierarchy) {
+      res.status(404).json({ error: `Hierarchy '${hierarchyId}' not found` });
+      return;
+    }
+    
+    const level = hierarchy.levels?.[0];
+    if (!level) {
+      res.status(404).json({ error: `Level '${levelId}' not found in hierarchy '${hierarchyId}'` });
+      return;
+    }
+    
+    // Check if type name already exists
+    const existingType = level.allowedTypes?.find((type: any) => type.typeName === typeName);
+    if (existingType) {
+      res.status(409).json({ error: `Node type '${typeName}' already exists in this level` });
+      return;
+    }
+    
+    // Create new hierarchy level type
+    const createMutation = `
+      mutation CreateHierarchyLevelType($input: [AddHierarchyLevelTypeInput!]!) {
+        addHierarchyLevelType(input: $input) {
+          hierarchyLevelType {
+            id
+            typeName
+          }
+        }
+      }
+    `;
+    
+    const result = await tenantClient.executeGraphQL(createMutation, {
+      input: [{
+        level: { id: levelId },
+        typeName: typeName
+      }]
+    });
+    
+    const newHierarchyLevelType = result.addHierarchyLevelType.hierarchyLevelType[0];
+    res.status(201).json(newHierarchyLevelType);
+    
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to create allowed type:', error);
+    res.status(500).json({ error: 'Failed to create allowed type', details: err.message });
+  }
+});
+
+// Delete a hierarchy level type from a hierarchy level
+router.delete('/hierarchy/:hierarchyId/level/:levelId/hierarchyLevelTypes/:typeId', async (req: Request, res: Response): Promise<void> => {
+  const { hierarchyId, levelId, typeId } = req.params;
+  
+  // Validate that the hierarchy level type belongs to the specified level
+  const validateQuery = `
+    query ValidateHierarchyLevelType($typeId: String!, $levelId: String!) {
+      getHierarchyLevelType(id: $typeId) {
+        id
+        typeName
+        level {
+          id
+        }
+      }
+    }
+  `;
+  
+  try {
+    const tenantClient = await getTenantClient(req);
+    
+    // Validate hierarchy level type exists and belongs to the level
+    const validateResult = await tenantClient.executeGraphQL(validateQuery, { typeId, levelId });
+    const hierarchyLevelType = validateResult.getHierarchyLevelType;
+    
+    if (!hierarchyLevelType) {
+      res.status(404).json({ error: `Hierarchy level type '${typeId}' not found` });
+      return;
+    }
+    
+    if (hierarchyLevelType.level.id !== levelId) {
+      res.status(400).json({ error: `Hierarchy level type '${typeId}' does not belong to level '${levelId}'` });
+      return;
+    }
+    
+    // Prevent deletion of the default 'None' type in h0
+    if (hierarchyId === 'h0' && hierarchyLevelType.typeName === 'None') {
+      res.status(400).json({ error: 'Cannot delete the default None type from h0 hierarchy' });
+      return;
+    }
+    
+    // Delete the hierarchy level type
+    const deleteMutation = `
+      mutation DeleteHierarchyLevelType($typeId: ID!) {
+        deleteHierarchyLevelType(filter: { id: { eq: $typeId } }) {
+          msg
+          numUids
+        }
+      }
+    `;
+    
+    const result = await tenantClient.executeGraphQL(deleteMutation, { typeId });
+    res.json(result.deleteHierarchyLevelType);
+    
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to delete hierarchy level type:', error);
+    res.status(500).json({ error: 'Failed to delete hierarchy level type', details: err.message });
+  }
+});
+
+// Get all hierarchy level types for a hierarchy level
+router.get('/hierarchy/:hierarchyId/level/:levelId/hierarchyLevelTypes', async (req: Request, res: Response): Promise<void> => {
+  const { hierarchyId, levelId } = req.params;
+  
+  const query = `
+    query GetHierarchyLevelTypes($hierarchyId: String!, $levelId: String!) {
+      getHierarchy(id: $hierarchyId) {
+        id
+        name
+        levels(filter: { id: { eq: $levelId } }) {
+          id
+          levelNumber
+          label
+          allowedTypes {
+            id
+            typeName
+          }
+        }
+      }
+    }
+  `;
+  
+  try {
+    const tenantClient = await getTenantClient(req);
+    const result = await tenantClient.executeGraphQL(query, { hierarchyId, levelId });
+    
+    const hierarchy = result.getHierarchy;
+    if (!hierarchy) {
+      res.status(404).json({ error: `Hierarchy '${hierarchyId}' not found` });
+      return;
+    }
+    
+    const level = hierarchy.levels?.[0];
+    if (!level) {
+      res.status(404).json({ error: `Level '${levelId}' not found in hierarchy '${hierarchyId}'` });
+      return;
+    }
+    
+    res.json({
+      hierarchyId: hierarchy.id,
+      hierarchyName: hierarchy.name,
+      levelId: level.id,
+      levelNumber: level.levelNumber,
+      levelLabel: level.label,
+      allowedTypes: level.allowedTypes || []
+    });
+    
+  } catch (error) {
+    const err = error as Error;
+    console.error('[HIERARCHY] Failed to get allowed types:', error);
+    res.status(500).json({ error: 'Failed to get allowed types', details: err.message });
   }
 });
 

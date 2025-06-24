@@ -587,6 +587,10 @@ export class ImportExportService {
           queryNode(filter: { id: { eq: $id } }) {
             id
             label
+            hierarchyAssignments {
+              hierarchy { id }
+              level { id }
+            }
           }
         }
       `;
@@ -622,9 +626,20 @@ export class ImportExportService {
             set: setData
           }
         });
+
+        // Check if node has h0 assignment, add if missing
+        const existingAssignments = existingNode.queryNode[0].hierarchyAssignments || [];
+        const hasH0Assignment = existingAssignments.some((assignment: any) => 
+          assignment.hierarchy?.id === 'h0'
+        );
+
+        if (!hasH0Assignment) {
+          console.log(`[IMPORT_EXPORT] Adding missing h0 assignment for existing node: ${node.id}`);
+          await this.ensureH0Assignment(node.id, tenantClient);
+        }
       } else {
-        // Create new node
-        console.log(`[IMPORT_EXPORT] Creating new node: ${node.id}`);
+        // Create new node with automatic h0 assignment
+        console.log(`[IMPORT_EXPORT] Creating new node with h0 assignment: ${node.id}`);
         const createNodeMutation = `
           mutation CreateNode($input: [AddNodeInput!]!) {
             addNode(input: $input) {
@@ -636,10 +651,55 @@ export class ImportExportService {
           }
         `;
 
+        // Ensure node has h0 assignment in hierarchyAssignments
+        const nodeWithH0 = { ...node };
+        if (!nodeWithH0.hierarchyAssignments) {
+          nodeWithH0.hierarchyAssignments = [];
+        }
+
+        // Check if h0 assignment already exists
+        const hasH0Assignment = nodeWithH0.hierarchyAssignments.some((assignment: any) => 
+          assignment.hierarchy?.id === 'h0'
+        );
+
+        if (!hasH0Assignment) {
+          nodeWithH0.hierarchyAssignments.push({
+            hierarchy: { id: 'h0' },
+            level: { id: '1' }
+          });
+        }
+
         await tenantClient.executeGraphQL(createNodeMutation, {
-          input: [node]
+          input: [nodeWithH0]
         });
       }
+    }
+  }
+
+  private async ensureH0Assignment(nodeId: string, tenantClient: any): Promise<void> {
+    try {
+      const addAssignmentMutation = `
+        mutation AddH0Assignment($input: [AddHierarchyAssignmentInput!]!) {
+          addHierarchyAssignment(input: $input) {
+            hierarchyAssignment {
+              id
+            }
+          }
+        }
+      `;
+
+      await tenantClient.executeGraphQL(addAssignmentMutation, {
+        input: [{
+          node: { id: nodeId },
+          hierarchy: { id: 'h0' },
+          level: { id: '1' }
+        }]
+      });
+
+      console.log(`[IMPORT_EXPORT] Successfully added h0 assignment for node: ${nodeId}`);
+    } catch (error) {
+      console.error(`[IMPORT_EXPORT] Failed to add h0 assignment for node ${nodeId}:`, error);
+      // Don't fail the import if h0 assignment fails
     }
   }
 

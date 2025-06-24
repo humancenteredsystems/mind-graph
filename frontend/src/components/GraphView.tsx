@@ -13,7 +13,7 @@ import { useLayout } from '../context/LayoutContext';
 import { useGraphEvents } from '../hooks/useGraphEvents';
 import { log } from '../utils/logger';
 import { theme, config } from '../config';
-import { normalizeHierarchyId } from '../utils/graphUtils';
+import { normalizeHierarchyId, resolveNodeVisualState, getNodeDisplayLabel } from '../utils/graphUtils';
 
 // Register Cytoscape plugins ONCE at module load
 cytoscape.use(coseBilkent);
@@ -231,15 +231,59 @@ const GraphView: React.FC<GraphViewProps> = ({
     onLoadCompleteGraph
   );
 
-  // Generate level styles dynamically using theme colors
+  // Generate enhanced level and type styles dynamically using theme colors
   const generateLevelStyles = () => {
-    return Object.entries(theme.colors.levels).map(([level, color]) => ({
-      selector: `node[levelNumber=${level}]`,
+    // Only apply hierarchy-specific styling when a hierarchy is selected
+    if (!hierarchyId || active === 'none') {
+      // For 'None' view, return minimal uniform styling
+      return [{
+        selector: 'node',
+        style: {
+          'background-color': theme.colors.node.default,
+          'border-style': 'solid',
+          'border-width': `${config.defaultBorderWidth}px`,
+          'border-color': theme.colors.node.border.default,
+          'shape': 'round-rectangle',
+        }
+      }];
+    }
+
+    const levelStyles = Object.entries(theme.colors.levels).map(([level, color]) => ({
+      selector: `node[levelNumber=${level}][isAssigned="true"]`,
       style: {
         'background-color': color,
         ...(level === '1' && { shape: 'ellipse' }),
       },
     }));
+
+    // Add unassigned node styles
+    const unassignedStyle = {
+      selector: `node[isAssigned="false"]`,
+      style: {
+        'background-color': theme.colors.node.unassigned,
+        'border-style': 'dashed',
+        'border-width': '2px',
+        'border-color': theme.colors.border.default,
+        'opacity': 0.7,
+      }
+    };
+
+    // Add node type shape styles
+    const typeShapeStyles = Object.entries(theme.components.node.typeStyles.shapes).map(([type, shape]) => ({
+      selector: `node[type="${type}"]`,
+      style: { shape }
+    }));
+
+    // Add node type border styles  
+    const typeBorderStyles = Object.entries(theme.components.node.typeStyles.borders).map(([type, border]) => ({
+      selector: `node[type="${type}"]`,
+      style: {
+        'border-style': border.style,
+        'border-width': `${border.width}px`
+      }
+    }));
+
+    return [...levelStyles, unassignedStyle, ...typeShapeStyles, ...typeBorderStyles];
   };
 
   // Build elements: filter hidden nodes and edges
@@ -248,33 +292,22 @@ const GraphView: React.FC<GraphViewProps> = ({
     const visible = nodes.filter(n => !hiddenNodeIds.has(n.id));
     const levelCounters: Record<number, number> = {};
     
-    const nodeEls = visible.map(({ id, label, type, assignments, status, branch }) => {
-      // Find all matching assignments for this hierarchy using centralized utility
-      let matchingAssignments: Array<{
-        hierarchyId: string;
-        levelNumber: number;
-        levelLabel?: string;
-      }> = [];
+    const nodeEls = visible.map((nodeData) => {
+      const { id, label, type, assignments, status, branch } = nodeData;
       
-      if (Array.isArray(assignments)) {
-        matchingAssignments = assignments.filter(a => normalizeHierarchyId(hierarchyId, a.hierarchyId));
-      }
+      // Use new visual state resolver
+      const visualState = resolveNodeVisualState(nodeData, hierarchyId);
       
-      // Sort by level number (descending) and take the highest level
-      matchingAssignments.sort((a, b) => b.levelNumber - a.levelNumber);
-      const assignmentForCurrent = matchingAssignments.length > 0 ? matchingAssignments[0] : undefined;
-      
-      const levelNum = assignmentForCurrent?.levelNumber ?? 1;
-      const idx = levelCounters[levelNum] ?? 0;
-      levelCounters[levelNum] = idx + 1;
-      const displayLabel = label ?? id;
+      const idx = levelCounters[visualState.levelNumber] ?? 0;
+      levelCounters[visualState.levelNumber] = idx + 1;
+      const displayLabel = getNodeDisplayLabel(nodeData);
       
       // Check if node is expanded for visual indicator
       const expanded = isNodeExpanded?.(id) ?? false;
       
       // Use proper spacing like original - layout engine will handle centering
       const simplePosition = {
-        x: levelNum * (config.nodeHorizontalSpacing || 200),
+        x: visualState.levelNumber * (config.nodeHorizontalSpacing || 200),
         y: idx * (config.nodeVerticalSpacing || 100)
       };
       
@@ -287,8 +320,11 @@ const GraphView: React.FC<GraphViewProps> = ({
           assignments,
           status,
           branch,
-          levelNumber: levelNum,
-          levelLabel: assignmentForCurrent?.levelLabel,
+          levelNumber: visualState.levelNumber,
+          levelLabel: visualState.assignmentStatus === 'assigned' ? 
+            (assignments?.find(a => normalizeHierarchyId(hierarchyId, a.hierarchyId))?.levelLabel) : 
+            'Unassigned',
+          isAssigned: visualState.isAssigned.toString(), // Cytoscape needs strings
           expanded,
         },
         position: simplePosition,

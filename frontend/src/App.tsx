@@ -61,14 +61,14 @@ function AppInner() {
   const { hierarchyPanelOpen, active } = useView();
 
   useEffect(() => {
-    if (active && active !== 'none') {
+    if (active) {
       log('App', `View set to ${active}: loading full graph`);
       loadCompleteGraph();
     } else {
       // If no view is set after a reasonable time, still try to load the graph
       // This handles cases where hierarchy loading fails but we still want to show empty state
       const fallbackTimer = setTimeout(() => {
-        if (!active || active === 'none') {
+        if (!active) {
           log('App', 'No hierarchy view active, attempting to load graph anyway for empty state');
           loadCompleteGraph();
         }

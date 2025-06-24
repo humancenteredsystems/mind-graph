@@ -412,6 +412,51 @@ export const buildSchemaCodeBlockStyle = () => css({
 });
 
 /**
+ * Node Style Preview Utilities
+ */
+
+/**
+ * Generates CSS clip-path for complex node shapes
+ */
+export const getClipPathForShape = (shape: string): string => {
+  switch (shape) {
+    case 'diamond': return 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)';
+    case 'hexagon': return 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
+    case 'triangle': return 'polygon(50% 0%, 0% 100%, 100% 100%)';
+    case 'star': return 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+    case 'octagon': return 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)';
+    default: return 'none';
+  }
+};
+
+/**
+ * Builds complete node preview style object
+ */
+export const buildNodePreviewStyle = (
+  style: any, // NodeTypeStyle - avoiding import to prevent circular dependency
+  size: { width: number; height: number },
+  fontSize?: number
+) => css({
+  width: `${size.width}px`,
+  height: `${size.height}px`,
+  backgroundColor: style.backgroundColor,
+  color: style.textColor,
+  border: `${style.borderWidth}px ${style.borderStyle} ${style.borderColor}`,
+  borderRadius: style.shape === 'ellipse' ? '50%' : 
+               style.shape === 'round-rectangle' ? '8px' : '0px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: style.textAlign,
+  fontSize: `${fontSize || 12}px`,
+  fontWeight: 500,
+  padding: '4px 8px',
+  clipPath: getClipPathForShape(style.shape),
+  textOverflow: 'ellipsis',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap' as const,
+});
+
+/**
  * Shared utilities for standard modal patterns
  */
 

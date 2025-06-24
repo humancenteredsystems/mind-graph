@@ -29,6 +29,11 @@ export { default as ModalContainer, ModalHeader, ModalContent } from './ModalCon
 export { default as TabNavigation } from './TabNavigation';
 export { default as StatusBadge, StatusIcon } from './StatusBadge';
 
+// Node styling components
+export { default as NodeStylePreview } from './NodeStylePreview';
+export { default as NodeTypeStyleModal } from './NodeTypeStyleModal';
+export { default as AddNodeTypeModal } from './AddNodeTypeModal';
+
 // Re-export component prop types for external usage
 export type { default as GraphViewProps } from './GraphView';
 export type { Tab } from './TabNavigation';

@@ -1,6 +1,6 @@
 // GraphQL response types for hierarchy operations
 
-export interface AllowedType {
+export interface HierarchyLevelType {
   id: string;
   typeName: string;
 }
@@ -9,7 +9,7 @@ export interface HierarchyLevel {
   id: string;
   levelNumber: number;
   label?: string;
-  allowedTypes: AllowedType[];
+  allowedTypes: HierarchyLevelType[];
 }
 
 export interface HierarchyQueryResponse {

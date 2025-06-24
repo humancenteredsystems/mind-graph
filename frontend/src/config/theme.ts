@@ -30,6 +30,40 @@ export const getLevelColor = (level?: number): string => {
 };
 
 /**
+ * Node type shape mapping following existing theme pattern
+ */
+export const getNodeTypeShape = (nodeType?: string): string => {
+  const shapeMap: Record<string, string> = {
+    'Person': 'ellipse',
+    'Concept': 'round-rectangle', 
+    'Project': 'diamond',
+    'Skill': 'hexagon',
+    'Tool': 'triangle',
+    'Resource': 'octagon',
+    'Event': 'star',
+    'default': 'round-rectangle'
+  };
+  return shapeMap[nodeType || 'default'] || shapeMap.default;
+};
+
+/**
+ * Node type border style mapping following existing theme pattern
+ */
+export const getNodeTypeBorderStyle = (nodeType?: string): { style: string; width: number } => {
+  const borderMap: Record<string, { style: string; width: number }> = {
+    'Person': { style: 'solid', width: 2 },
+    'Concept': { style: 'solid', width: 1 },
+    'Project': { style: 'dashed', width: 2 },
+    'Skill': { style: 'solid', width: 1 },
+    'Tool': { style: 'dotted', width: 2 },
+    'Resource': { style: 'double', width: 3 },
+    'Event': { style: 'dashed', width: 1 },
+    'default': { style: 'solid', width: 1 }
+  };
+  return borderMap[nodeType || 'default'] || borderMap.default;
+};
+
+/**
  * Main theme configuration
  */
 export const theme = {
@@ -131,6 +165,7 @@ export const theme = {
     node: {
       default: colors.legacy.nodeDefault,
       selected: colors.legacy.selectedBackground,
+      unassigned: '#e5e7eb', // Gray color for unassigned nodes
       border: {
         default: colors.legacy.borderDefault,
         expanded: colors.warning[700],
@@ -172,6 +207,28 @@ export const theme = {
           },
         },
       },
+      typeStyles: {
+        shapes: {
+          person: 'ellipse',
+          concept: 'round-rectangle',
+          project: 'diamond',
+          skill: 'hexagon',
+          tool: 'triangle',
+          resource: 'octagon',
+          event: 'star',
+          default: 'round-rectangle'
+        },
+        borders: {
+          person: { style: 'solid', width: 2 },
+          concept: { style: 'solid', width: 1 },
+          project: { style: 'dashed', width: 2 },
+          skill: { style: 'solid', width: 1 },
+          tool: { style: 'dotted', width: 2 },
+          resource: { style: 'double', width: 3 },
+          event: { style: 'dashed', width: 1 },
+          default: { style: 'solid', width: 1 }
+        }
+      }
     },
     
     form: {

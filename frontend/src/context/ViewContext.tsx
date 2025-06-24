@@ -18,7 +18,7 @@ interface ExtendedViewState extends ViewState {
 }
 
 export const ViewContext = createContext<ExtendedViewState>({
-  active: 'none',
+  active: 'hierarchy-h0',
   setActive: () => {},
   hideUnassociated: false,
   setHideUnassociated: () => {},
@@ -29,10 +29,10 @@ export const ViewContext = createContext<ExtendedViewState>({
 export const ViewProvider: React.FC<ViewProviderProps> = ({ children }) => {
   const [active, setActive] = useState<string>(() => {
     try {
-      return localStorage.getItem('mims-active-view') ?? 'none';
+      return localStorage.getItem('mims-active-view') ?? 'hierarchy-h0';
     } catch (error) {
       console.error('[ViewContext] Error reading from localStorage:', error);
-      return 'none';
+      return 'hierarchy-h0';
     }
   });
 

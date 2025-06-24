@@ -42,16 +42,27 @@ export const createGraphOperations = (
       parentId?: string;
     }
     
+    // Always include h0 assignment for universal categorization
+    const hierarchyAssignments = [
+      { 
+        hierarchy: { id: "h0" }, 
+        level: { id: "1" } 
+      }
+    ];
+    
+    // Add user-selected hierarchy assignment if it's not h0 (avoid duplicate)
+    if (values.hierarchyId !== "h0") {
+      hierarchyAssignments.push({
+        hierarchy: { id: values.hierarchyId }, 
+        level: { id: values.levelId }
+      });
+    }
+    
     const inputObj: NodeInput = {
       id: newId,
       label: values.label,
       type: values.type,
-      hierarchyAssignments: [
-        { 
-          hierarchy: { id: values.hierarchyId }, 
-          level: { id: values.levelId } 
-        }
-      ]
+      hierarchyAssignments
     };
     if (parentId) {
       inputObj.parentId = parentId;

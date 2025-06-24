@@ -543,8 +543,19 @@ def get_seed_data_payload(hierarchy_id_str: str, level_ids_map: Dict[int, str]) 
     ]
 
     hierarchy_assignments = []
+    
+    # Always assign all nodes to h0 hierarchy (universal categorization)
+    print("Adding h0 assignments for all nodes (universal categorization)...")
+    h0_assignments = [
+        {"node": {"id": node["id"]}, "hierarchy": {"id": "h0"}, "level": {"id": "1"}}
+        for node in nodes
+    ]
+    hierarchy_assignments.extend(h0_assignments)
+    print(f"✅ Added {len(h0_assignments)} h0 assignments for universal categorization")
+    
+    # Add regular hierarchy assignments if levels exist
     if level_ids_map.get(1) and level_ids_map.get(2) and level_ids_map.get(3):
-        hierarchy_assignments = [
+        regular_assignments = [
             # Level 1 assignments
             {"node": {"id": "dom1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[1]}},
             {"node": {"id": "dom2"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[1]}},
@@ -562,8 +573,10 @@ def get_seed_data_payload(hierarchy_id_str: str, level_ids_map: Dict[int, str]) 
             {"node": {"id": "ex3"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}},
             {"node": {"id": "app1"}, "hierarchy": {"id": hierarchy_id_str}, "level": {"id": level_ids_map[3]}},
         ]
+        hierarchy_assignments.extend(regular_assignments)
+        print(f"✅ Added {len(regular_assignments)} regular hierarchy assignments")
     else:
-        print("⚠️ Warning: Not all level IDs were found. Hierarchy assignments will be incomplete or skipped.")
+        print("⚠️ Warning: Not all level IDs were found. Regular hierarchy assignments will be incomplete or skipped.")
         if not level_ids_map.get(1): print("  - Missing ID for level 1 (Domains)")
         if not level_ids_map.get(2): print("  - Missing ID for level 2 (Key Concepts)")
         if not level_ids_map.get(3): print("  - Missing ID for level 3 (Detailed Examples)")

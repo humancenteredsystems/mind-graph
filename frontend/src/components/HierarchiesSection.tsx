@@ -18,19 +18,12 @@ export const HierarchiesSection: React.FC = () => {
   const { active, setActive } = useView();
   const { hierarchies } = useHierarchyContext();
 
-  // Set default hierarchy when hierarchies are loaded (only on initial load, not when user explicitly selects "None")
-  useEffect(() => {
-    if (hierarchies.length > 0 && !active) {
-      // Default to 'h1' (Primary Knowledge Graph) if available, otherwise use first hierarchy
-      const defaultHierarchy = hierarchies.find(h => h.id === 'h1') || hierarchies[0];
-      setActive(`hierarchy-${defaultHierarchy.id}`);
-    }
-  }, [hierarchies, active, setActive]);
+  // No competing default logic - h0 is the stable default set by ViewContext
 
-  // Hierarchy options with "None" at the top
+  // Hierarchy options with h0 (None/Categories) at the top
   const hierarchyOptions = [
-    { id: 'none', label: 'None', icon: '⭕' },
-    ...hierarchies.map(h => ({
+    { id: 'hierarchy-h0', label: 'None', icon: '📂' },
+    ...hierarchies.filter(h => h.id !== 'h0').map(h => ({
       id: `hierarchy-${h.id}`,
       label: h.name,
       icon: '🌳'
@@ -82,8 +75,8 @@ export const HierarchiesSection: React.FC = () => {
               key={item.id}
               onClick={() => setActive(item.id)}
               style={selected ? activeButtonStyle : buttonStyle}
-              title={item.id === 'none' 
-                ? 'Show all nodes without hierarchy organization'
+              title={item.id === 'hierarchy-h0' 
+                ? 'Categorize nodes using the None hierarchy'
                 : `Switch to ${item.label} hierarchy view`
               }
             >

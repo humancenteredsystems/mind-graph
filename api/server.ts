@@ -16,6 +16,9 @@ import importExportRoutes from './routes/importExport';
 // Import middleware
 import { setTenantContext, ensureTenant, validateTenantAccess } from './middleware/tenantContext';
 
+// Import system initialization
+import { SystemInitializationService } from './services/systemInitialization';
+
 // --- Global Error Handlers ---
 process.on('uncaughtException', (err, origin) => {
   console.error('[GLOBAL] Uncaught Exception:', err);
@@ -100,8 +103,16 @@ export default app;
 
 // Start the server only if this file is run directly
 if (require.main === module) {
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`API server listening on port ${PORT}`);
     console.log(`Multi-tenant mode: ${config.enableMultiTenant ? 'ENABLED' : 'DISABLED'}`);
+    
+    // Initialize system components
+    try {
+      await SystemInitializationService.initialize();
+    } catch (error) {
+      console.error('[SERVER] System initialization failed:', error);
+      // Don't exit - let the server continue running even if initialization fails
+    }
   });
 }

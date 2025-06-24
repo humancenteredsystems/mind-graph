@@ -326,6 +326,120 @@ export const logExpansionOperation = (
 };
 
 /**
+ * Deduplicates hierarchy levels by levelNumber, keeping the oldest ID
+ * Follows existing transformation pattern from transformAllGraphData
+ */
+export const deduplicateHierarchyLevels = (levels: any[]): any[] => {
+  const levelMap = new Map<number, any>();
+  
+  levels.forEach(level => {
+    if (!level || typeof level.levelNumber !== 'number') {
+      log('graphUtils', 'Invalid level data encountered during deduplication:', level);
+      return;
+    }
+    
+    const existing = levelMap.get(level.levelNumber);
+    if (!existing || level.id < existing.id) { // Keep oldest ID for consistency
+      levelMap.set(level.levelNumber, level);
+    }
+  });
+  
+  return Array.from(levelMap.values()).sort((a, b) => a.levelNumber - b.levelNumber);
+};
+
+/**
+ * Logs level deduplication results following existing log pattern
+ */
+export const logLevelDeduplication = (original: number, deduplicated: number, hierarchyId: string): void => {
+  if (original !== deduplicated) {
+    log('HierarchyLandingPad', `Deduplicated levels for hierarchy ${hierarchyId}: ${original} → ${deduplicated}`);
+  }
+};
+
+/**
+ * Enhanced node visual state resolution
+ * Extends existing resolveNodeHierarchyAssignment pattern
+ */
+export interface NodeVisualState {
+  levelNumber: number;
+  levelColor: string;
+  shape: string;
+  borderStyle: { style: string; width: number };
+  isAssigned: boolean;
+  assignmentStatus: 'assigned' | 'unassigned' | 'multi-assigned';
+}
+
+/**
+ * Resolves comprehensive visual state for a node in a hierarchy
+ * Follows existing assignment resolution patterns
+ */
+export const resolveNodeVisualState = (
+  node: NodeData, 
+  hierarchyId: string
+): NodeVisualState => {
+  const { assignment, levelNumber } = resolveNodeHierarchyAssignment(node.id, [node], hierarchyId);
+  
+  const isAssigned = !!assignment;
+  const effectiveLevelNumber = isAssigned ? levelNumber : 0; // 0 for unassigned
+  
+  // Import theme colors - will be enhanced in theme.ts
+  const defaultColors = {
+    1: '#3b82f6', 2: 'red', 3: '#10b981', 4: '#f59e0b', 
+    5: '#8b5cf6', 6: '#ef4444', 7: '#06b6d4', 8: '#84cc16'
+  };
+  
+  return {
+    levelNumber: effectiveLevelNumber,
+    levelColor: isAssigned ? (defaultColors as any)[levelNumber] || '#6b7280' : '#e5e7eb',
+    shape: getNodeTypeShape(node.type),
+    borderStyle: getNodeTypeBorderStyle(node.type),
+    isAssigned,
+    assignmentStatus: isAssigned ? 'assigned' : 'unassigned'
+  };
+};
+
+/**
+ * Gets node type shape following theme pattern
+ */
+export const getNodeTypeShape = (nodeType?: string): string => {
+  const shapeMap: Record<string, string> = {
+    'Person': 'ellipse',
+    'Concept': 'round-rectangle', 
+    'Project': 'diamond',
+    'Skill': 'hexagon',
+    'Tool': 'triangle',
+    'Resource': 'octagon',
+    'Event': 'star',
+    'default': 'round-rectangle'
+  };
+  return shapeMap[nodeType || 'default'] || shapeMap.default;
+};
+
+/**
+ * Gets node type border style following theme pattern
+ */
+export const getNodeTypeBorderStyle = (nodeType?: string): { style: string; width: number } => {
+  const borderMap: Record<string, { style: string; width: number }> = {
+    'Person': { style: 'solid', width: 2 },
+    'Concept': { style: 'solid', width: 1 },
+    'Project': { style: 'dashed', width: 2 },
+    'Skill': { style: 'solid', width: 1 },
+    'Tool': { style: 'dotted', width: 2 },
+    'Resource': { style: 'double', width: 3 },
+    'Event': { style: 'dashed', width: 1 },
+    'default': { style: 'solid', width: 1 }
+  };
+  return borderMap[nodeType || 'default'] || borderMap.default;
+};
+
+/**
+ * Gets display label for node following existing patterns
+ */
+export const getNodeDisplayLabel = (node: NodeData): string => {
+  return node.label || node.id;
+};
+
+/**
  * Simple drag preview utilities - replaces complex ghost system
  */
 
