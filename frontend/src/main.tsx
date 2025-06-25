@@ -6,14 +6,17 @@ import { UIProvider } from './context/UIContext';
 import { ContextMenuProvider } from './context/ContextMenuContext';
 import { TenantProvider } from './context/TenantContext';
 import ContextMenu from './components/ContextMenu';
+import { HierarchyStyleProvider } from './context/HierarchyStyleContext';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <TenantProvider>
       <UIProvider>
         <ContextMenuProvider>
-          <App />
-          <ContextMenu />
+          <HierarchyStyleProvider>
+            <App />
+            <ContextMenu />
+          </HierarchyStyleProvider>
         </ContextMenuProvider>
       </UIProvider>
     </TenantProvider>

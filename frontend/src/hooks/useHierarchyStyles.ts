@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { NodeTypeStyle, HierarchyStyleConfig, generateStyleKey, getDefaultStyleForType } from '../types/nodeStyle';
 import { log } from '../utils/logger';
+import { theme } from '../config/theme';
 
 interface UseHierarchyStyles {
   customStyles: Map<string, NodeTypeStyle>;

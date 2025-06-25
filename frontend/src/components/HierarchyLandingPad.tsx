@@ -10,7 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { useView } from '../context/ViewContext';
 import { useHierarchyContext } from '../hooks/useHierarchy';
 import { useHierarchyAssignment } from '../hooks/useHierarchyAssignment';
-import { useHierarchyStyles } from '../hooks/useHierarchyStyles';
+import { useHierarchyStyleContext } from '../context/HierarchyStyleContext';
 import { executeQuery } from '../services/ApiService';
 import { GET_LEVELS_FOR_HIERARCHY } from '../graphql/queries';
 import { HierarchyLevel, HierarchyLevelType, GraphQLError } from '../types/hierarchy';
@@ -48,7 +48,7 @@ const DropZone: React.FC<DropZonePropsExtended> = ({
   onDragOver,
   onOpenStyleModal
 }) => {
-  const { getStyleForType, hasCustomStyle } = useHierarchyStyles();
+  const { getStyleForType, hasCustomStyle } = useHierarchyStyleContext();
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -310,7 +310,7 @@ export const HierarchyLandingPad: React.FC = () => {
   const { hierarchyPanelOpen, setHierarchyPanelOpen, active } = useView();
   const { hierarchies } = useHierarchyContext();
   const { assignNodeToLevel, isAssigning, assignmentError, clearAssignmentError } = useHierarchyAssignment();
-  const { updateStyle, getStyleForType } = useHierarchyStyles();
+  const { updateStyle, getStyleForType } = useHierarchyStyleContext();
   const [levels, setLevels] = useState<
     { id: string; levelNumber: number; label?: string; allowedTypes: { id: string; typeName: string }[] }[]
   >([]);

@@ -14,6 +14,7 @@ import { useGraphEvents } from '../hooks/useGraphEvents';
 import { log } from '../utils/logger';
 import { theme, config } from '../config';
 import { normalizeHierarchyId, resolveNodeVisualState, getNodeDisplayLabel } from '../utils/graphUtils';
+import { useHierarchyStyleContext } from '../context/HierarchyStyleContext';
 
 // Register Cytoscape plugins ONCE at module load
 cytoscape.use(coseBilkent);
@@ -24,154 +25,27 @@ cytoscape.use(fcose);
 
 /**
  * Props interface for the GraphView component.
- * 
- * GraphView is the primary visualization component handling complex user interactions
- * including manual double-click detection, multi-selection, context menus, and
- * hierarchical graph operations. Many callbacks have specific behavioral contracts.
- * 
- * @interface GraphViewProps
  */
 interface GraphViewProps {
-  /** Core graph data to render */
   nodes: NodeData[];
   edges: EdgeData[];
-  
-  /** Visual customization */
   style?: React.CSSProperties;
-  
-  /** Set of node IDs to hide from visualization (used for expand/collapse) */
   hiddenNodeIds?: Set<string>;
-  
-  /**
-   * Callback fired when user requests to expand a single node.
-   * Should reveal immediate children of the specified node.
-   */
   onNodeExpand?: (nodeId: string) => void;
-  
-  /**
-   * Callback fired when user requests to expand all children of a node.
-   * Should reveal all descendants recursively, not just immediate children.
-   */
   onExpandChildren?: (nodeId: string) => void;
-  
-  /**
-   * Callback fired when user requests to expand entire graph.
-   * Should reveal all nodes in the complete graph structure.
-   */
   onExpandAll?: (nodeId: string) => void;
-  
-  /**
-   * Callback fired when user requests to collapse a node.
-   * Should hide all children/descendants of the specified node.
-   */
   onCollapseNode?: (nodeId: string) => void;
-  
-  /**
-   * Function to check if a specific node is currently expanded.
-   * Used for visual indicators (border styling) and context menu options.
-   * 
-   * @param nodeId - The node to check
-   * @returns true if node is expanded, false otherwise
-   */
   isNodeExpanded?: (nodeId: string) => boolean;
-  
-  /**
-   * Callback fired when user requests to add a new node.
-   * 
-   * **Behavioral Contract:**
-   * - When parentId provided: Create child node connected to parent
-   * - When position provided: Create node at specific coordinates
-   * - When both provided: Create connected child at specified position
-   * - When neither provided: Create standalone node at default position
-   * 
-   * @param parentId - Optional parent node for creating connected children
-   * @param position - Optional specific coordinates for node placement
-   */
   onAddNode?: (parentId?: string, position?: { x: number; y: number }) => void;
-  
-  /**
-   * Callback fired on double-click/double-tap for node editing.
-   * 
-   * **Behavioral Contract:**
-   * - Triggered by manual double-click detection algorithm (300ms window)
-   * - Receives complete NodeData object including all properties
-   * - Should open edit modal/form with current node data pre-populated
-   * 
-   * @param node - Complete node data object for editing
-   */
   onEditNode?: (node: NodeData) => void;
-  
-  /**
-   * Callback fired on single-click for node selection.
-   * 
-   * **Behavioral Contract:**
-   * - Triggered after 50ms debounce to confirm not part of double-click
-   * - Used for selection highlighting and displaying node details
-   * - Does not interfere with multi-selection behavior
-   * 
-   * @param node - Selected node data object
-   */
   onNodeSelect?: (node: NodeData) => void;
-  
-  /**
-   * Callback fired when user requests to load complete graph.
-   * Should fetch and display all available nodes/edges without filtering.
-   */
   onLoadCompleteGraph?: () => void;
-  
-  /**
-   * Callback fired when user requests to delete a single node.
-   * Should remove node and handle edge cleanup appropriately.
-   */
   onDeleteNode?: (nodeId: string) => void;
-  
-  /**
-   * Callback fired when user requests to delete multiple selected nodes.
-   * Should handle batch deletion with proper edge cleanup.
-   * 
-   * @param nodeIds - Array of node IDs in selection order
-   */
   onDeleteNodes?: (nodeIds: string[]) => void;
-  
-  /**
-   * Callback fired when user requests to delete a single edge.
-   * Should remove the specific connection between nodes.
-   */
   onDeleteEdge?: (edgeId: string) => void;
-  
-  /**
-   * Callback fired when user requests to delete multiple selected edges.
-   * Should handle batch edge deletion.
-   * 
-   * @param edgeIds - Array of edge IDs in selection order
-   */
   onDeleteEdges?: (edgeIds: string[]) => void;
-  
-  /**
-   * Callback fired when user requests to hide a single node.
-   * Different from delete - should preserve node data but hide from view.
-   */
   onHideNode?: (nodeId: string) => void;
-  
-  /**
-   * Callback fired when user requests to hide multiple selected nodes.
-   * Should handle batch hiding while preserving underlying data.
-   * 
-   * @param nodeIds - Array of node IDs in selection order
-   */
   onHideNodes?: (nodeIds: string[]) => void;
-  
-  /**
-   * Callback fired when user requests to create connection between two nodes.
-   * 
-   * **Behavioral Contract:**
-   * - Only available when exactly 2 nodes selected
-   * - Should check for existing edge to prevent duplicates
-   * - Connection direction: from → to based on selection order
-   * 
-   * @param from - Source node ID (first selected)
-   * @param to - Target node ID (second selected)
-   */
   onConnect?: (from: string, to: string) => void;
 }
 
@@ -197,19 +71,21 @@ const GraphView: React.FC<GraphViewProps> = ({
   onHideNodes,
   onConnect,
 }) => {
-  console.log(`[GraphView RENDER] Nodes prop length: ${nodes.length}, Edges prop length: ${edges.length}`);
-
   const cyRef = useRef<Core | null>(null);
   const { active } = useView();
   const { applyLayoutToGraph } = useLayout();
-  
-  // Extract hierarchy ID from active view (e.g., 'hierarchy-h1' -> 'h1')
-  const hierarchyId = active && active.startsWith('hierarchy-') 
-    ? active.replace('hierarchy-', '') 
+
+  // Determine current hierarchy
+  const hierarchyId = active && active.startsWith('hierarchy-')
+    ? active.replace('hierarchy-', '')
     : '';
 
-  // Use the new comprehensive event handling hook
-  const { isDragging, draggedNodeData } = useGraphEvents(
+  // Manage custom styles
+  const { getCytoscapeStyles } = useHierarchyStyleContext();
+  const dynamicStyles = getCytoscapeStyles(hierarchyId);
+
+  // Event handling
+  const { isDragging } = useGraphEvents(
     cyRef,
     nodes,
     edges,
@@ -231,120 +107,57 @@ const GraphView: React.FC<GraphViewProps> = ({
     onLoadCompleteGraph
   );
 
-  // Generate enhanced level and type styles dynamically using theme colors
-  const generateLevelStyles = () => {
-    // Only apply hierarchy-specific styling when a hierarchy is selected
-    if (!hierarchyId || active === 'none') {
-      // For 'None' view, return minimal uniform styling
-      return [{
-        selector: 'node',
-        style: {
-          'background-color': theme.colors.node.default,
-          'border-style': 'solid',
-          'border-width': `${config.defaultBorderWidth}px`,
-          'border-color': theme.colors.node.border.default,
-          'shape': 'round-rectangle',
-        }
-      }];
-    }
-
-    const levelStyles = Object.entries(theme.colors.levels).map(([level, color]) => ({
-      selector: `node[levelNumber=${level}][isAssigned="true"]`,
-      style: {
-        'background-color': color,
-        ...(level === '1' && { shape: 'ellipse' }),
-      },
-    }));
-
-    // Add unassigned node styles
-    const unassignedStyle = {
-      selector: `node[isAssigned="false"]`,
-      style: {
-        'background-color': theme.colors.node.unassigned,
-        'border-style': 'dashed',
-        'border-width': '2px',
-        'border-color': theme.colors.border.default,
-        'opacity': 0.7,
-      }
-    };
-
-    // Add node type shape styles
-    const typeShapeStyles = Object.entries(theme.components.node.typeStyles.shapes).map(([type, shape]) => ({
-      selector: `node[type="${type}"]`,
-      style: { shape }
-    }));
-
-    // Add node type border styles  
-    const typeBorderStyles = Object.entries(theme.components.node.typeStyles.borders).map(([type, border]) => ({
-      selector: `node[type="${type}"]`,
-      style: {
-        'border-style': border.style,
-        'border-width': `${border.width}px`
-      }
-    }));
-
-    return [...levelStyles, unassignedStyle, ...typeShapeStyles, ...typeBorderStyles];
-  };
-
-  // Build elements: filter hidden nodes and edges
+  // Prepare elements
   const elements = useMemo<ElementDefinition[]>(() => {
-    log('GraphView:useMemo[elements]', `Input nodes count: ${nodes.length}, Input edges count: ${edges.length}, Hidden count: ${hiddenNodeIds.size}`);
     const visible = nodes.filter(n => !hiddenNodeIds.has(n.id));
     const levelCounters: Record<number, number> = {};
-    
-    const nodeEls = visible.map((nodeData) => {
-      const { id, label, type, assignments, status, branch } = nodeData;
-      
-      // Use new visual state resolver
+
+    const nodeEls = visible.map(nodeData => {
+      const { id, assignments } = nodeData;
       const visualState = resolveNodeVisualState(nodeData, hierarchyId);
-      
       const idx = levelCounters[visualState.levelNumber] ?? 0;
       levelCounters[visualState.levelNumber] = idx + 1;
-      const displayLabel = getNodeDisplayLabel(nodeData);
-      
-      // Check if node is expanded for visual indicator
-      const expanded = isNodeExpanded?.(id) ?? false;
-      
-      // Use proper spacing like original - layout engine will handle centering
-      const simplePosition = {
-        x: visualState.levelNumber * (config.nodeHorizontalSpacing || 200),
-        y: idx * (config.nodeVerticalSpacing || 100)
-      };
-      
+
       return {
         data: {
           id,
-          label: displayLabel,
-          labelLength: displayLabel.length,
-          type,
-          assignments,
-          status,
-          branch,
+          label: getNodeDisplayLabel(nodeData),
+          labelLength: getNodeDisplayLabel(nodeData).length,
+          type: nodeData.type,
+          assignments: nodeData.assignments,
+          status: nodeData.status,
+          branch: nodeData.branch,
           levelNumber: visualState.levelNumber,
-          levelLabel: visualState.assignmentStatus === 'assigned' ? 
-            (assignments?.find(a => normalizeHierarchyId(hierarchyId, a.hierarchyId))?.levelLabel) : 
-            'Unassigned',
-          isAssigned: visualState.isAssigned.toString(), // Cytoscape needs strings
-          expanded,
+          levelLabel: visualState.assignmentStatus === 'assigned'
+            ? assignments?.find(a => normalizeHierarchyId(hierarchyId, a.hierarchyId))?.levelLabel
+            : 'Unassigned',
+          isAssigned: visualState.isAssigned.toString(),
+          expanded: isNodeExpanded?.(id) ?? false,
         },
-        position: simplePosition,
+        position: {
+          x: visualState.levelNumber * (config.nodeHorizontalSpacing || 200),
+          y: idx * (config.nodeVerticalSpacing || 100),
+        },
       };
     });
-    
+
     const validIds = new Set(visible.map(n => n.id));
     const edgeEls = edges
       .filter(e => validIds.has(e.source) && validIds.has(e.target))
-      .map(({ id, source, target, type }) => ({
-        data: { id: id ?? `${source}_${target}`, source, target, type },
+      .map(e => ({
+        data: {
+          id: e.id ?? `${e.source}_${e.target}`,
+          source: e.source,
+          target: e.target,
+          type: e.type,
+        },
       }));
-    
-    const finalElements = [...nodeEls, ...edgeEls];
-    log('GraphView:useMemo[elements]', `Generated ${nodeEls.length} node elements, ${edgeEls.length} edge elements. Total: ${finalElements.length}`);
-    return finalElements;
+
+    return [...nodeEls, ...edgeEls];
   }, [nodes, edges, hiddenNodeIds, hierarchyId, isNodeExpanded]);
 
-  // Stylesheet: style nodes/edges with drag feedback
-  const stylesheet = [
+  // Static base styles
+  const baseStyles = [
     {
       selector: 'node',
       style: {
@@ -363,8 +176,6 @@ const GraphView: React.FC<GraphViewProps> = ({
         'border-color': theme.colors.node.border.default,
       },
     },
-    // Dynamic level styles generated from theme
-    ...generateLevelStyles(),
     {
       selector: 'node[expanded=true]',
       style: {
@@ -400,30 +211,25 @@ const GraphView: React.FC<GraphViewProps> = ({
     },
   ];
 
-  // Attach Cytoscape instance reference
+  const stylesheet = [...baseStyles, ...dynamicStyles];
+
+  // Attach Cytoscape instance
   const attachCy = (cy: Core) => {
     cyRef.current = cy;
-    (window as unknown as { cyInstance: Core }).cyInstance = cy; // Expose for E2E testing
-    
+    (window as any).cyInstance = cy;
     log('GraphView', 'Cytoscape instance attached');
   };
 
-  // Pure layout integration - apply layout when elements change
+  // Apply layout
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy || elements.length === 0) return;
-    
-    // Apply current layout algorithm
-    const applyLayoutSafely = async () => {
-      await applyLayoutToGraph(cy);
-    };
-    
-    applyLayoutSafely();
+    applyLayoutToGraph(cy);
   }, [elements, applyLayoutToGraph]);
 
   return (
-    <div 
-      data-testid="graph-container" 
+    <div
+      data-testid="graph-container"
       style={{ width: '100%', height: '100%', ...style }}
       className={isDragging ? 'dragging' : ''}
     >
