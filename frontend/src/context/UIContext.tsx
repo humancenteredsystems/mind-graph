@@ -26,6 +26,10 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [adminAuthenticated, setAdminAuthenticated] = useState(false);
   const [importExportModalOpen, setImportExportModalOpen] = useState(false);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+
+  // Admin modal tab control
+  const [adminModalTab, setAdminModalTab] = useState<string>('tests');
+
   const lastOpenTimeRef = useRef<number>(0);
 
   const openAddModal = (parentId?: string) => {

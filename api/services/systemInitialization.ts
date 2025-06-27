@@ -5,6 +5,8 @@
 
 import { adaptiveTenantFactory } from './adaptiveTenantFactory';
 
+export let schemaLoaded = false;
+
 export class SystemInitializationService {
   /**
    * Initialize h0 hierarchy if it doesn't exist
@@ -103,10 +105,10 @@ export class SystemInitializationService {
       
       console.log('[SYSTEM_INIT] Created default None hierarchy level type:', hierarchyLevelTypeResult.addHierarchyLevelType.hierarchyLevelType[0]);
       console.log('[SYSTEM_INIT] h0 hierarchy initialization complete');
-      
+      schemaLoaded = true;
     } catch (error) {
       console.error('[SYSTEM_INIT] Failed to initialize h0 hierarchy:', error);
-      throw error;
+      return;
     }
   }
   
@@ -121,7 +123,7 @@ export class SystemInitializationService {
       console.log('[SYSTEM_INIT] System initialization complete');
     } catch (error) {
       console.error('[SYSTEM_INIT] System initialization failed:', error);
-      throw error;
+      return;
     }
   }
 }

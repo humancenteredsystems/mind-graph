@@ -93,6 +93,10 @@ interface UIContextValue {
   // System status
   systemStatus: SystemStatus | null;
   refreshSystemStatus: () => Promise<void>;
+  
+  // Admin modal tab control
+  adminModalTab: string;
+  setAdminModalTab: (tab: string) => void;
 }
 
 export const UIContext = createContext<UIContextValue | undefined>(undefined);
