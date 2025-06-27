@@ -114,8 +114,8 @@ const GraphView: React.FC<GraphViewProps> = ({
 
     const nodeEls = visible.map(nodeData => {
       const { id, assignments } = nodeData;
-      const visualState = resolveNodeVisualState(nodeData, hierarchyId);
-      const idx = levelCounters[visualState.levelNumber] ?? 0;
+      const { hierarchyId: vsHierarchyId, levelId: vsLevelId, levelNumber, isAssigned } = resolveNodeVisualState(nodeData, hierarchyId);
+      const idx = levelCounters[levelNumber] ?? 0;
       levelCounters[visualState.levelNumber] = idx + 1;
 
       return {
@@ -127,11 +127,13 @@ const GraphView: React.FC<GraphViewProps> = ({
           assignments: nodeData.assignments,
           status: nodeData.status,
           branch: nodeData.branch,
-          levelNumber: visualState.levelNumber,
-          levelLabel: visualState.assignmentStatus === 'assigned'
-            ? assignments?.find(a => normalizeHierarchyId(hierarchyId, a.hierarchyId))?.levelLabel
+          hierarchyId: vsHierarchyId,
+          levelId: vsLevelId,
+          levelNumber,
+          levelLabel: isAssigned 
+            ? assignments?.find(a => normalizeHierarchyId(hierarchyId, a.hierarchyId))?.levelLabel 
             : 'Unassigned',
-          isAssigned: visualState.isAssigned.toString(),
+          isAssigned: isAssigned.toString(),
           expanded: isNodeExpanded?.(id) ?? false,
         },
         position: {
