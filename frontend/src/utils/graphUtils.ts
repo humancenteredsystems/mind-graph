@@ -291,3 +291,90 @@ export const logLevelDeduplication = (
     );
   }
 };
+
+/**
+ * Graph traversal and hierarchy expansion utilities.
+ */
+
+/**
+ * Find immediate children of a node via graph edges.
+ */
+export const findImmediateChildren = (nodeId: string, edges: EdgeData[]): Set<string> => {
+  const childNodeIds = new Set<string>();
+  edges.forEach(edge => {
+    if (edge.source === nodeId) {
+      childNodeIds.add(edge.target);
+    }
+  });
+  return childNodeIds;
+};
+
+/**
+ * Find hierarchy-aware descendants of a node.
+ * Returns nodes that are:
+ * 1. Reachable from nodeId via graph traversal
+ * 2. Assigned to the specified hierarchyId 
+ * 3. At hierarchy levels greater than clickedNodeLevel
+ */
+export const findHierarchyDescendants = (
+  nodeId: string,
+  nodes: NodeData[],
+  edges: EdgeData[],
+  hierarchyId: string,
+  clickedNodeLevel: number
+): Set<string> => {
+  const descendantNodeIds = new Set<string>();
+  const visited = new Set<string>();
+  const queue: string[] = [nodeId];
+  
+  // Start with the clicked node in visited to avoid including it in results
+  visited.add(nodeId);
+  
+  while (queue.length > 0) {
+    const currentNodeId = queue.shift()!;
+    
+    // Find immediate children of current node
+    const childIds = findImmediateChildren(currentNodeId, edges);
+    
+    childIds.forEach(childId => {
+      if (visited.has(childId)) return;
+      visited.add(childId);
+      
+      // Find the child node data
+      const childNode = nodes.find(n => n.id === childId);
+      if (!childNode) return;
+      
+      // Get child's hierarchy level
+      const childLevel = getNodeHierarchyLevel(childNode, hierarchyId);
+      
+      // Check if child is assigned to this hierarchy and at a lower level
+      const childAssignment = childNode.assignments?.find(a => 
+        normalizeHierarchyId(a.hierarchyId, hierarchyId)
+      );
+      
+      if (childAssignment && childLevel > clickedNodeLevel) {
+        descendantNodeIds.add(childId);
+      }
+      
+      // Continue traversal to find deeper descendants
+      queue.push(childId);
+    });
+  }
+  
+  return descendantNodeIds;
+};
+
+/**
+ * Log expansion/collapse operations for debugging.
+ */
+export const logExpansionOperation = (
+  operation: string,
+  nodeId: string,
+  clickedNodeLevel: number,
+  descendantNodeIds: Set<string>
+): void => {
+  log(
+    'useGraphState',
+    `${operation} for node ${nodeId} (level ${clickedNodeLevel}): ${descendantNodeIds.size} descendants - ${Array.from(descendantNodeIds).join(', ')}`
+  );
+};

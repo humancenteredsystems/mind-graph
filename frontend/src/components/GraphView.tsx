@@ -116,7 +116,7 @@ const GraphView: React.FC<GraphViewProps> = ({
       const { id, assignments } = nodeData;
       const { hierarchyId: vsHierarchyId, levelId: vsLevelId, levelNumber, isAssigned } = resolveNodeVisualState(nodeData, hierarchyId);
       const idx = levelCounters[levelNumber] ?? 0;
-      levelCounters[visualState.levelNumber] = idx + 1;
+      levelCounters[levelNumber] = idx + 1;
 
       return {
         data: {
@@ -137,7 +137,7 @@ const GraphView: React.FC<GraphViewProps> = ({
           expanded: isNodeExpanded?.(id) ?? false,
         },
         position: {
-          x: visualState.levelNumber * (config.nodeHorizontalSpacing || 200),
+          x: levelNumber * (config.nodeHorizontalSpacing || 200),
           y: idx * (config.nodeVerticalSpacing || 100),
         },
       };
