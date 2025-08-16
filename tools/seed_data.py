@@ -107,8 +107,9 @@ def seed_tenant_data(api_base: str, api_key: str, tenant_id: str, create_tenant:
 
 def seed_default_data(api_base: str, api_key: str, enable_drop_all: bool = False):
     """Seed data for OSS mode (no tenant context)."""
-    # Use existing seeding logic without tenant headers
-    seed_with_context(api_base, api_key, {}, enable_drop_all)
+    # For OSS mode, set default tenant context for proper namespace confirmation
+    default_headers = {"X-Tenant-Id": "default"}
+    seed_with_context(api_base, api_key, default_headers, enable_drop_all)
 
 def seed_with_context(api_base: str, api_key: str, extra_headers: dict, enable_drop_all: bool = False):
     """Universal seeding logic that works with or without tenant context."""
@@ -129,53 +130,22 @@ def seed_with_context(api_base: str, api_key: str, extra_headers: dict, enable_d
     print("Waiting 15 seconds for Dgraph to process the schema...")
     time.sleep(15)
 
-    # 3. Create a single hierarchy
-    hierarchy_id = create_single_hierarchy(api_base, api_key, DEFAULT_HIERARCHY_ID, DEFAULT_HIERARCHY_NAME, extra_headers)
-    if not hierarchy_id:
-        print("❌ Failed to create the primary hierarchy. Aborting.")
-        sys.exit(1)
-
-    # 4. Create levels for this hierarchy
-    levels_data = [
-        (1, "Domains"),
-        (2, "Key Concepts"),
-        (3, "Detailed Examples")
-    ]
-    level_ids_map = create_levels_for_hierarchy(api_base, api_key, hierarchy_id, levels_data, extra_headers)
-    if len(level_ids_map) != len(levels_data):
-        print("❌ Error: Failed to create all hierarchy levels. Aborting.")
-        sys.exit(1)
-    
-    # 5. Create level types for these levels (two types per level)
-    level_types_all_ok = True
-    if level_ids_map.get(1):
-        if not create_level_types_for_level(api_base, api_key, level_ids_map[1], ["domain", "category"], extra_headers):
-            level_types_all_ok = False
-    if level_ids_map.get(2):
-        if not create_level_types_for_level(api_base, api_key, level_ids_map[2], ["concept", "principle"], extra_headers):
-            level_types_all_ok = False
-    if level_ids_map.get(3):
-        if not create_level_types_for_level(api_base, api_key, level_ids_map[3], ["example", "application"], extra_headers):
-            level_types_all_ok = False
-    
-    if not level_types_all_ok:
-        print("❌ Error: Failed to create all necessary hierarchy level types. Assignments might fail. Aborting.")
+    # 3. Create demo hierarchies
+    hierarchies_data = create_demo_hierarchies(api_base, api_key, extra_headers)
+    if not hierarchies_data:
+        print("❌ Failed to create demo hierarchies. Aborting.")
         sys.exit(1)
         
-    print("Waiting 5 seconds for Dgraph to process level type creations...")
+    print("Waiting 5 seconds for Dgraph to process hierarchy creations...")
     time.sleep(5)
 
-    # 6. Get data payload (nodes, edges, assignments)
-    seed_payload = get_seed_data_payload(hierarchy_id, level_ids_map)
+    # 6. Get data payload (nodes, edges, assignments) 
+    seed_payload = get_demo_seed_data_payload(hierarchies_data)
 
-    # Prepare headers for calls to /api/mutate that require hierarchy context
-    mutate_context_headers = {"X-Hierarchy-Id": hierarchy_id}
-    mutate_context_headers.update(extra_headers)  # Include tenant headers if any
-
-    # 7. Add nodes
-    print(f"Attempting to add nodes with X-Hierarchy-Id: {hierarchy_id}")
-    if not add_nodes(api_base, api_key, seed_payload["nodes"], extra_headers=mutate_context_headers):
-        print("❌ Node creation failed. This might be due to missing X-Hierarchy-Id header or type enforcement. Aborting.")
+    # 7. Create all nodes WITHOUT hierarchy context to avoid auto-assignment conflicts
+    print(f"Creating {len(seed_payload['nodes'])} nodes without auto-assignment...")
+    if not add_nodes(api_base, api_key, seed_payload["nodes"], extra_headers=extra_headers):
+        print("❌ Node creation failed. Aborting.")
         sys.exit(1)
     
     # 8. Add edges
@@ -308,6 +278,7 @@ def clear_namespace_data(api_base: str, api_key: str, extra_headers: Optional[Di
         # 4. Delete all nodes
         print(f"  4️⃣ Deleting {node_count} nodes...")
         node_ids = [node["id"] for node in nodes if "id" in node]
+        total_deleted = 0
         
         if node_ids:
             delete_nodes_mutation = """
@@ -502,6 +473,188 @@ def add_hierarchy_assignments(api_base: str, api_key: str, assignments: List[Dic
         if response.get("data", {}).get("errors"): print(f"GraphQL Errors: {response['data']['errors']}")
         return False
 # --- End of functions for seeding graph data ---
+
+def create_demo_hierarchies(api_base: str, api_key: str, extra_headers: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
+    """Create both demo hierarchies and return their data."""
+    print("🌍 Creating demo hierarchies for Geographic Lenses demo...")
+    
+    # Create Political Geography hierarchy (h1)
+    h1_id = create_single_hierarchy(api_base, api_key, "h1", "Political Geography", extra_headers)
+    if not h1_id:
+        return None
+    
+    # Create Ecological Geography hierarchy (h2)  
+    h2_id = create_single_hierarchy(api_base, api_key, "h2", "Ecological Geography", extra_headers)
+    if not h2_id:
+        return None
+    
+    # Create levels for Political Geography (h1)
+    h1_levels_data = [
+        (1, "Countries"),
+        (2, "States/Provinces"), 
+        (3, "Cities")
+    ]
+    h1_level_ids_map = create_levels_for_hierarchy(api_base, api_key, h1_id, h1_levels_data, extra_headers)
+    if len(h1_level_ids_map) != len(h1_levels_data):
+        print("❌ Error: Failed to create all Political Geography hierarchy levels.")
+        return None
+    
+    # Create levels for Ecological Geography (h2)
+    h2_levels_data = [
+        (1, "Climate Zones"),
+        (2, "Biomes"),
+        (3, "Locations")
+    ]
+    h2_level_ids_map = create_levels_for_hierarchy(api_base, api_key, h2_id, h2_levels_data, extra_headers)
+    if len(h2_level_ids_map) != len(h2_levels_data):
+        print("❌ Error: Failed to create all Ecological Geography hierarchy levels.")
+        return None
+    
+    # Create level types for Political Geography (h1)
+    h1_level_types_ok = True
+    if h1_level_ids_map.get(1):
+        if not create_level_types_for_level(api_base, api_key, h1_level_ids_map[1], ["country"], extra_headers):
+            h1_level_types_ok = False
+    if h1_level_ids_map.get(2):
+        if not create_level_types_for_level(api_base, api_key, h1_level_ids_map[2], ["state", "province"], extra_headers):
+            h1_level_types_ok = False
+    if h1_level_ids_map.get(3):
+        if not create_level_types_for_level(api_base, api_key, h1_level_ids_map[3], ["city"], extra_headers):
+            h1_level_types_ok = False
+    
+    # Create level types for Ecological Geography (h2)
+    h2_level_types_ok = True
+    if h2_level_ids_map.get(1):
+        if not create_level_types_for_level(api_base, api_key, h2_level_ids_map[1], ["climate"], extra_headers):
+            h2_level_types_ok = False
+    if h2_level_ids_map.get(2):
+        if not create_level_types_for_level(api_base, api_key, h2_level_ids_map[2], ["biome"], extra_headers):
+            h2_level_types_ok = False
+    if h2_level_ids_map.get(3):
+        if not create_level_types_for_level(api_base, api_key, h2_level_ids_map[3], ["location", "city"], extra_headers):
+            h2_level_types_ok = False
+    
+    if not h1_level_types_ok or not h2_level_types_ok:
+        print("❌ Error: Failed to create all necessary hierarchy level types.")
+        return None
+    
+    print("✅ Successfully created both demo hierarchies with levels and types")
+    return {
+        "h1": {"id": h1_id, "level_ids": h1_level_ids_map},
+        "h2": {"id": h2_id, "level_ids": h2_level_ids_map}
+    }
+
+def get_demo_seed_data_payload(hierarchies_data: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+    """Generate geographic demo data payload for nodes, edges, and assignments."""
+    
+    # Geographic nodes for demo
+    nodes = [
+        # Level 1: Countries and Climate Zones
+        {"id": "usa", "label": "United States", "type": "country", "status": "approved", "branch": "main"},
+        {"id": "canada", "label": "Canada", "type": "country", "status": "approved", "branch": "main"},
+        {"id": "australia", "label": "Australia", "type": "country", "status": "approved", "branch": "main"},
+        {"id": "temperate", "label": "Temperate Zone", "type": "climate", "status": "approved", "branch": "main"},
+        {"id": "mediterranean", "label": "Mediterranean Zone", "type": "climate", "status": "approved", "branch": "main"},
+        {"id": "tropical", "label": "Tropical Zone", "type": "climate", "status": "approved", "branch": "main"},
+        
+        # Level 2: States/Provinces and Biomes
+        {"id": "california", "label": "California", "type": "state", "status": "approved", "branch": "main"},
+        {"id": "ontario", "label": "Ontario", "type": "province", "status": "approved", "branch": "main"},
+        {"id": "queensland", "label": "Queensland", "type": "state", "status": "approved", "branch": "main"},
+        {"id": "coastal_forest", "label": "Coastal Forest", "type": "biome", "status": "approved", "branch": "main"},
+        {"id": "grasslands", "label": "Grasslands", "type": "biome", "status": "approved", "branch": "main"},
+        {"id": "rainforest", "label": "Rainforest", "type": "biome", "status": "approved", "branch": "main"},
+        
+        # Level 3: Cities (appear in BOTH hierarchies)
+        {"id": "san_francisco", "label": "San Francisco", "type": "city", "status": "approved", "branch": "main"},
+        {"id": "toronto", "label": "Toronto", "type": "city", "status": "approved", "branch": "main"},
+        {"id": "brisbane", "label": "Brisbane", "type": "city", "status": "approved", "branch": "main"},
+    ]
+
+    # Geographic edges showing natural relationships
+    edges = [
+        # Political relationships (countries contain states/provinces)
+        {"from": {"id": "usa"}, "fromId": "usa", "to": {"id": "california"}, "toId": "california", "type": "simple"},
+        {"from": {"id": "canada"}, "fromId": "canada", "to": {"id": "ontario"}, "toId": "ontario", "type": "simple"},
+        {"from": {"id": "australia"}, "fromId": "australia", "to": {"id": "queensland"}, "toId": "queensland", "type": "simple"},
+        
+        # Political relationships (states/provinces contain cities)
+        {"from": {"id": "california"}, "fromId": "california", "to": {"id": "san_francisco"}, "toId": "san_francisco", "type": "simple"},
+        {"from": {"id": "ontario"}, "fromId": "ontario", "to": {"id": "toronto"}, "toId": "toronto", "type": "simple"},
+        {"from": {"id": "queensland"}, "fromId": "queensland", "to": {"id": "brisbane"}, "toId": "brisbane", "type": "simple"},
+        
+        # Ecological relationships (climate zones contain biomes)
+        {"from": {"id": "mediterranean"}, "fromId": "mediterranean", "to": {"id": "coastal_forest"}, "toId": "coastal_forest", "type": "simple"},
+        {"from": {"id": "temperate"}, "fromId": "temperate", "to": {"id": "grasslands"}, "toId": "grasslands", "type": "simple"},
+        {"from": {"id": "tropical"}, "fromId": "tropical", "to": {"id": "rainforest"}, "toId": "rainforest", "type": "simple"},
+        
+        # Ecological relationships (biomes contain locations - same cities as above)
+        {"from": {"id": "coastal_forest"}, "fromId": "coastal_forest", "to": {"id": "san_francisco"}, "toId": "san_francisco", "type": "simple"},
+        {"from": {"id": "grasslands"}, "fromId": "grasslands", "to": {"id": "toronto"}, "toId": "toronto", "type": "simple"},
+        {"from": {"id": "rainforest"}, "fromId": "rainforest", "to": {"id": "brisbane"}, "toId": "brisbane", "type": "simple"},
+    ]
+
+    hierarchy_assignments = []
+    
+    # Skip h0 assignments - we'll focus on the real hierarchies for the demo
+    print("Skipping h0 assignments - focusing on demo hierarchies...")
+    
+    # Political Geography (h1) assignments
+    h1_data = hierarchies_data.get("h1", {})
+    h1_level_ids = h1_data.get("level_ids", {})
+    if h1_level_ids.get(1) and h1_level_ids.get(2) and h1_level_ids.get(3):
+        h1_assignments = [
+            # Level 1 (Countries)
+            {"node": {"id": "usa"}, "hierarchy": {"id": "h1"}, "level": {"id": h1_level_ids[1]}},
+            {"node": {"id": "canada"}, "hierarchy": {"id": "h1"}, "level": {"id": h1_level_ids[1]}},
+            {"node": {"id": "australia"}, "hierarchy": {"id": "h1"}, "level": {"id": h1_level_ids[1]}},
+            
+            # Level 2 (States/Provinces)
+            {"node": {"id": "california"}, "hierarchy": {"id": "h1"}, "level": {"id": h1_level_ids[2]}},
+            {"node": {"id": "ontario"}, "hierarchy": {"id": "h1"}, "level": {"id": h1_level_ids[2]}},
+            {"node": {"id": "queensland"}, "hierarchy": {"id": "h1"}, "level": {"id": h1_level_ids[2]}},
+            
+            # Level 3 (Cities)
+            {"node": {"id": "san_francisco"}, "hierarchy": {"id": "h1"}, "level": {"id": h1_level_ids[3]}},
+            {"node": {"id": "toronto"}, "hierarchy": {"id": "h1"}, "level": {"id": h1_level_ids[3]}},
+            {"node": {"id": "brisbane"}, "hierarchy": {"id": "h1"}, "level": {"id": h1_level_ids[3]}},
+        ]
+        hierarchy_assignments.extend(h1_assignments)
+        print(f"✅ Added {len(h1_assignments)} Political Geography (h1) assignments")
+    else:
+        print("⚠️ Warning: Political Geography hierarchy levels not found")
+    
+    # Ecological Geography (h2) assignments
+    h2_data = hierarchies_data.get("h2", {})
+    h2_level_ids = h2_data.get("level_ids", {})
+    if h2_level_ids.get(1) and h2_level_ids.get(2) and h2_level_ids.get(3):
+        h2_assignments = [
+            # Level 1 (Climate Zones)
+            {"node": {"id": "temperate"}, "hierarchy": {"id": "h2"}, "level": {"id": h2_level_ids[1]}},
+            {"node": {"id": "mediterranean"}, "hierarchy": {"id": "h2"}, "level": {"id": h2_level_ids[1]}},
+            {"node": {"id": "tropical"}, "hierarchy": {"id": "h2"}, "level": {"id": h2_level_ids[1]}},
+            
+            # Level 2 (Biomes)
+            {"node": {"id": "coastal_forest"}, "hierarchy": {"id": "h2"}, "level": {"id": h2_level_ids[2]}},
+            {"node": {"id": "grasslands"}, "hierarchy": {"id": "h2"}, "level": {"id": h2_level_ids[2]}},
+            {"node": {"id": "rainforest"}, "hierarchy": {"id": "h2"}, "level": {"id": h2_level_ids[2]}},
+            
+            # Level 3 (Same Cities, different context!)
+            {"node": {"id": "san_francisco"}, "hierarchy": {"id": "h2"}, "level": {"id": h2_level_ids[3]}},
+            {"node": {"id": "toronto"}, "hierarchy": {"id": "h2"}, "level": {"id": h2_level_ids[3]}},
+            {"node": {"id": "brisbane"}, "hierarchy": {"id": "h2"}, "level": {"id": h2_level_ids[3]}},
+        ]
+        hierarchy_assignments.extend(h2_assignments)
+        print(f"✅ Added {len(h2_assignments)} Ecological Geography (h2) assignments")
+        print("🎯 DEMO POWER: Same cities now appear in both Political and Ecological contexts!")
+    else:
+        print("⚠️ Warning: Ecological Geography hierarchy levels not found")
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "hierarchyAssignments": hierarchy_assignments
+    }
 
 def get_seed_data_payload(hierarchy_id_str: str, level_ids_map: Dict[int, str]) -> Dict[str, List[Dict[str, Any]]]:
     """Generate the data payload for nodes, edges, and assignments."""

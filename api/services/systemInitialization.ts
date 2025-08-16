@@ -7,6 +7,15 @@ import { adaptiveTenantFactory } from './adaptiveTenantFactory';
 
 export let schemaLoaded = false;
 
+/**
+ * Set schema loaded state - can be called independently of h0 hierarchy creation
+ * @param loaded - whether schema is loaded and ready
+ */
+export function setSchemaLoaded(loaded: boolean): void {
+  schemaLoaded = loaded;
+  console.log(`[SYSTEM_INIT] Schema loaded state set to: ${loaded}`);
+}
+
 export class SystemInitializationService {
   /**
    * Initialize h0 hierarchy if it doesn't exist
@@ -105,7 +114,6 @@ export class SystemInitializationService {
       
       console.log('[SYSTEM_INIT] Created default None hierarchy level type:', hierarchyLevelTypeResult.addHierarchyLevelType.hierarchyLevelType[0]);
       console.log('[SYSTEM_INIT] h0 hierarchy initialization complete');
-      schemaLoaded = true;
     } catch (error) {
       console.error('[SYSTEM_INIT] Failed to initialize h0 hierarchy:', error);
       return;

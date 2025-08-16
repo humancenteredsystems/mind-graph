@@ -5,18 +5,34 @@ import { authenticateAdmin } from '../middleware/auth';
 import { sendErrorResponse, ErrorType } from '../utils/errorResponse';
 import { validateRequiredFields, validateId, validateEntityExists } from '../utils/validationHelpers';
 import { validateLevelIdAndAllowedType, NodeTypeNotAllowedError } from '../services/validation';
+import { schemaLoaded } from '../services/systemInitialization';
 
 const router = express.Router();
 
 // Helper function to get tenant-aware Dgraph client from request context
 async function getTenantClient(req: Request) {
+  console.log('[HIERARCHY] Creating tenant client with context:', {
+    hasTenantContext: !!req.tenantContext,
+    tenantId: req.tenantContext?.tenantId,
+    namespace: req.tenantContext?.namespace
+  });
+
   // Convert TenantContext to UserContext format expected by adaptiveTenantFactory
   const userContext = req.tenantContext ? {
     namespace: req.tenantContext.namespace,
     tenantId: req.tenantContext.tenantId
   } : null;
   
-  return await adaptiveTenantFactory.createTenantFromContext(userContext);
+  console.log('[HIERARCHY] Calling adaptiveTenantFactory with userContext:', userContext);
+  
+  try {
+    const client = await adaptiveTenantFactory.createTenantFromContext(userContext);
+    console.log('[HIERARCHY] Tenant client created successfully');
+    return client;
+  } catch (error) {
+    console.error('[HIERARCHY] Failed to create tenant client:', error);
+    throw error;
+  }
 }
 
 // --- PUBLIC HIERARCHY ROUTES (No authentication required) ---
@@ -58,10 +74,35 @@ router.get('/hierarchy', async (req: Request, res: Response): Promise<void> => {
 // Create a new hierarchy
 router.post('/hierarchy', async (req: Request, res: Response): Promise<void> => {
   const { id, name }: { id: string; name: string } = req.body;
+  
+  console.log('[HIERARCHY] Starting hierarchy creation:', { id, name });
+  console.log('[HIERARCHY] Request tenant context:', {
+    tenantId: req.tenantContext?.tenantId,
+    namespace: req.tenantContext?.namespace
+  });
+
   if (!id || !name) {
+    console.log('[HIERARCHY] Missing required fields validation failed');
     res.status(400).json({ error: 'Missing required fields: id and name' });
     return;
   }
+
+  // Check schema readiness
+  console.log('[HIERARCHY] Checking schema readiness - schemaLoaded:', schemaLoaded);
+  if (!schemaLoaded) {
+    console.error('[HIERARCHY] Schema not loaded - hierarchy creation will likely fail');
+    res.status(503).json({ 
+      error: 'System not ready', 
+      details: 'GraphQL schema not fully loaded. Please try again in a moment.',
+      context: {
+        hierarchyId: id,
+        hierarchyName: name,
+        schemaLoaded: false
+      }
+    });
+    return;
+  }
+
   const mutation = `
     mutation ($input: [AddHierarchyInput!]!) {
       addHierarchy(input: $input) {
@@ -72,15 +113,51 @@ router.post('/hierarchy', async (req: Request, res: Response): Promise<void> => 
       }
     }
   `;
+
+  console.log('[HIERARCHY] GraphQL mutation details:', {
+    mutation: mutation.trim(),
+    variables: JSON.stringify({ input: [{ id, name }] }, null, 2)
+  });
+
   try {
+    console.log('[HIERARCHY] Getting tenant client...');
     const tenantClient = await getTenantClient(req);
+    console.log('[HIERARCHY] Tenant client created successfully');
+    
+    console.log('[HIERARCHY] Executing addHierarchy mutation with variables:', { input: [{ id, name }] });
     const data = await tenantClient.executeGraphQL(mutation, { input: [{ id, name }] });
+    console.log('[HIERARCHY] GraphQL execution successful');
+    
+    console.log('[HIERARCHY] GraphQL response details:', {
+      responseData: JSON.stringify(data, null, 2),
+      hasAddHierarchy: !!data.addHierarchy,
+      hasHierarchyArray: !!data.addHierarchy?.hierarchy,
+      hierarchyCount: data.addHierarchy?.hierarchy?.length || 0
+    });
+
     const hier = data.addHierarchy.hierarchy[0];
+    console.log('[HIERARCHY] Hierarchy created successfully:', hier);
     res.status(201).json(hier);
   } catch (error) {
     const err = error as Error;
-    console.error('[HIERARCHY] Failed to create hierarchy:', error);
-    res.status(500).json({ error: 'Failed to create hierarchy', details: err.message });
+    console.error('[HIERARCHY] Hierarchy creation failed at step:', {
+      errorMessage: err.message,
+      errorStack: err.stack,
+      mutation: 'addHierarchy',
+      variables: { input: [{ id, name }] },
+      tenantContext: req.tenantContext,
+      schemaLoaded: schemaLoaded
+    });
+    res.status(500).json({ 
+      error: 'Failed to create hierarchy', 
+      details: err.message,
+      context: {
+        hierarchyId: id,
+        hierarchyName: name,
+        tenantId: req.tenantContext?.tenantId,
+        schemaLoaded: schemaLoaded
+      }
+    });
   }
 });
 

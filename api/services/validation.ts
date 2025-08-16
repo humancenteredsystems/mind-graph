@@ -59,6 +59,18 @@ interface LevelsForHierarchyResponse {
   }>;
 }
 
+interface LevelsWithTypesResponse {
+  queryHierarchy: Array<{
+    levels: Array<{
+      id: string;
+      levelNumber: number;
+      allowedTypes: Array<{
+        typeName: string;
+      }> | null;
+    }>;
+  }>;
+}
+
 // Helper function to validate a hierarchy ID
 export async function validateHierarchyId(hierarchyId: string, tenantClient: TenantClient): Promise<boolean> {
   if (!hierarchyId || typeof hierarchyId !== 'string') {
@@ -134,11 +146,70 @@ export async function validateLevelIdAndAllowedType(
   }
 }
 
+// Helper function to find which level allows a specific node type
+async function findLevelForNodeType(
+  nodeType: string,
+  hierarchyId: string,
+  tenantClient: TenantClient
+): Promise<number> {
+  const query = `
+    query LevelsWithTypes($h: String!) {
+      queryHierarchy(filter: { id: { eq: $h } }) {
+        levels {
+          id
+          levelNumber
+          allowedTypes {
+            typeName
+          }
+        }
+      }
+    }
+  `;
+  
+  const response = await tenantClient.executeGraphQL<LevelsWithTypesResponse>(query, { h: hierarchyId });
+  const levelsData = response.queryHierarchy[0];
+  
+  if (!levelsData || !levelsData.levels) {
+    throw new InvalidLevelError(`Hierarchy ${hierarchyId} does not contain any levels.`);
+  }
+  
+  const levels = levelsData.levels;
+  const matchingLevels: number[] = [];
+  
+  for (const level of levels) {
+    // If allowedTypes is null or empty, all types are allowed at this level
+    if (!level.allowedTypes || level.allowedTypes.length === 0) {
+      matchingLevels.push(level.levelNumber);
+    } else {
+      // Check if this level allows the specified node type
+      const isTypeAllowed = level.allowedTypes.some(type => type.typeName === nodeType);
+      if (isTypeAllowed) {
+        matchingLevels.push(level.levelNumber);
+      }
+    }
+  }
+  
+  if (matchingLevels.length === 0) {
+    const allAllowedTypes = levels
+      .flatMap(level => level.allowedTypes || [])
+      .map(type => type.typeName)
+      .filter((type, index, array) => array.indexOf(type) === index); // Remove duplicates
+    
+    throw new NodeTypeNotAllowedError(
+      `Node type '${nodeType}' is not allowed at any level in hierarchy '${hierarchyId}'. Available types: ${allAllowedTypes.join(', ')}.`
+    );
+  }
+  
+  // If multiple levels allow this type, use the lowest level number (most general)
+  return Math.min(...matchingLevels);
+}
+
 // Helper to determine levelId for a new node within a hierarchy
-export async function getLevelIdForNode(parentId: string | null, hierarchyId: string, tenantClient: TenantClient): Promise<string> {
-  let targetLevelNumber = 1; // Default if no parent or no matching assignment
+export async function getLevelIdForNode(parentId: string | null, hierarchyId: string, nodeType: string, tenantClient: TenantClient): Promise<string> {
+  let targetLevelNumber: number;
 
   if (parentId) {
+    // EXISTING LOGIC: Use parent's level + 1
     const parentQuery = `
       query ParentLevel($nodeId: String!) {
         queryNode(filter: { id: { eq: $nodeId } }) {
@@ -161,9 +232,21 @@ export async function getLevelIdForNode(parentId: string | null, hierarchyId: st
       targetLevelNumber = relevantAssignment.level.levelNumber + 1;
     } else {
       // Parent node exists but is not in the target hierarchy, or has no assignments.
-      // Defaulting the new node to level 1 of the target hierarchy.
-      targetLevelNumber = 1; // Explicitly set, though it's the default
-      console.warn(`Parent node ${parentId} found, but has no assignment for hierarchy ${hierarchyId}. New node will be at level 1 of this hierarchy.`);
+      // Use type-aware fallback instead of defaulting to level 1
+      console.warn(`Parent node ${parentId} found, but has no assignment for hierarchy ${hierarchyId}. Using type-aware assignment for node type '${nodeType}'.`);
+      targetLevelNumber = await findLevelForNodeType(nodeType, hierarchyId, tenantClient);
+    }
+  } else {
+    // NEW LOGIC: Use type-aware level assignment with fallback
+    try {
+      targetLevelNumber = await findLevelForNodeType(nodeType, hierarchyId, tenantClient);
+    } catch (error) {
+      if (error instanceof NodeTypeNotAllowedError) {
+        console.warn(`Type-aware assignment failed for node type '${nodeType}' in hierarchy '${hierarchyId}'. Falling back to level 1.`);
+        targetLevelNumber = 1; // Fallback to level 1
+      } else {
+        throw error; // Re-throw other errors (like InvalidLevelError)
+      }
     }
   }
   // Fetch all levels for the hierarchy and pick by levelNumber

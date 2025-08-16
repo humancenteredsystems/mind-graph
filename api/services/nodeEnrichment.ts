@@ -117,7 +117,7 @@ export async function enrichNodeInputs(
       if (!itemHierarchyId) {
         throw new Error('Hierarchy ID is required when providing parentId');
       }
-      const calculatedLevelId = await getLevelIdForNode(inputObj.parentId, itemHierarchyId, tenantClient);
+      const calculatedLevelId = await getLevelIdForNode(inputObj.parentId, itemHierarchyId, inputObj.type, tenantClient);
       console.log(`[MUTATE] Validating calculated levelId: ${calculatedLevelId} for node type ${inputObj.type}`);
       await validateLevelIdAndAllowedType(calculatedLevelId, inputObj.type, itemHierarchyId, tenantClient);
       finalLevelId = calculatedLevelId;
@@ -144,7 +144,7 @@ export async function enrichNodeInputs(
       console.log(`[MUTATE] Auto-assigning node ${inputObj.id} (${inputObj.type}) to hierarchy ${itemHierarchyId}`);
       try {
         // Use null as parentId to assign to level 1 (root level)
-        const autoLevelId = await getLevelIdForNode(null, itemHierarchyId, tenantClient);
+        const autoLevelId = await getLevelIdForNode(null, itemHierarchyId, inputObj.type, tenantClient);
         console.log(`[MUTATE] Validating auto-assigned levelId: ${autoLevelId} for node type ${inputObj.type}`);
         await validateLevelIdAndAllowedType(autoLevelId, inputObj.type, itemHierarchyId, tenantClient);
         

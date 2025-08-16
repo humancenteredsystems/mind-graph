@@ -132,7 +132,18 @@ describe('validation service', () => {
   });
 
   describe('getLevelIdForNode', () => {
-    it('should return level 1 when no parent provided', async () => {
+    it('should return level 1 when no parent provided and no type-specific level found', async () => {
+      // Mock hierarchy levels query for type-aware lookup (will find no matching types)
+      (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
+        queryHierarchy: [{
+          levels: [
+            { id: 'level1', levelNumber: 1, allowedTypes: [{ typeName: 'concept' }] },
+            { id: 'level2', levelNumber: 2, allowedTypes: [{ typeName: 'question' }] }
+          ]
+        }]
+      });
+
+      // Mock fallback levels query (after type-aware lookup fails)
       (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
         queryHierarchy: [{
           levels: [
@@ -142,8 +153,33 @@ describe('validation service', () => {
         }]
       });
 
-      const result = await getLevelIdForNode(null, 'hierarchy1', mockTenantClient);
+      const result = await getLevelIdForNode(null, 'hierarchy1', 'unknown-type', mockTenantClient);
       expect(result).toBe('level1');
+    });
+
+    it('should use type-aware assignment when no parent provided', async () => {
+      // Mock hierarchy levels query for type-aware lookup  
+      (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
+        queryHierarchy: [{
+          levels: [
+            { id: 'level1', levelNumber: 1, allowedTypes: [{ typeName: 'country' }] },
+            { id: 'level2', levelNumber: 2, allowedTypes: [{ typeName: 'state' }] }
+          ]
+        }]
+      });
+
+      // Mock second levels query to get level ID by levelNumber
+      (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
+        queryHierarchy: [{
+          levels: [
+            { id: 'level1', levelNumber: 1 },
+            { id: 'level2', levelNumber: 2 }
+          ]
+        }]
+      });
+
+      const result = await getLevelIdForNode(null, 'hierarchy1', 'state', mockTenantClient);
+      expect(result).toBe('level2');
     });
 
     it('should return next level when parent has assignment in hierarchy', async () => {
@@ -167,7 +203,7 @@ describe('validation service', () => {
         }]
       });
 
-      const result = await getLevelIdForNode('parent-node', 'hierarchy1', mockTenantClient);
+      const result = await getLevelIdForNode('parent-node', 'hierarchy1', 'concept', mockTenantClient);
       expect(result).toBe('level2');
     });
 
@@ -182,7 +218,17 @@ describe('validation service', () => {
         }]
       });
 
-      // Mock levels query
+      // Mock type-aware lookup (fallback when parent has no assignment)
+      (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
+        queryHierarchy: [{
+          levels: [
+            { id: 'level1', levelNumber: 1, allowedTypes: [{ typeName: 'concept' }] },
+            { id: 'level2', levelNumber: 2, allowedTypes: [{ typeName: 'question' }] }
+          ]
+        }]
+      });
+
+      // Mock final levels query to get level ID by levelNumber
       (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
         queryHierarchy: [{
           levels: [
@@ -192,7 +238,7 @@ describe('validation service', () => {
         }]
       });
 
-      const result = await getLevelIdForNode('parent-node', 'hierarchy1', mockTenantClient);
+      const result = await getLevelIdForNode('parent-node', 'hierarchy1', 'concept', mockTenantClient);
       expect(result).toBe('level1');
     });
 
@@ -217,21 +263,54 @@ describe('validation service', () => {
         }]
       });
 
-      await expect(getLevelIdForNode('parent-node', 'hierarchy1', mockTenantClient))
+      await expect(getLevelIdForNode('parent-node', 'hierarchy1', 'concept', mockTenantClient))
         .rejects
         .toThrow(InvalidLevelError);
     });
 
     it('should throw InvalidLevelError when hierarchy has no levels', async () => {
+      // Mock type-aware lookup (will fail due to no levels)
       (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
         queryHierarchy: [{
           levels: []
         }]
       });
 
-      await expect(getLevelIdForNode(null, 'hierarchy1', mockTenantClient))
+      // Mock fallback levels query (also empty)
+      (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
+        queryHierarchy: [{
+          levels: []
+        }]
+      });
+
+      await expect(getLevelIdForNode(null, 'hierarchy1', 'concept', mockTenantClient))
         .rejects
         .toThrow(InvalidLevelError);
+    });
+
+    it('should handle multiple matching levels and return first one', async () => {
+      // Mock hierarchy levels query - multiple levels allow 'concept'
+      (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
+        queryHierarchy: [{
+          levels: [
+            { id: 'level1', levelNumber: 1, allowedTypes: [{ typeName: 'concept' }] },
+            { id: 'level2', levelNumber: 2, allowedTypes: [{ typeName: 'concept' }, { typeName: 'question' }] }
+          ]
+        }]
+      });
+
+      // Mock second levels query to get level ID by levelNumber
+      (mockTenantClient.executeGraphQL as jest.Mock).mockResolvedValueOnce({
+        queryHierarchy: [{
+          levels: [
+            { id: 'level1', levelNumber: 1 },
+            { id: 'level2', levelNumber: 2 }
+          ]
+        }]
+      });
+
+      const result = await getLevelIdForNode(null, 'hierarchy1', 'concept', mockTenantClient);
+      expect(result).toBe('level1'); // Should return the first matching level
     });
   });
 });

@@ -7,6 +7,7 @@ import { sendDgraphAdminRequest } from '../utils/dgraphAdmin';
 import { TenantManager } from '../services/tenantManager';
 import { DgraphTenantFactory } from '../services/dgraphTenant';
 import { createErrorResponseFromError } from '../utils/errorResponse';
+import { setSchemaLoaded } from '../services/systemInitialization';
 import { 
   DropAllRequest, 
   DropAllResponse, 
@@ -111,6 +112,8 @@ router.post('/admin/schema', authenticateAdmin, async (req: Request, res: Respon
     const result: SchemaPushResult = await pushSchemaToConfiguredDgraph(schemaContent, namespace || null);
 
     if (result.success) {
+      console.log('[SCHEMA PUSH] Schema push successful, setting schemaLoaded = true');
+      setSchemaLoaded(true);
       res.json({ success: true, results: result });
     } else {
       console.error('[SCHEMA PUSH] Push failed:', result.error);
