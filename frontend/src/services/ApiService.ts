@@ -39,6 +39,23 @@ import { GET_ALL_NODE_IDS_QUERY } from '../graphql/queries';
 import { log } from '../utils/logger';
 
 
+const logApiError = (context: string, error: unknown) => {
+  if (axios.isAxiosError(error)) {
+    log('ApiService', `Axios error ${context}:`, error.toJSON());
+    if (error.response) {
+      log('ApiService', 'Error response data:', error.response.data);
+    }
+  } else {
+    log('ApiService', `Generic error ${context}:`, error);
+  }
+};
+
+const handleApiError = (context: string, error: unknown): never => {
+  logApiError(context, error);
+  throw error instanceof Error ? error : new Error(String(error));
+};
+
+
 interface QueryResponse {
   queryNode?: NodeData[];
   queryHierarchy?: Array<{
@@ -91,15 +108,7 @@ export const fetchTraversalData = async (
     );
     return response.data.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) { // Enhanced error logging
-      log('ApiService', 'Axios error fetching traversal data:', error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', 'Generic error fetching traversal data:', error);
-    }
-    throw error;
+    handleApiError('fetching traversal data', error);
   }
 };
 
@@ -118,15 +127,7 @@ export const executeQuery = async (
     });
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) { // Enhanced error logging
-      log('ApiService', 'Axios error executing query:', error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', 'Generic error executing query:', error);
-    }
-    throw error;
+    handleApiError('executing query', error);
   }
 };
 
@@ -160,21 +161,11 @@ export const executeMutation = async (
     log('ApiService', 'Mutation response:', response.data);
     return response.data;
   } catch (error: unknown) {
-    // const axiosError = error as { response?: { data?: unknown } }; // Removed redundant type assertion
-    if (axios.isAxiosError(error)) { // Enhanced error logging
-      log('ApiService', 'Axios error executing mutation:', error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Mutation error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', 'Generic error executing mutation:', error);
-    }
-
     // Log additional details about the request that failed
     log('ApiService', 'Failed mutation:', mutation);
     log('ApiService', 'Failed variables:', JSON.stringify(variables, null, 2));
 
-    throw error;
+    handleApiError('executing mutation', error);
   }
 };
 
@@ -188,15 +179,7 @@ export const fetchSchema = async (): Promise<string> => {
     });
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) { // Enhanced error logging
-      log('ApiService', 'Axios error fetching schema:', error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', 'Generic error fetching schema:', error);
-    }
-    throw error;
+    handleApiError('fetching schema', error);
   }
 };
 
@@ -208,15 +191,7 @@ export const fetchHealth = async (): Promise<HealthStatus> => {
     const response = await apiClient.get<HealthStatus>(`/health`); // Changed axios to apiClient, removed API_BASE_URL
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) { // Enhanced error logging
-      log('ApiService', 'Axios error fetching health status:', error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', 'Generic error fetching health status:', error);
-    }
-    throw error;
+    handleApiError('fetching health status', error);
   }
 };
 
@@ -228,15 +203,7 @@ export const fetchSystemStatus = async (): Promise<SystemStatus> => {
     const response = await apiClient.get<SystemStatus>(`/system/status`); // Changed axios to apiClient, removed API_BASE_URL
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) { // Enhanced error logging
-      log('ApiService', 'Axios error fetching system status:', error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', 'Generic error fetching system status:', error);
-    }
-    throw error;
+    handleApiError('fetching system status', error);
   }
 };
 
@@ -245,15 +212,7 @@ export const fetchHierarchies = async (): Promise<{ id: string; name: string }[]
     const response = await apiClient.get<{ id: string; name: string }[]>(`/hierarchy`); // Changed axios to apiClient, removed API_BASE_URL
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) { // Enhanced error logging
-      log('ApiService', 'Axios error fetching hierarchies:', error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', 'Generic error fetching hierarchies:', error);
-    }
-    throw error;
+    handleApiError('fetching hierarchies', error);
   }
 };
 
@@ -269,16 +228,7 @@ export async function deleteNodeCascade(
     });
     return response.data;
   } catch (error: unknown) {
-    // const axiosError = error as { response?: { data?: { error?: string } } }; // Removed redundant type assertion
-    if (axios.isAxiosError(error)) { // Enhanced error logging
-      log('ApiService', 'Axios error deleting node cascade:', error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', 'Generic error deleting node cascade:', error);
-    }
-    // log('ApiService', 'Error deleting node cascade:', error); // Removed redundant log
+    logApiError('deleting node cascade', error);
     throw new Error((error as AxiosError<{ error?: string }>).response?.data?.error || 'Failed to delete node.'); // Adjusted error handling
   }
 }
@@ -296,15 +246,7 @@ export const fetchSearch = async (
     });
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      log('ApiService', 'Axios error searching nodes:', error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', 'Generic error searching nodes:', error);
-    }
-    throw error;
+    handleApiError('searching nodes', error);
   }
 };
 
@@ -316,8 +258,7 @@ export const fetchAllNodeIds = async (): Promise<string[]> => {
     const result = await executeQuery(GET_ALL_NODE_IDS_QUERY);
     return result.queryNode?.map(node => node.id) ?? [];
   } catch (error) {
-    log('ApiService', 'Error fetching all node IDs:', error);
-    throw error;
+    handleApiError('fetching all node IDs', error);
   }
 };
 
@@ -425,15 +366,7 @@ const executeAdminRequest = async <T = unknown>(
 
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      log('ApiService', `Admin API error (${endpoint}):`, error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', `Generic admin API error (${endpoint}):`, error);
-    }
-    throw error;
+    handleApiError(`during admin API request to ${endpoint}`, error);
   }
 };
 
@@ -733,15 +666,7 @@ export const pushSchema = async (
     
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      log('ApiService', `Error pushing schema ${schemaId} to tenant ${tenantId}:`, error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', `Generic error pushing schema ${schemaId} to tenant ${tenantId}:`, error);
-    }
-    throw error;
+    handleApiError(`pushing schema ${schemaId} to tenant ${tenantId}`, error);
   }
 };
 
@@ -801,15 +726,7 @@ export const getSchemaContent = async (
     });
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      log('ApiService', `Error fetching schema content for ${schemaId}:`, error.toJSON());
-      if (error.response) {
-        log('ApiService', 'Error response data:', error.response.data);
-      }
-    } else {
-      log('ApiService', `Generic error fetching schema content for ${schemaId}:`, error);
-    }
-    throw error;
+    handleApiError(`fetching schema content for ${schemaId}`, error);
   }
 };
 
