@@ -2,26 +2,36 @@
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  
-  /* border: 1px dashed orange; /* Debug border - REMOVED */
-  /* background-color: #fff8dc; /* Keep Debug background for now - REMOVED */
+
+  /* Theming variables */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f3f4f6;
+  --color-surface-elevated: #f8f9fa;
+  --color-surface-hover: #e9ecef;
+  --color-border-subtle: #e5e7eb;
+  --color-border-strong: #cbd5e1;
+  --color-text-primary: #213547;
+  --color-text-secondary: #475569;
+  --color-text-inverse: #0f172a;
+  --color-link: #646cff;
+  --color-link-hover: #535bf2;
+  --color-button-bg: #f9f9f9;
+  --color-floating-surface: rgba(255, 255, 255, 0.95);
+  --color-floating-surface-hover: rgba(255, 255, 255, 1);
+  --color-overlay: rgba(15, 23, 42, 0.45);
 }
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--color-link);
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--color-link-hover);
 }
 
 /* Constrain body */
@@ -32,6 +42,8 @@ body {
   overflow: hidden; /* Prevent body scrollbars */
   display: flex; /* Use flexbox */
   flex-direction: column; /* Stack children vertically */
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
   /* place-items: center; Removed */
   /* min-width: 320px; Removed */
   /* min-height: 100vh; Replaced by height: 100vh */
@@ -49,7 +61,7 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: var(--color-button-bg);
   cursor: pointer;
   transition: border-color 0.25s;
 }
@@ -62,15 +74,22 @@ button:hover {
     outline-offset: 2px;
   }
 
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+    --color-bg-primary: #0f172a;
+    --color-bg-secondary: #111827;
+    --color-surface-elevated: #1f2937;
+    --color-surface-hover: #273449;
+    --color-border-subtle: rgba(148, 163, 184, 0.35);
+    --color-border-strong: rgba(148, 163, 184, 0.55);
+    --color-text-primary: #e2e8f0;
+    --color-text-secondary: #cbd5f5;
+    --color-text-inverse: #0f172a;
+    --color-link: #a5b4fc;
+    --color-link-hover: #c7d2fe;
+    --color-button-bg: rgba(148, 163, 184, 0.16);
+    --color-floating-surface: rgba(15, 23, 42, 0.9);
+    --color-floating-surface-hover: rgba(15, 23, 42, 1);
+    --color-overlay: rgba(15, 23, 42, 0.6);
   }
 }

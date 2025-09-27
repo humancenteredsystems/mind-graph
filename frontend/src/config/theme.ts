@@ -13,6 +13,8 @@ import {
 
 const { colors, spacing, fontSize, radius, shadow } = tokens;
 
+const withCssVar = (name: string, fallback: string) => `var(${name}, ${fallback})`;
+
 /**
  * Level color generator function
  * Generates consistent colors for hierarchy levels
@@ -36,27 +38,27 @@ export const theme = {
   // Semantic colors derived from tokens
   colors: {
     background: {
-      primary: colors.legacy.white,
-      secondary: colors.gray[50],
-      overlay: 'rgba(0, 0, 0, 0.3)',
+      primary: withCssVar('--color-bg-primary', colors.legacy.white),
+      secondary: withCssVar('--color-bg-secondary', colors.gray[50]),
+      overlay: withCssVar('--color-overlay', 'rgba(0, 0, 0, 0.3)'),
       error: '#fef2f2',
       info: '#f8fafc',
     },
-    
+
     border: {
-      default: colors.gray[300],
-      light: colors.gray[200],
-      dark: colors.legacy.borderDefault,
+      default: withCssVar('--color-border-subtle', colors.gray[300]),
+      light: withCssVar('--color-border-subtle', colors.gray[200]),
+      dark: withCssVar('--color-border-strong', colors.legacy.borderDefault),
       active: colors.primary[500],
       expanded: colors.warning[700],
       error: colors.danger[500],
     },
-    
+
     text: {
-      primary: colors.legacy.textDefault,
-      secondary: colors.gray[600],
-      muted: colors.legacy.nodeDefault,
-      inverse: colors.legacy.white,
+      primary: withCssVar('--color-text-primary', colors.legacy.textDefault),
+      secondary: withCssVar('--color-text-secondary', colors.gray[600]),
+      muted: withCssVar('--color-text-secondary', colors.legacy.nodeDefault),
+      inverse: withCssVar('--color-text-inverse', colors.legacy.white),
       disabled: colors.gray[300],
       error: colors.danger[600],
       success: colors.success[600],
@@ -182,7 +184,7 @@ export const theme = {
         width: '100%',
         padding: spacing.scale(1), // 4px
         marginBottom: spacing.scale(3), // 12px
-        border: `1px solid ${colors.gray[300]}`,
+        border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[300])}`,
         borderRadius: radius.sm,
         fontSize: fontSize.sm,
       },
@@ -190,7 +192,7 @@ export const theme = {
         display: 'block',
         marginBottom: spacing.scale(1), // 4px
         fontWeight: 500,
-        color: colors.legacy.textDefault,
+        color: withCssVar('--color-text-primary', colors.legacy.textDefault),
       },
       error: {
         color: colors.danger[600],
@@ -219,8 +221,8 @@ export const theme = {
     },
     
     contextMenu: {
-      background: colors.legacy.white,
-      border: colors.gray[300],
+      background: withCssVar('--color-surface-elevated', colors.legacy.white),
+      border: withCssVar('--color-border-subtle', colors.gray[300]),
       shadow: shadow.lg,
       borderRadius: radius.base,
       item: {
@@ -232,8 +234,8 @@ export const theme = {
     },
     
     modal: {
-      overlay: 'rgba(0,0,0,0.3)',
-      background: colors.legacy.white,
+      overlay: withCssVar('--color-overlay', 'rgba(0,0,0,0.3)'),
+      background: withCssVar('--color-surface-elevated', colors.legacy.white),
       shadow: shadow.xl,
       borderRadius: radius.base,
       padding: spacing.scale(5), // 20px
@@ -248,12 +250,12 @@ export const theme = {
     },
     
     drawer: {
-      background: colors.legacy.white,
-      border: colors.gray[300],
+      background: withCssVar('--color-surface-elevated', colors.legacy.white),
+      border: withCssVar('--color-border-subtle', colors.gray[300]),
       shadow: '-2px 0 5px rgba(0,0,0,0.1)',
       borderRadius: radius.none,
       header: {
-        borderBottom: colors.gray[200],
+        borderBottom: withCssVar('--color-border-subtle', colors.gray[200]),
         padding: spacing.scale(3), // 12px
       },
       tab: {
@@ -269,28 +271,28 @@ export const theme = {
     },
     
     settingsIcon: {
-      background: 'rgba(255, 255, 255, 0.95)',
-      backgroundHover: 'rgba(255, 255, 255, 1)',
-      border: colors.gray[300],
+      background: withCssVar('--color-floating-surface', 'rgba(255, 255, 255, 0.95)'),
+      backgroundHover: withCssVar('--color-floating-surface-hover', 'rgba(255, 255, 255, 1)'),
+      border: withCssVar('--color-border-subtle', colors.gray[300]),
       shadow: shadow.base,
       borderRadius: radius.full,
     },
-    
+
     settingsModal: {
-      overlay: 'rgba(0,0,0,0.3)',
-      background: colors.legacy.white,
+      overlay: withCssVar('--color-overlay', 'rgba(0,0,0,0.3)'),
+      background: withCssVar('--color-surface-elevated', colors.legacy.white),
       shadow: shadow['2xl'],
       borderRadius: radius.lg,
       maxWidth: 800,
       header: {
-        borderBottom: colors.gray[200],
+        borderBottom: withCssVar('--color-border-subtle', colors.gray[200]),
         padding: spacing.scale(6), // 24px
       },
       content: {
         padding: spacing.scale(5), // 20px
       },
       section: {
-        borderBottom: colors.gray[200],
+        borderBottom: withCssVar('--color-border-subtle', colors.gray[200]),
         padding: spacing.scale(3), // 12px
       },
       tab: {
@@ -315,11 +317,11 @@ export const theme = {
         },
         title: {
           margin: '0 0 20px 0',
-          color: colors.legacy.textDefault,
+          color: withCssVar('--color-text-primary', colors.legacy.textDefault),
         },
         subtitle: {
           margin: '0 0 30px 0',
-          color: colors.gray[600],
+          color: withCssVar('--color-text-secondary', colors.gray[600]),
           fontSize: fontSize.sm,
         },
         inputContainer: {
@@ -329,7 +331,7 @@ export const theme = {
         input: {
           width: '100%',
           padding: '12px 40px 12px 16px',
-          border: `1px solid ${colors.gray[300]}`,
+          border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[300])}`,
           borderRadius: radius.sm,
           fontSize: fontSize.sm,
           boxSizing: 'border-box' as const,
@@ -342,7 +344,7 @@ export const theme = {
           background: 'none',
           border: 'none',
           cursor: 'pointer',
-          color: colors.gray[600],
+          color: withCssVar('--color-text-secondary', colors.gray[600]),
           fontSize: spacing.scale(4), // 16px
           padding: spacing.scale(1), // 4px
           display: 'flex',
@@ -368,7 +370,7 @@ export const theme = {
         },
         sectionTitle: {
           margin: '0 0 12px 0',
-          color: colors.legacy.textDefault,
+          color: withCssVar('--color-text-primary', colors.legacy.textDefault),
         },
         buttonGroup: {
           display: 'flex',
@@ -389,7 +391,7 @@ export const theme = {
         },
         resultItem: {
           padding: spacing.scale(3), // 12px
-          border: `1px solid ${colors.gray[200]}`,
+          border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[200])}`,
           borderRadius: radius.sm,
           marginBottom: spacing.scale(2), // 8px
           fontSize: fontSize.sm,
@@ -401,23 +403,23 @@ export const theme = {
           marginBottom: spacing.scale(1), // 4px
         },
         resultMeta: {
-          color: colors.gray[600],
+          color: withCssVar('--color-text-secondary', colors.gray[600]),
           fontSize: fontSize.xs,
         },
         expandButton: {
           background: 'none',
-          border: `1px solid ${colors.gray[300]}`,
+          border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[300])}`,
           borderRadius: 3,
           padding: '2px 6px',
           fontSize: 11,
           cursor: 'pointer',
-          color: colors.gray[600],
+          color: withCssVar('--color-text-secondary', colors.gray[600]),
         },
         expandedDetails: {
           marginTop: spacing.scale(2), // 8px
           padding: spacing.scale(3), // 12px
-          background: colors.gray[50],
-          border: `1px solid ${colors.gray[200]}`,
+          background: withCssVar('--color-bg-secondary', colors.gray[50]),
+          border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[200])}`,
           borderRadius: radius.sm,
           fontSize: fontSize.xs,
         },
@@ -437,7 +439,7 @@ export const theme = {
         },
         title: {
           margin: 0,
-          color: colors.legacy.textDefault,
+          color: withCssVar('--color-text-primary', colors.legacy.textDefault),
         },
         actionGroup: {
           display: 'flex',
@@ -445,25 +447,25 @@ export const theme = {
         },
         modeIndicator: {
           fontSize: fontSize.xs,
-          color: colors.gray[600],
+          color: withCssVar('--color-text-secondary', colors.gray[600]),
           marginBottom: spacing.scale(2), // 8px
         },
         createForm: {
           marginBottom: spacing.scale(4), // 16px
           padding: spacing.scale(4), // 16px
-          border: `1px solid ${colors.gray[200]}`,
+          border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[200])}`,
           borderRadius: radius.sm,
-          background: colors.gray[50],
+          background: withCssVar('--color-bg-secondary', colors.gray[50]),
         },
         createFormTitle: {
           margin: '0 0 12px 0',
-          color: colors.legacy.textDefault,
+          color: withCssVar('--color-text-primary', colors.legacy.textDefault),
           fontSize: fontSize.sm,
         },
         createFormInput: {
           width: '100%',
           padding: '8px 12px',
-          border: `1px solid ${colors.gray[300]}`,
+          border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[300])}`,
           borderRadius: radius.sm,
           fontSize: fontSize.sm,
           boxSizing: 'border-box' as const,
@@ -478,7 +480,7 @@ export const theme = {
         },
         tenantItem: {
           padding: spacing.scale(4), // 16px
-          border: `1px solid ${colors.gray[200]}`,
+          border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[200])}`,
           borderRadius: radius.sm,
           marginBottom: spacing.scale(3), // 12px
         },
@@ -493,7 +495,7 @@ export const theme = {
           fontSize: fontSize.sm,
         },
         tenantNamespace: {
-          color: colors.gray[600],
+          color: withCssVar('--color-text-secondary', colors.gray[600]),
           fontSize: fontSize.xs,
         },
         tenantActions: {
@@ -512,7 +514,7 @@ export const theme = {
         },
         tenantMeta: {
           fontSize: fontSize.xs,
-          color: colors.gray[600],
+          color: withCssVar('--color-text-secondary', colors.gray[600]),
         },
         actionButton: {
           padding: '4px 8px',
@@ -524,27 +526,27 @@ export const theme = {
         schemaButton: {
           padding: '2px 6px',
           background: 'transparent',
-          border: `1px solid ${colors.gray[300]}`,
+          border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[300])}`,
           borderRadius: 3,
           fontSize: 11,
           cursor: 'pointer',
-          color: colors.legacy.textDefault,
+          color: withCssVar('--color-text-primary', colors.legacy.textDefault),
           display: 'flex',
           alignItems: 'center',
           gap: spacing.scale(1), // 4px
         },
       },
       schema: {
-        overlay: 'rgba(0,0,0,0.5)',
-        background: colors.legacy.white,
+        overlay: withCssVar('--color-overlay', 'rgba(0,0,0,0.5)'),
+        background: withCssVar('--color-surface-elevated', colors.legacy.white),
         shadow: '0 10px 25px rgba(0,0,0,0.3)',
         borderRadius: radius.lg,
         width: '80%',
         maxWidth: 800,
         height: '80%',
         header: {
-          borderBottom: `1px solid ${colors.gray[200]}`,
-          background: colors.gray[50],
+          borderBottom: `1px solid ${withCssVar('--color-border-subtle', colors.gray[200])}`,
+          background: withCssVar('--color-bg-secondary', colors.gray[50]),
           padding: '16px 20px',
         },
         title: {
@@ -555,7 +557,7 @@ export const theme = {
         subtitle: {
           margin: '4px 0 0 0',
           fontSize: fontSize.sm,
-          color: colors.gray[600],
+          color: withCssVar('--color-text-secondary', colors.gray[600]),
         },
         headerActions: {
           display: 'flex',
@@ -567,8 +569,8 @@ export const theme = {
           padding: spacing.scale(5), // 20px
         },
         codeBlock: {
-          background: colors.gray[50],
-          border: `1px solid ${colors.gray[200]}`,
+          background: withCssVar('--color-bg-secondary', colors.gray[50]),
+          border: `1px solid ${withCssVar('--color-border-subtle', colors.gray[200])}`,
           borderRadius: radius.sm,
           padding: spacing.scale(4), // 16px
           fontSize: 13,
@@ -576,7 +578,7 @@ export const theme = {
           overflow: 'auto' as const,
           margin: 0,
           fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-          color: colors.legacy.textDefault,
+          color: withCssVar('--color-text-primary', colors.legacy.textDefault),
           whiteSpace: 'pre-wrap' as const,
           wordBreak: 'break-word' as const,
         },
@@ -585,7 +587,7 @@ export const theme = {
           padding: spacing.scale(10), // 40px
         },
         loadingText: {
-          color: colors.gray[600],
+          color: withCssVar('--color-text-secondary', colors.gray[600]),
         },
       },
     },
