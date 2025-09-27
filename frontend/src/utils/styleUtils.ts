@@ -51,6 +51,7 @@ export const buildModalStyle = (options: {
   padding: theme.components.modal.padding,
   width: options.width || 'auto',
   maxWidth: options.maxWidth || '90vw',
+  color: theme.colors.text.primary,
   zIndex: options.zIndex || theme.zIndex.modal,
 });
 
@@ -135,6 +136,7 @@ export const buildDrawerStyle = () => css({
   background: theme.components.drawer.background,
   borderLeft: `1px solid ${theme.components.drawer.border}`,
   boxShadow: theme.components.drawer.shadow,
+  color: theme.colors.text.primary,
   zIndex: theme.zIndex.modal,
 });
 
@@ -153,13 +155,15 @@ export const buildDrawerTabStyle = (isActive: boolean) => css({
   flex: 1,
   padding: `${theme.components.drawer.header.padding}px`,
   border: 'none',
-  background: isActive 
-    ? theme.components.drawer.tab.active.background 
+  background: isActive
+    ? theme.components.drawer.tab.active.background
     : theme.components.drawer.tab.inactive.background,
   cursor: 'pointer',
-  borderBottom: `2px solid ${isActive 
-    ? theme.components.drawer.tab.active.borderColor 
+  borderBottom: `2px solid ${isActive
+    ? theme.components.drawer.tab.active.borderColor
     : theme.components.drawer.tab.inactive.borderColor}`,
+  color: isActive ? theme.colors.text.primary : theme.colors.text.secondary,
+  transition: 'background 0.2s ease, color 0.2s ease',
 });
 
 /**
@@ -168,16 +172,18 @@ export const buildDrawerTabStyle = (isActive: boolean) => css({
 export const buildTabStyle = (isActive: boolean) => css({
   padding: '8px 16px',
   border: 'none',
-  background: isActive 
-    ? theme.components.settingsModal.tab.active.background 
+  background: isActive
+    ? theme.components.settingsModal.tab.active.background
     : theme.components.settingsModal.tab.inactive.background,
   cursor: 'pointer',
-  fontWeight: isActive 
-    ? theme.components.settingsModal.tab.active.fontWeight 
+  fontWeight: isActive
+    ? theme.components.settingsModal.tab.active.fontWeight
     : theme.components.settingsModal.tab.inactive.fontWeight,
-  borderBottom: `2px solid ${isActive 
-    ? theme.components.settingsModal.tab.active.borderColor 
+  borderBottom: `2px solid ${isActive
+    ? theme.components.settingsModal.tab.active.borderColor
     : theme.components.settingsModal.tab.inactive.borderColor}`,
+  color: isActive ? theme.colors.text.primary : theme.colors.text.secondary,
+  transition: 'background 0.2s ease, color 0.2s ease',
 });
 
 /**

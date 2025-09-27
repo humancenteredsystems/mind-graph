@@ -62,17 +62,19 @@ export const ModalHeader: React.FC<ModalHeaderProps> = ({
       alignItems: 'center',
       padding: '20px 24px',
       borderBottom: `1px solid ${theme.colors.border.light}`,
+      background: theme.components.modal.background,
+      color: theme.colors.text.primary,
       flexShrink: 0,
     }}>
       <div style={{ flex: 1 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: theme.colors.text.primary }}>
           {title}
         </h2>
         {subtitle && (
-          <p style={{ 
-            margin: '4px 0 0 0', 
-            fontSize: 14, 
-            color: theme.colors.text.secondary 
+          <p style={{
+            margin: '4px 0 0 0',
+            fontSize: 14,
+            color: theme.colors.text.secondary
           }}>
             {subtitle}
           </p>
