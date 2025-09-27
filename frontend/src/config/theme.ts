@@ -49,7 +49,7 @@ export const theme = {
       default: withCssVar('--color-border-subtle', colors.gray[300]),
       light: withCssVar('--color-border-subtle', colors.gray[200]),
       dark: withCssVar('--color-border-strong', colors.legacy.borderDefault),
-      active: colors.primary[500],
+      active: withCssVar('--color-accent', colors.primary[500]),
       expanded: colors.warning[700],
       error: colors.danger[500],
     },
@@ -59,7 +59,7 @@ export const theme = {
       secondary: withCssVar('--color-text-secondary', colors.gray[600]),
       muted: withCssVar('--color-text-secondary', colors.legacy.nodeDefault),
       inverse: withCssVar('--color-text-inverse', colors.legacy.white),
-      disabled: colors.gray[300],
+      disabled: withCssVar('--color-text-disabled', colors.gray[400]),
       error: colors.danger[600],
       success: colors.success[600],
     },
@@ -116,7 +116,7 @@ export const theme = {
         unknownText: '#6b7280',
       },
       button: {
-        primary: '#3b82f6',
+        primary: withCssVar('--color-accent', '#3b82f6'),
         secondary: 'transparent',
         success: '#10b981',
         warning: '#f59e0b',
@@ -227,8 +227,8 @@ export const theme = {
       borderRadius: radius.base,
       item: {
         padding: spacing.scale(2), // 8px
-        disabledColor: colors.gray[300],
-        shortcutColor: colors.legacy.nodeDefault,
+        disabledColor: withCssVar('--color-text-disabled', colors.gray[400]),
+        shortcutColor: withCssVar('--color-text-secondary', colors.legacy.nodeDefault),
         fontSize: fontSize.sm,
       },
     },
@@ -260,12 +260,12 @@ export const theme = {
       },
       tab: {
         active: {
-          background: colors.gray[100],
-          borderColor: colors.primary[500],
+          background: withCssVar('--color-surface-active', colors.gray[100]),
+          borderColor: withCssVar('--color-accent', colors.primary[500]),
         },
         inactive: {
-          background: 'transparent',
-          borderColor: 'transparent',
+          background: withCssVar('--color-surface-muted', colors.gray[50]),
+          borderColor: withCssVar('--color-border-subtle', colors.gray[200]),
         },
       },
     },
@@ -297,13 +297,13 @@ export const theme = {
       },
       tab: {
         active: {
-          background: colors.gray[100],
-          borderColor: colors.primary[500],
+          background: withCssVar('--color-surface-active', colors.gray[100]),
+          borderColor: withCssVar('--color-accent', colors.primary[500]),
           fontWeight: 600,
         },
         inactive: {
-          background: 'transparent',
-          borderColor: 'transparent',
+          background: withCssVar('--color-surface-muted', colors.gray[50]),
+          borderColor: withCssVar('--color-border-subtle', colors.gray[200]),
           fontWeight: 400,
         },
       },

@@ -12,17 +12,22 @@
   --color-bg-secondary: #f3f4f6;
   --color-surface-elevated: #f8f9fa;
   --color-surface-hover: #e9ecef;
+  --color-surface-muted: #eef2ff;
+  --color-surface-active: #dbeafe;
   --color-border-subtle: #e5e7eb;
   --color-border-strong: #cbd5e1;
   --color-text-primary: #213547;
   --color-text-secondary: #475569;
-  --color-text-inverse: #0f172a;
-  --color-link: #646cff;
-  --color-link-hover: #535bf2;
+  --color-text-disabled: #94a3b8;
+  --color-text-inverse: #f8fafc;
+  --color-link: #2563eb;
+  --color-link-hover: #1d4ed8;
   --color-button-bg: #f9f9f9;
   --color-floating-surface: rgba(255, 255, 255, 0.95);
   --color-floating-surface-hover: rgba(255, 255, 255, 1);
   --color-overlay: rgba(15, 23, 42, 0.45);
+  --color-accent: #2563eb;
+  --color-accent-contrast: #f8fafc;
 }
 
 a {
@@ -80,16 +85,21 @@ button:hover {
     --color-bg-secondary: #111827;
     --color-surface-elevated: #1f2937;
     --color-surface-hover: #273449;
+    --color-surface-muted: rgba(148, 163, 184, 0.12);
+    --color-surface-active: rgba(96, 165, 250, 0.2);
     --color-border-subtle: rgba(148, 163, 184, 0.35);
-    --color-border-strong: rgba(148, 163, 184, 0.55);
+    --color-border-strong: rgba(148, 163, 184, 0.6);
     --color-text-primary: #e2e8f0;
     --color-text-secondary: #cbd5f5;
-    --color-text-inverse: #0f172a;
-    --color-link: #a5b4fc;
-    --color-link-hover: #c7d2fe;
+    --color-text-disabled: rgba(148, 163, 184, 0.6);
+    --color-text-inverse: #f8fafc;
+    --color-link: #93c5fd;
+    --color-link-hover: #bfdbfe;
     --color-button-bg: rgba(148, 163, 184, 0.16);
     --color-floating-surface: rgba(15, 23, 42, 0.9);
     --color-floating-surface-hover: rgba(15, 23, 42, 1);
     --color-overlay: rgba(15, 23, 42, 0.6);
+    --color-accent: #60a5fa;
+    --color-accent-contrast: #0b1120;
   }
 }
