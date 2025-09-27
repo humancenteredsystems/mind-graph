@@ -27,8 +27,8 @@
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  background: inherit;
-  border-bottom: 1px solid #e0e0e0;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 /* Graph area takes remaining space */
@@ -45,8 +45,8 @@
   grid-column: 2;
   width: 240px;
   padding: 10px;
-  border-left: 1px solid #e0e0e0;
-  background: inherit;
+  border-left: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-secondary);
   overflow-y: auto;
 }
 
@@ -62,7 +62,7 @@
     grid-column: 1;
     width: auto;
     border-left: none;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--color-border-subtle);
     padding: 0.5rem 1rem;
   }
   
@@ -83,23 +83,25 @@
   text-decoration: none;
   font-size: 0.9rem;
   padding: 0.5rem 1rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border-subtle);
   border-radius: 4px;
-  background: #f8f9fa;
+  background: var(--color-surface-elevated);
   display: inline-block;
   transition: all 0.2s ease;
 }
 
 .app-header .documentation-link:hover {
-  background: #e9ecef;
+  background: var(--color-surface-hover);
 }
 
 .app-header select {
   margin: 0;
   padding: 0.5rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border-subtle);
   border-radius: 4px;
   font-size: 0.9rem;
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
 }
 
 /* Ensure GraphView component takes up space */
