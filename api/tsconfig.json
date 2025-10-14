@@ -20,8 +20,7 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "types": ["node", "jest"]
+    "typeRoots": ["./node_modules/@types", "./src/types"]
   },
   "include": [
     "**/*.ts"
@@ -29,6 +28,11 @@
   "exclude": [
     "node_modules",
     "dist",
+    "__tests__",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "jest.setup.ts",
+    "jest.*.ts",
     "__tests__/**/*.js",
     "**/*.test.js",
     "**/*.spec.js",

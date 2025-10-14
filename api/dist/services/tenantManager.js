@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TenantManager = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const config_1 = __importDefault(require("../config"));
-const dgraphTenant_1 = require("./dgraphTenant");
+const adaptiveTenantFactory_1 = require("./adaptiveTenantFactory");
 const pushSchema_1 = require("../utils/pushSchema");
 const schemaValidator_1 = require("../utils/schemaValidator");
 const fs_1 = require("fs");
@@ -21,7 +21,7 @@ class TenantManager {
         this.pushSchema = dependencies.pushSchema || pushSchema_1.pushSchemaViaHttp;
         this.fileSystem = dependencies.fileSystem || fs_1.promises;
         this.schemaPath = dependencies.schemaPath || path_1.default.join(__dirname, '../../schemas/default.graphql');
-        this.tenantFactory = dependencies.tenantFactory || dgraphTenant_1.DgraphTenantFactory;
+        this.tenantFactory = dependencies.tenantFactory || adaptiveTenantFactory_1.adaptiveTenantFactory;
         // Environment configuration
         this.defaultNamespace = config_1.default.defaultNamespace;
         this.testNamespace = config_1.default.testNamespace;
