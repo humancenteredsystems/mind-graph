@@ -23,7 +23,6 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [editNodeData, setEditNodeData] = useState<NodeData | undefined>(undefined);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
-  const [adminAuthenticated, setAdminAuthenticated] = useState(false);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const lastOpenTimeRef = useRef<number>(0);
 
@@ -78,16 +77,6 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     setAdminModalOpen(false);
   };
 
-  const authenticateAdmin = (): boolean => {
-    // Store admin key in memory only (not localStorage for security)
-    setAdminAuthenticated(true);
-    return true;
-  };
-
-  const logoutAdmin = () => {
-    setAdminAuthenticated(false);
-  };
-
   // System status functions
   const refreshSystemStatus = async () => {
     try {
@@ -114,11 +103,8 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         openSettingsModal,
         closeSettingsModal,
         adminModalOpen,
-        adminAuthenticated,
         openAdminModal,
         closeAdminModal,
-        authenticateAdmin,
-        logoutAdmin,
         systemStatus,
         refreshSystemStatus,
       }}

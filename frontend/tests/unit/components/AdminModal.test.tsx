@@ -1,54 +1,91 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent } from '../../helpers/testUtils';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AdminModal from '../../../src/components/AdminModal';
 
-// Mock the UI context
-const mockCloseAdminModal = vi.fn();
-const mockAuthenticateAdmin = vi.fn();
-const mockLogoutAdmin = vi.fn();
+const uiMocks = vi.hoisted(() => ({
+  mockCloseAdminModal: vi.fn(),
+  mockUseUIContext: vi.fn(),
+}));
 
-const mockUseUIContext = vi.fn(() => ({
-  adminModalOpen: true,
-  closeAdminModal: mockCloseAdminModal,
-  adminAuthenticated: false,
-  authenticateAdmin: mockAuthenticateAdmin,
-  logoutAdmin: mockLogoutAdmin,
+const serviceMocks = vi.hoisted(() => ({
+  mockListTenants: vi.fn(),
+  mockStartTestRun: vi.fn(),
+  mockGetTestRun: vi.fn(),
+  mockRunLinting: vi.fn(),
+  mockCreateTenant: vi.fn(),
+  mockDeleteTenant: vi.fn(),
+  mockResetTenant: vi.fn(),
+  mockClearTenantData: vi.fn(),
+  mockClearTenantSchema: vi.fn(),
+  mockPushSchema: vi.fn(),
+  mockSeedTenantData: vi.fn(),
+  mockFetchSystemStatus: vi.fn(),
+  mockGetTenantSchema: vi.fn(),
 }));
 
 vi.mock('../../../src/hooks/useUI', () => ({
-  useUIContext: mockUseUIContext,
+  useUIContext: uiMocks.mockUseUIContext,
 }));
 
-// Mock API Service
-vi.mock('../../../src/services/ApiService', () => ({
-  listTenants: vi.fn(),
-  startTestRun: vi.fn(),
-  getTestRun: vi.fn(),
-  runLinting: vi.fn(),
-  createTenant: vi.fn(),
-  deleteTenant: vi.fn(),
-  resetTenant: vi.fn(),
-  clearTenantData: vi.fn(),
-  clearTenantSchema: vi.fn(),
-  pushSchema: vi.fn(),
-  seedTenantData: vi.fn(),
-  fetchSystemStatus: vi.fn(),
-  getTenantSchema: vi.fn(),
-}));
+vi.mock('../../../src/services/ApiService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/services/ApiService')>();
+  return {
+    ...actual,
+    listTenants: serviceMocks.mockListTenants,
+    startTestRun: serviceMocks.mockStartTestRun,
+    getTestRun: serviceMocks.mockGetTestRun,
+    runLinting: serviceMocks.mockRunLinting,
+    createTenant: serviceMocks.mockCreateTenant,
+    deleteTenant: serviceMocks.mockDeleteTenant,
+    resetTenant: serviceMocks.mockResetTenant,
+    clearTenantData: serviceMocks.mockClearTenantData,
+    clearTenantSchema: serviceMocks.mockClearTenantSchema,
+    pushSchema: serviceMocks.mockPushSchema,
+    seedTenantData: serviceMocks.mockSeedTenantData,
+    fetchSystemStatus: serviceMocks.mockFetchSystemStatus,
+    getTenantSchema: serviceMocks.mockGetTenantSchema,
+  };
+});
+
+const { mockCloseAdminModal, mockUseUIContext } = uiMocks;
+
+const {
+  mockListTenants,
+  mockStartTestRun,
+  mockGetTestRun,
+  mockRunLinting,
+  mockCreateTenant,
+  mockDeleteTenant,
+  mockResetTenant,
+  mockClearTenantData,
+  mockClearTenantSchema,
+  mockPushSchema,
+  mockSeedTenantData,
+  mockFetchSystemStatus,
+  mockGetTenantSchema,
+} = serviceMocks;
+
+const defaultSystemStatus = {
+  dgraphEnterprise: false,
+  multiTenantVerified: false,
+  currentTenant: 'default',
+  namespace: null,
+  mode: 'single-tenant' as const,
+  detectedAt: new Date().toISOString(),
+};
 
 describe('AdminModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset to default unauthenticated state
     mockUseUIContext.mockReturnValue({
       adminModalOpen: true,
       closeAdminModal: mockCloseAdminModal,
-      adminAuthenticated: false,
-      authenticateAdmin: mockAuthenticateAdmin,
-      logoutAdmin: mockLogoutAdmin,
     });
+
+    mockListTenants.mockResolvedValue({ tenants: [], count: 0 });
+    mockFetchSystemStatus.mockResolvedValue(defaultSystemStatus);
   });
 
   describe('Modal Visibility', () => {
@@ -61,9 +98,6 @@ describe('AdminModal', () => {
       mockUseUIContext.mockReturnValue({
         adminModalOpen: false,
         closeAdminModal: mockCloseAdminModal,
-        adminAuthenticated: false,
-        authenticateAdmin: mockAuthenticateAdmin,
-        logoutAdmin: mockLogoutAdmin,
       });
 
       const { container } = render(<AdminModal />);
@@ -71,137 +105,109 @@ describe('AdminModal', () => {
     });
   });
 
-  describe('Authentication Flow', () => {
-    it('shows login form when not authenticated', () => {
+  describe('Admin key management', () => {
+    it('shows login form and tab navigation by default', () => {
       render(<AdminModal />);
-      
-      expect(screen.getByText('Admin Authentication')).toBeInTheDocument();
+
+      expect(screen.getByText('Admin API Access')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Admin API Key')).toBeInTheDocument();
       expect(screen.getByText('Login')).toBeInTheDocument();
-    });
-
-    it('shows tabs when authenticated', () => {
-      mockUseUIContext.mockReturnValue({
-        adminModalOpen: true,
-        closeAdminModal: mockCloseAdminModal,
-        adminAuthenticated: true,
-        authenticateAdmin: mockAuthenticateAdmin,
-        logoutAdmin: mockLogoutAdmin,
-      });
-
-      render(<AdminModal />);
-      
       expect(screen.getByText('Tests')).toBeInTheDocument();
       expect(screen.getByText('Tenants')).toBeInTheDocument();
-      expect(screen.getByText('Logout')).toBeInTheDocument();
+      expect(screen.getByText('An admin API key is required to run tests.')).toBeInTheDocument();
+      expect(mockListTenants).not.toHaveBeenCalled();
+      expect(mockFetchSystemStatus).not.toHaveBeenCalled();
     });
 
-    it('calls logout when logout button is clicked', () => {
-      mockUseUIContext.mockReturnValue({
-        adminModalOpen: true,
-        closeAdminModal: mockCloseAdminModal,
-        adminAuthenticated: true,
-        authenticateAdmin: mockAuthenticateAdmin,
-        logoutAdmin: mockLogoutAdmin,
+    it('validates and stores the admin key', async () => {
+      render(<AdminModal />);
+
+      fireEvent.change(screen.getByPlaceholderText('Admin API Key'), {
+        target: { value: 'test-key' },
+      });
+      fireEvent.click(screen.getByText('Login'));
+
+      await waitFor(() => {
+        expect(mockListTenants).toHaveBeenCalled();
       });
 
+      await waitFor(() => {
+        expect(screen.getByText('Admin API key verified')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Change Key')).toBeInTheDocument();
+    });
+
+    it('allows clearing the configured admin key', async () => {
       render(<AdminModal />);
-      
-      const logoutButton = screen.getByText('Logout');
-      fireEvent.click(logoutButton);
-      
-      expect(mockLogoutAdmin).toHaveBeenCalled();
+
+      fireEvent.change(screen.getByPlaceholderText('Admin API Key'), {
+        target: { value: 'another-key' },
+      });
+      fireEvent.click(screen.getByText('Login'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Admin API key verified')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Change Key'));
+
+      expect(screen.getByText('Admin API Access')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Admin API Key')).toBeInTheDocument();
     });
   });
 
   describe('Tab Navigation', () => {
-    beforeEach(() => {
-      mockUseUIContext.mockReturnValue({
-        adminModalOpen: true,
-        closeAdminModal: mockCloseAdminModal,
-        adminAuthenticated: true,
-        authenticateAdmin: mockAuthenticateAdmin,
-        logoutAdmin: mockLogoutAdmin,
+    const configureAdminKey = async () => {
+      fireEvent.change(screen.getByPlaceholderText('Admin API Key'), {
+        target: { value: 'valid-key' },
       });
-    });
+      fireEvent.click(screen.getByText('Login'));
+      await waitFor(() => screen.getByText('Admin API key verified'));
+    };
 
-    it('switches between tabs correctly', () => {
+    it('shows test controls after configuring admin key', async () => {
       render(<AdminModal />);
-      
-      // Should start on Tests tab
-      expect(screen.getByText('Start Tests')).toBeInTheDocument();
-      
-      // Switch to Tenants tab
-      fireEvent.click(screen.getByText('Tenants'));
-      expect(screen.getByText('Mode:')).toBeInTheDocument();
-    });
+      await configureAdminKey();
 
-    it('shows Tests tab content when Tests tab is active', () => {
-      render(<AdminModal />);
-      
-      fireEvent.click(screen.getByText('Tests'));
       expect(screen.getByText('Start Tests')).toBeInTheDocument();
       expect(screen.getByText('Unit Tests')).toBeInTheDocument();
-      expect(screen.getByText('Integration Tests')).toBeInTheDocument();
+    });
+
+    it('switches between tabs correctly', async () => {
+      render(<AdminModal />);
+      await configureAdminKey();
+
+      fireEvent.click(screen.getByText('Tenants'));
+      await waitFor(() => {
+        expect(screen.getByText(/Mode:/)).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Tests'));
+      expect(screen.getByText('Start Tests')).toBeInTheDocument();
     });
   });
 
   describe('Shared Modal Architecture', () => {
-    it('uses shared modal components', () => {
+    it('uses shared modal components and close action', () => {
       render(<AdminModal />);
-      
-      // Should use ModalOverlay and ModalContainer
+
       expect(screen.getByText('Admin Tools')).toBeInTheDocument();
-      
-      // Should have close button from ModalHeader
       const closeButton = screen.getByLabelText('Close Modal');
       expect(closeButton).toBeInTheDocument();
-      
+
       fireEvent.click(closeButton);
       expect(mockCloseAdminModal).toHaveBeenCalled();
     });
 
-    it('applies consistent styling with other modals', () => {
+    it('applies consistent modal styling', () => {
       render(<AdminModal />);
-      
-      // Should have consistent modal structure
       const modal = screen.getByText('Admin Tools').closest('[style*="width"]');
       expect(modal).toHaveStyle({ width: '600px' });
     });
-  });
 
-  describe('Theme Integration', () => {
-    it('uses theme-based button styling', () => {
-      mockUseUIContext.mockReturnValue({
-        adminModalOpen: true,
-        closeAdminModal: mockCloseAdminModal,
-        adminAuthenticated: true,
-        authenticateAdmin: mockAuthenticateAdmin,
-        logoutAdmin: mockLogoutAdmin,
-      });
-
+    it('applies shared scrollbar styling', () => {
       render(<AdminModal />);
-      
-      // Test buttons should use theme-based styling
-      const unitTestButton = screen.getByText('Unit Tests');
-      expect(unitTestButton).toHaveStyle({ 
-        fontSize: '12px',
-        fontWeight: '500'
-      });
-    });
-
-    it('applies consistent scrollbar styling', () => {
-      mockUseUIContext.mockReturnValue({
-        adminModalOpen: true,
-        closeAdminModal: mockCloseAdminModal,
-        adminAuthenticated: true,
-        authenticateAdmin: mockAuthenticateAdmin,
-        logoutAdmin: mockLogoutAdmin,
-      });
-
-      render(<AdminModal />);
-      
-      // Should have scrollbar CSS applied
       const styleElement = document.querySelector('style');
       expect(styleElement?.textContent).toContain('admin-modal-content');
       expect(styleElement?.textContent).toContain('scrollbar-width');

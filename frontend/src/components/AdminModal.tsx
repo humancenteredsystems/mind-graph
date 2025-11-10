@@ -17,7 +17,7 @@ import TabNavigation, { Tab } from './TabNavigation';
 import StatusBadge from './StatusBadge';
 
 interface AdminLoginFormProps {
-  onLogin: (key: string) => void;
+  onLogin: (key: string) => Promise<void> | void;
   error?: string;
 }
 
@@ -29,11 +29,14 @@ const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onLogin, error }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminKey.trim()) return;
-    
+
     setIsLoading(true);
-    // Pass the key directly to parent - let parent handle API testing
-    onLogin(adminKey);
-    setIsLoading(false);
+    try {
+      // Pass the key directly to parent - let parent handle API testing
+      await onLogin(adminKey);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const togglePasswordVisibility = () => {
@@ -42,9 +45,9 @@ const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onLogin, error }) => {
 
   return (
     <div style={buildAdminLoginContainerStyle()}>
-      <h3 style={theme.components.adminModal.login.title}>Admin Authentication</h3>
+      <h3 style={theme.components.adminModal.login.title}>Admin API Access</h3>
       <p style={theme.components.adminModal.login.subtitle}>
-        Enter the admin API key to access admin tools
+        Enter the admin API key to enable admin tools
       </p>
       
       <form onSubmit={handleSubmit}>
@@ -88,7 +91,7 @@ const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onLogin, error }) => {
 };
 
 interface TestsTabProps {
-  adminKey: string;
+  adminKey?: string | null;
 }
 
 interface TestResult {
@@ -138,7 +141,7 @@ interface LintIssue {
   message: string;
 }
 
-const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
+const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [runningTests, setRunningTests] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -595,8 +598,33 @@ const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
   );
 };
 
+const AdminKeyRequiredMessage: React.FC<{ message: string }> = ({ message }) => (
+  <div style={{ padding: 24 }}>
+    <div style={buildAdminErrorStyle()}>
+      {message}
+    </div>
+    <p style={{
+      marginTop: 12,
+      fontSize: 12,
+      color: '#6b7280'
+    }}>
+      Configure the admin API key above to enable these tools.
+    </p>
+  </div>
+);
+
+const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
+  if (!adminKey) {
+    return (
+      <AdminKeyRequiredMessage message="An admin API key is required to run tests." />
+    );
+  }
+
+  return <TestsTabContent adminKey={adminKey} />;
+};
+
 interface TenantsTabProps {
-  adminKey: string;
+  adminKey?: string | null;
 }
 
 interface TenantInfo {
@@ -628,7 +656,7 @@ interface SystemStatus {
 }
 
 
-const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
+const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1189,39 +1217,37 @@ const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
   );
 };
 
+const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
+  if (!adminKey) {
+    return (
+      <AdminKeyRequiredMessage message="An admin API key is required to manage tenants." />
+    );
+  }
+
+  return <TenantsTabContent adminKey={adminKey} />;
+};
+
 const AdminModal: React.FC = () => {
-  const { 
-    adminModalOpen, 
-    closeAdminModal, 
-    adminAuthenticated, 
-    authenticateAdmin, 
-    logoutAdmin 
-  } = useUIContext();
-  
+  const { adminModalOpen, closeAdminModal } = useUIContext();
+
   const [activeTab, setActiveTab] = useState('tests');
   const [adminKey, setAdminKey] = useState<string | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleLogin = async (key: string) => {
+    setLoginError(null);
+
     try {
-      // Test the admin key
       await ApiService.listTenants(key);
-      
-      // If successful, authenticate
-      const success = authenticateAdmin();
-      if (success) {
-        setAdminKey(key);
-        setLoginError(null);
-      } else {
-        setLoginError('Authentication failed');
-      }
-    } catch {
+      setAdminKey(key);
+    } catch (error) {
+      setAdminKey(null);
       setLoginError('Invalid admin key');
+      console.error('Failed to validate admin API key', error);
     }
   };
 
-  const handleLogout = () => {
-    logoutAdmin();
+  const handleClearKey = () => {
     setAdminKey(null);
     setLoginError(null);
   };
@@ -1233,62 +1259,79 @@ const AdminModal: React.FC = () => {
 
   const scrollbarConfig = buildScrollbarStyle('admin-modal-content');
 
-  const logoutButton = adminAuthenticated ? (
-    <button
-      onClick={handleLogout}
+  const keyStatusSection = adminKey ? (
+    <div
       style={{
-        padding: '4px 8px',
-        background: 'transparent',
-        border: `1px solid ${theme.colors.border.default}`,
-        borderRadius: 4,
-        fontSize: 12,
-        cursor: 'pointer',
-        color: theme.colors.text.secondary,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        padding: '16px 20px',
+        borderRadius: 8,
+        border: `1px solid ${theme.colors.admin.button.success}`,
+        background: '#ecfdf5',
+        textAlign: 'left',
       }}
     >
-      Logout
-    </button>
-  ) : undefined;
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontWeight: 600, color: '#065f46' }}>Admin API key verified</span>
+        <span style={{ fontSize: 12, color: '#047857' }}>
+          Admin tools are enabled for this session.
+        </span>
+      </div>
+      <button
+        onClick={handleClearKey}
+        style={{
+          padding: '8px 16px',
+          background: theme.colors.admin.button.secondary,
+          border: `1px solid ${theme.colors.border.default}`,
+          borderRadius: 6,
+          fontSize: 12,
+          cursor: 'pointer',
+          color: theme.colors.text.secondary,
+        }}
+      >
+        Change Key
+      </button>
+    </div>
+  ) : (
+    <AdminLoginForm onLogin={handleLogin} error={loginError || undefined} />
+  );
 
   return (
     <ModalOverlay isOpen={adminModalOpen} onClose={closeAdminModal}>
       <ModalContainer width={600} height="70vh">
-        <ModalHeader 
-          title="Admin Tools" 
+        <ModalHeader
+          title="Admin Tools"
           onClose={closeAdminModal}
-          actions={logoutButton}
         />
-        
-        {!adminAuthenticated ? (
-          <ModalContent>
-            <AdminLoginForm onLogin={handleLogin} error={loginError || undefined} />
-          </ModalContent>
-        ) : (
-          <>
-            <TabNavigation 
-              tabs={tabs}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              variant="admin"
-            />
-            
-            <ModalContent 
-              padding={false}
-              className={scrollbarConfig.className}
-            >
-              {activeTab === 'tests' && adminKey && (
-                <TestsTab adminKey={adminKey} />
-              )}
-              
-              {activeTab === 'tenants' && adminKey && (
-                <TenantsTab adminKey={adminKey} />
-              )}
-            </ModalContent>
-            
-            {/* Shared scrollbar CSS */}
-            <style>{scrollbarConfig.cssString}</style>
-          </>
-        )}
+
+        <ModalContent>
+          {keyStatusSection}
+        </ModalContent>
+
+        <TabNavigation
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          variant="admin"
+        />
+
+        <ModalContent
+          padding={false}
+          className={scrollbarConfig.className}
+        >
+          {activeTab === 'tests' && (
+            <TestsTab adminKey={adminKey} />
+          )}
+
+          {activeTab === 'tenants' && (
+            <TenantsTab adminKey={adminKey} />
+          )}
+        </ModalContent>
+
+        {/* Shared scrollbar CSS */}
+        <style>{scrollbarConfig.cssString}</style>
       </ModalContainer>
     </ModalOverlay>
   );
