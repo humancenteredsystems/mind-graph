@@ -83,13 +83,10 @@ interface UIContextValue {
   settingsModalOpen: boolean;
   openSettingsModal: () => void;
   closeSettingsModal: () => void;
-  // Admin modal and authentication
+  // Admin modal
   adminModalOpen: boolean;
-  adminAuthenticated: boolean;
   openAdminModal: () => void;
   closeAdminModal: () => void;
-  authenticateAdmin: () => boolean;
-  logoutAdmin: () => void;
   // System status
   systemStatus: SystemStatus | null;
   refreshSystemStatus: () => Promise<void>;
