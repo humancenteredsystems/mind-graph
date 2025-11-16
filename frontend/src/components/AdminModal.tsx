@@ -2,10 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useUIContext } from '../hooks/useUI';
 import * as ApiService from '../services/ApiService';
 import {
-  buildAdminLoginContainerStyle,
-  buildAdminLoginInputStyle,
-  buildAdminLoginSubmitStyle,
-  buildAdminErrorStyle,
   buildTestButtonStyle,
   buildTenantActionButtonStyle,
   buildScrollbarStyle,
@@ -15,84 +11,6 @@ import ModalOverlay from './ModalOverlay';
 import ModalContainer, { ModalHeader, ModalContent } from './ModalContainer';
 import TabNavigation, { Tab } from './TabNavigation';
 import StatusBadge from './StatusBadge';
-
-interface AdminLoginFormProps {
-  onLogin: (key: string) => Promise<void> | void;
-  error?: string;
-}
-
-const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onLogin, error }) => {
-  const [adminKey, setAdminKey] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!adminKey.trim()) return;
-
-    setIsLoading(true);
-    try {
-      // Pass the key directly to parent - let parent handle API testing
-      await onLogin(adminKey);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
-  return (
-    <div style={buildAdminLoginContainerStyle()}>
-      <h3 style={theme.components.adminModal.login.title}>Admin API Access</h3>
-      <p style={theme.components.adminModal.login.subtitle}>
-        Enter the admin API key to enable admin tools
-      </p>
-      
-      <form onSubmit={handleSubmit}>
-        <div style={theme.components.adminModal.login.inputContainer}>
-          <input
-            type={showPassword ? 'text' : 'password'}
-            value={adminKey}
-            onChange={(e) => setAdminKey(e.target.value)}
-            placeholder="Admin API Key"
-            style={buildAdminLoginInputStyle(isLoading)}
-            disabled={isLoading}
-            autoFocus
-          />
-          <button
-            type="button"
-            onClick={togglePasswordVisibility}
-            style={theme.components.adminModal.login.toggleButton}
-            disabled={isLoading}
-            title={showPassword ? 'Hide password' : 'Show password'}
-          >
-            {showPassword ? '🙈' : '👁️'}
-          </button>
-        </div>
-        
-        {error && (
-          <div style={buildAdminErrorStyle()}>
-            {error}
-          </div>
-        )}
-        
-        <button
-          type="submit"
-          disabled={!adminKey.trim() || isLoading}
-          style={buildAdminLoginSubmitStyle(!adminKey.trim() || isLoading)}
-        >
-          {isLoading ? 'Authenticating...' : 'Login'}
-        </button>
-      </form>
-    </div>
-  );
-};
-
-interface TestsTabProps {
-  adminKey?: string | null;
-}
 
 interface TestResult {
   id: string;
@@ -141,7 +59,10 @@ interface LintIssue {
   message: string;
 }
 
-const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
+/**
+ * Tests tab content - no adminKey required (backend auth removed).
+ */
+const TestsTabContent: React.FC = () => {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [runningTests, setRunningTests] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -149,7 +70,6 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
 
   const generateTestId = (type: string) => `${type}-${Date.now()}`;
 
-  // Reusable function to render test summary for all test types
   const renderTestSummary = (result: TestResult) => {
     if (result.status === 'running' || result.total === 0) {
       return null;
@@ -162,7 +82,6 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
     );
   };
 
-
   const startLinting = async () => {
     if (runningTests.has('linting')) {
       return; // Linting already running
@@ -172,7 +91,6 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
     setRunningTests(prev => new Set(prev).add('linting'));
     setError(null);
 
-    // Add running linting to results
     const runningResult: TestResult = {
       id: testId,
       type: 'linting',
@@ -186,12 +104,9 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
     setTestResults(prev => [runningResult, ...prev]);
 
     try {
-      console.log('Starting linting operation');
-      const lintResult = await ApiService.runLinting(adminKey);
-      
-      // Calculate passed/failed based on linting results
+      const lintResult = await ApiService.runLinting('');
       const hasErrors = lintResult.results.summary.totalErrors > 0;
-      
+
       const completedResult: TestResult = {
         id: testId,
         type: 'linting',
@@ -203,16 +118,12 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
         total: 1,
         lintResults: lintResult.results
       };
-      
-      // Update the result in the list
-      setTestResults(prev => 
+
+      setTestResults(prev =>
         prev.map(r => r.id === testId ? completedResult : r)
       );
-      
-      console.log('Linting completed:', lintResult.results.summary);
     } catch (error) {
-      // Mark linting as failed
-      setTestResults(prev => 
+      setTestResults(prev =>
         prev.map(r => r.id === testId ? {
           ...r,
           status: 'failed' as const,
@@ -241,7 +152,6 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
     setRunningTests(prev => new Set(prev).add(type));
     setError(null);
 
-    // Add running test to results
     const runningResult: TestResult = {
       id: testId,
       type,
@@ -255,18 +165,13 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
     setTestResults(prev => [runningResult, ...prev]);
 
     try {
-      console.log(`Starting ${type} tests via API`);
-      const apiResult = await ApiService.startTestRun({ type }, adminKey);
-      console.log('Test run started:', apiResult);
-      
-      // Poll for test completion
+      const apiResult = await ApiService.startTestRun({ type }, '');
       const pollInterval = setInterval(async () => {
         try {
-          const testRun = await ApiService.getTestRun(apiResult.runId, adminKey);
-          
+          const testRun = await ApiService.getTestRun(apiResult.runId, '');
           if (testRun.status === 'completed' || testRun.status === 'failed') {
             clearInterval(pollInterval);
-            
+
             const completedResult: TestResult = {
               id: testId,
               type,
@@ -278,11 +183,11 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
               total: testRun.summary?.total || 0,
               compilationErrors: testRun.compilationErrors
             };
-            
-            setTestResults(prev => 
+
+            setTestResults(prev =>
               prev.map(r => r.id === testId ? completedResult : r)
             );
-            
+
             setRunningTests(prev => {
               const newSet = new Set(prev);
               newSet.delete(type);
@@ -292,27 +197,24 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
         } catch (pollError) {
           console.error('Error polling test status:', pollError);
           clearInterval(pollInterval);
-          
-          // Mark as failed
-          setTestResults(prev => 
+
+          setTestResults(prev =>
             prev.map(r => r.id === testId ? {
               ...r,
               status: 'failed' as const,
               endTime: new Date()
             } : r)
           );
-          
+
           setRunningTests(prev => {
             const newSet = new Set(prev);
             newSet.delete(type);
             return newSet;
           });
         }
-      }, 2000); // Poll every 2 seconds
-      
+      }, 2000);
     } catch (error) {
-      // Mark test as failed
-      setTestResults(prev => 
+      setTestResults(prev =>
         prev.map(r => r.id === testId ? {
           ...r,
           status: 'failed' as const,
@@ -321,7 +223,7 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
       );
       setError(`Failed to start ${type} tests: ${error instanceof Error ? error.message : 'Unknown error'}`);
       console.error('Error starting test:', error);
-      
+
       setRunningTests(prev => {
         const newSet = new Set(prev);
         newSet.delete(type);
@@ -355,7 +257,7 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
         <div style={theme.components.adminModal.tests.buttonGroup}>
           {(['unit', 'integration', 'integration-real'] as const).map((type) => {
             const buttonState = getButtonState(type);
-            
+
             return (
               <button
                 key={type}
@@ -367,20 +269,14 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
               </button>
             );
           })}
-          
-          {/* Linting Button */}
-          {(() => {
-            const lintingButtonState = getLintingButtonState();
-            return (
-              <button
-                onClick={startLinting}
-                disabled={lintingButtonState.disabled}
-                style={buildTestButtonStyle('linting', lintingButtonState.disabled)}
-              >
-                {lintingButtonState.text}
-              </button>
-            );
-          })()}
+
+          <button
+            onClick={startLinting}
+            disabled={getLintingButtonState().disabled}
+            style={buildTestButtonStyle('linting', getLintingButtonState().disabled)}
+          >
+            {getLintingButtonState().text}
+          </button>
         </div>
       </div>
 
@@ -400,7 +296,7 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
 
       <div style={{ marginBottom: 20 }}>
         <h4 style={{ margin: '0 0 12px 0', color: '#374151' }}>Test Results</h4>
-        
+
         {testResults.length === 0 ? (
           <p style={{ color: '#6b7280', fontSize: 14, textAlign: 'center' }}>No test runs yet</p>
         ) : (
@@ -424,10 +320,8 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                   Started: {result.startTime.toLocaleTimeString()}
                   {result.endTime && ` • Completed: ${result.endTime.toLocaleTimeString()}`}
                 </div>
-                {/* Display detailed summary for all test types (unit, integration, integration-real) */}
                 {result.type !== 'linting' && renderTestSummary(result)}
-                
-                {/* Display compilation errors if present */}
+
                 {result.type !== 'linting' && result.compilationErrors?.hasErrors && (
                   <div style={{ color: '#f59e0b', fontSize: 12, marginTop: 4 }}>
                     ⚠️ <strong>{result.compilationErrors.count} test files skipped due to compilation errors</strong>
@@ -447,32 +341,30 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                     )}
                   </div>
                 )}
-                
-                {/* Special display for linting results */}
+
                 {result.type === 'linting' && result.status !== 'running' && result.lintResults && (
                   <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
                     <strong>
-                      Frontend: {result.lintResults.frontend.configured 
+                      Frontend: {result.lintResults.frontend.configured
                         ? `${result.lintResults.frontend.files.length} files checked`
                         : 'Not configured'
                       }
                     </strong>
                     <span> • </span>
                     <strong>
-                      Backend: {result.lintResults.backend.configured 
+                      Backend: {result.lintResults.backend.configured
                         ? `${result.lintResults.backend.files.length} files checked`
                         : 'Not configured'
                       }
                     </strong>
                   </div>
                 )}
-                
-                {/* Linting Results Summary */}
+
                 {result.type === 'linting' && result.lintResults && result.status !== 'running' && (
                   <div style={{ marginTop: 8 }}>
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
                       alignItems: 'center',
                       marginBottom: 4
                     }}>
@@ -505,8 +397,7 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                         {expandedResults.has(result.id) ? 'Hide Details' : 'Show Details'}
                       </button>
                     </div>
-                    
-                    {/* Expanded Linting Details */}
+
                     {expandedResults.has(result.id) && (
                       <div style={{
                         marginTop: 8,
@@ -516,7 +407,6 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                         borderRadius: 4,
                         fontSize: 12,
                       }}>
-                        {/* Frontend Results */}
                         <div style={{ marginBottom: 12 }}>
                           <div style={{ fontWeight: 500, marginBottom: 4, color: '#374151' }}>
                             Frontend: {result.lintResults.frontend.errors} errors, {result.lintResults.frontend.warnings} warnings
@@ -526,12 +416,12 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                               {result.lintResults.frontend.files.map((file, index) => (
                                 <div key={index} style={{ marginBottom: 6 }}>
                                   <div style={{ fontWeight: 500, color: '#6b7280' }}>
-                                    {file.filePath.replace(/^.*\/frontend\//, '')} 
+                                    {file.filePath.replace(/^.*\/frontend\//, '')}
                                     ({file.errorCount} errors, {file.warningCount} warnings)
                                   </div>
                                   {file.issues.slice(0, 3).map((issue, issueIndex) => (
-                                    <div key={issueIndex} style={{ 
-                                      marginLeft: 12, 
+                                    <div key={issueIndex} style={{
+                                      marginLeft: 12,
                                       marginTop: 2,
                                       color: issue.severity === 'error' ? '#dc2626' : '#f59e0b'
                                     }}>
@@ -550,8 +440,7 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                             <div style={{ marginLeft: 8, color: '#10b981' }}>✓ No issues found</div>
                           )}
                         </div>
-                        
-                        {/* Backend Results */}
+
                         <div>
                           <div style={{ fontWeight: 500, marginBottom: 4, color: '#374151' }}>
                             Backend: {result.lintResults.backend.errors} errors, {result.lintResults.backend.warnings} warnings
@@ -561,12 +450,12 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                               {result.lintResults.backend.files.map((file, index) => (
                                 <div key={index} style={{ marginBottom: 6 }}>
                                   <div style={{ fontWeight: 500, color: '#6b7280' }}>
-                                    {file.filePath.replace(/^.*\/api\//, '')} 
+                                    {file.filePath.replace(/^.*\/api\//, '')}
                                     ({file.errorCount} errors, {file.warningCount} warnings)
                                   </div>
                                   {file.issues.slice(0, 3).map((issue, issueIndex) => (
-                                    <div key={issueIndex} style={{ 
-                                      marginLeft: 12, 
+                                    <div key={issueIndex} style={{
+                                      marginLeft: 12,
                                       marginTop: 2,
                                       color: issue.severity === 'error' ? '#dc2626' : '#f59e0b'
                                     }}>
@@ -598,35 +487,9 @@ const TestsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
   );
 };
 
-const AdminKeyRequiredMessage: React.FC<{ message: string }> = ({ message }) => (
-  <div style={{ padding: 24 }}>
-    <div style={buildAdminErrorStyle()}>
-      {message}
-    </div>
-    <p style={{
-      marginTop: 12,
-      fontSize: 12,
-      color: '#6b7280'
-    }}>
-      Configure the admin API key above to enable these tools.
-    </p>
-  </div>
-);
-
-const TestsTab: React.FC<TestsTabProps> = ({ adminKey }) => {
-  if (!adminKey) {
-    return (
-      <AdminKeyRequiredMessage message="An admin API key is required to run tests." />
-    );
-  }
-
-  return <TestsTabContent adminKey={adminKey} />;
-};
-
-interface TenantsTabProps {
-  adminKey?: string | null;
-}
-
+/**
+ * Tenants tab content - no adminKey required (backend auth removed).
+ */
 interface TenantInfo {
   tenantId: string;
   namespace: string;
@@ -655,8 +518,7 @@ interface SystemStatus {
   namespacesSupported?: boolean;
 }
 
-
-const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
+const TenantsTabContent: React.FC = () => {
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -688,7 +550,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
   const loadTenants = useCallback(async () => {
     try {
       setIsLoading(true);
-      const result = await ApiService.listTenants(adminKey);
+      const result = await ApiService.listTenants('');
       setTenants(result.tenants);
       setError(null);
     } catch (error) {
@@ -697,7 +559,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [adminKey]);
+  }, []);
 
   const validateTenantId = (tenantId: string): string | null => {
     if (!tenantId.trim()) {
@@ -725,8 +587,8 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
     try {
       setIsLoading(true);
       setCreateError(null);
-      await ApiService.createTenant(newTenantId, adminKey);
-      await loadTenants(); // Refresh the list
+      await ApiService.createTenant(newTenantId, '');
+      await loadTenants();
       setNewTenantId('');
       setShowCreateForm(false);
       setError(null);
@@ -752,8 +614,8 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
 
     try {
       setIsLoading(true);
-      await ApiService.deleteTenant(tenantId, adminKey);
-      await loadTenants(); // Refresh the list
+      await ApiService.deleteTenant(tenantId, '');
+      await loadTenants();
       setError(null);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } }; message?: string };
@@ -772,8 +634,8 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
 
     try {
       setIsLoading(true);
-      await ApiService.resetTenant(tenantId, adminKey);
-      await loadTenants(); // Refresh the list
+      await ApiService.resetTenant(tenantId, '', false);
+      await loadTenants();
       setError(null);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } }; message?: string };
@@ -792,8 +654,8 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
 
     try {
       setIsLoading(true);
-      await ApiService.clearTenantData(tenantId, adminKey);
-      await loadTenants(); // Refresh the list
+      await ApiService.clearTenantData(tenantId, '');
+      await loadTenants();
       setError(null);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } }; message?: string };
@@ -812,8 +674,8 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
 
     try {
       setIsLoading(true);
-      await ApiService.clearTenantSchema(tenantId, adminKey);
-      await loadTenants(); // Refresh the list
+      await ApiService.clearTenantSchema(tenantId, '');
+      await loadTenants();
       setError(null);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } }; message?: string };
@@ -832,8 +694,8 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
 
     try {
       setIsLoading(true);
-      await ApiService.pushSchema(tenantId, 'default', adminKey);
-      await loadTenants(); // Refresh the list
+      await ApiService.pushTenantSchema(tenantId, undefined, 'default', '');
+      await loadTenants();
       setError(null);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } }; message?: string };
@@ -845,17 +707,31 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
     }
   };
 
+  const seedTenant = async (tenantId: string) => {
+    try {
+      setIsLoading(true);
+      await ApiService.seedTenantData(tenantId, 'test', false, '');
+      await loadTenants();
+      setError(null);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } }; message?: string };
+      const errorMessage = err?.response?.data?.error || err?.message || `Failed to seed tenant ${tenantId}`;
+      setError(errorMessage);
+      console.error('Error seeding tenant:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadSystemStatus();
     loadTenants();
-  }, [adminKey, loadTenants]);
+  }, [loadTenants]);
 
   const isMultiTenantMode = systemStatus?.multiTenantVerified === true;
 
   return (
     <div style={{ padding: 20 }}>
-      {/* Header with mode indicator and actions */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <h4 style={{ margin: 0, color: '#374151' }}>Tenants</h4>
@@ -894,17 +770,15 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
             </button>
           </div>
         </div>
-        
-      {/* Mode indicator */}
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
-        Mode: {isMultiTenantMode ? 'Multi-tenant (Dgraph Enterprise)' : 'Single-tenant (Dgraph OSS)'}
-        {!isMultiTenantMode && (
-          <span style={{ color: '#6b7280' }}> • Creating additional tenants requires Dgraph Enterprise</span>
-        )}
-      </div>
+
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+          Mode: {isMultiTenantMode ? 'Multi-tenant (Dgraph Enterprise)' : 'Single-tenant (Dgraph OSS)'}
+          {!isMultiTenantMode && (
+            <span style={{ color: '#6b7280' }}> • Creating additional tenants requires Dgraph Enterprise</span>
+          )}
+        </div>
       </div>
 
-      {/* Create tenant form */}
       {showCreateForm && isMultiTenantMode && (
         <div style={{
           marginBottom: 16,
@@ -934,7 +808,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
               disabled={isLoading}
             />
           </div>
-          
+
           {createError && (
             <div style={{
               marginBottom: 12,
@@ -948,7 +822,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
               {createError}
             </div>
           )}
-          
+
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={createTenant}
@@ -1021,12 +895,11 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                   <div style={{ color: '#6b7280', fontSize: 12 }}>Namespace: {tenant.namespace}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <StatusBadge 
-                    status={tenant.health} 
+                  <StatusBadge
+                    status={tenant.health}
                     title={tenant.healthDetails || `Status: ${tenant.health}`}
                   />
-                  
-                  {/* Core tenant operations - available in both OSS and Enterprise modes */}
+
                   <>
                     <button
                       onClick={() => clearTenantData(tenant.tenantId)}
@@ -1036,7 +909,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                     >
                       Clear Data
                     </button>
-                    
+
                     <button
                       onClick={() => clearTenantSchema(tenant.tenantId)}
                       disabled={isLoading || tenant.health === 'not-accessible'}
@@ -1045,7 +918,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                     >
                       Clear Schema
                     </button>
-                    
+
                     <button
                       onClick={() => pushFreshSchema(tenant.tenantId)}
                       disabled={isLoading || tenant.health === 'not-accessible'}
@@ -1054,9 +927,9 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                     >
                       Push Schema
                     </button>
-                    
+
                     <button
-                      onClick={() => ApiService.seedTenantData(tenant.tenantId, 'test', false, adminKey).then(() => loadTenants()).catch((error) => setError(`Failed to seed data: ${error.message}`))}
+                      onClick={() => seedTenant(tenant.tenantId)}
                       disabled={isLoading || tenant.health === 'not-accessible'}
                       style={buildTenantActionButtonStyle('seedData', isLoading || tenant.health === 'not-accessible')}
                       title={tenant.health === 'not-accessible' ? 'Tenant not accessible' : 'Seed hierarchy data and sample nodes'}
@@ -1064,7 +937,6 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                       Seed Data
                     </button>
 
-                    {/* Enterprise-only operations: Reset and Delete */}
                     {isMultiTenantMode && tenant.tenantId !== 'default' && (
                       <button
                         onClick={() => resetTenant(tenant.tenantId)}
@@ -1075,7 +947,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                         Reset
                       </button>
                     )}
-                    
+
                     {isMultiTenantMode && tenant.tenantId !== 'default' && tenant.tenantId !== 'test-tenant' && (
                       <button
                         onClick={() => deleteTenant(tenant.tenantId)}
@@ -1089,8 +961,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                   </>
                 </div>
               </div>
-              
-              {/* Enhanced tenant information */}
+
               <div style={{ marginBottom: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <span style={{ fontSize: 12, color: '#6b7280' }}>
@@ -1105,21 +976,21 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                           schemaInfo: tenant.schemaInfo,
                           loading: true
                         });
-                        
+
                         try {
-                          const schemaData = await ApiService.getTenantSchema(tenant.tenantId, adminKey);
+                          const schemaData = await ApiService.getTenantSchema(tenant.tenantId, '');
                           setSchemaModal(prev => ({
                             ...prev,
                             content: schemaData.content,
                             loading: false
                           }));
-        } catch {
-          setSchemaModal(prev => ({
-            ...prev,
-            content: 'Error loading schema content',
-            loading: false
-          }));
-        }
+                        } catch {
+                          setSchemaModal(prev => ({
+                            ...prev,
+                            content: 'Error loading schema content',
+                            loading: false
+                          }));
+                        }
                       }}
                       style={{
                         padding: '2px 6px',
@@ -1139,7 +1010,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                   )}
                 </div>
               </div>
-              
+
               <div style={{ fontSize: 12, color: '#6b7280' }}>
                 {tenant.isTestTenant && <span>Test Tenant • </span>}
                 {tenant.isDefaultTenant && <span>Default Tenant • </span>}
@@ -1150,18 +1021,16 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
           ))}
         </div>
       )}
-
-      {/* Schema Modal */}
       {schemaModal.isOpen && (
-        <ModalOverlay 
-          isOpen={schemaModal.isOpen} 
+        <ModalOverlay
+          isOpen={schemaModal.isOpen}
           onClose={() => setSchemaModal({ isOpen: false, tenantId: '', loading: false })}
         >
           <ModalContainer width="80%" maxWidth={800} height="80%">
-            <ModalHeader 
+            <ModalHeader
               title={`Schema for Tenant: ${schemaModal.tenantId}`}
-              subtitle={schemaModal.schemaInfo ? 
-                `${schemaModal.schemaInfo.name} • ${schemaModal.schemaInfo.isDefault ? 'Default Schema' : 'Custom Schema'}` 
+              subtitle={schemaModal.schemaInfo ?
+                `${schemaModal.schemaInfo.name} • ${schemaModal.schemaInfo.isDefault ? 'Default Schema' : 'Custom Schema'}`
                 : undefined
               }
               onClose={() => setSchemaModal({ isOpen: false, tenantId: '', loading: false })}
@@ -1169,7 +1038,6 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(schemaModal.content || '');
-                    // Could add a toast notification here
                   }}
                   style={{
                     padding: '6px 12px',
@@ -1185,7 +1053,7 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
                 </button>
               ) : undefined}
             />
-            
+
             <ModalContent>
               {schemaModal.loading ? (
                 <div style={{ textAlign: 'center', padding: 40 }}>
@@ -1217,40 +1085,10 @@ const TenantsTabContent: React.FC<{ adminKey: string }> = ({ adminKey }) => {
   );
 };
 
-const TenantsTab: React.FC<TenantsTabProps> = ({ adminKey }) => {
-  if (!adminKey) {
-    return (
-      <AdminKeyRequiredMessage message="An admin API key is required to manage tenants." />
-    );
-  }
-
-  return <TenantsTabContent adminKey={adminKey} />;
-};
-
 const AdminModal: React.FC = () => {
   const { adminModalOpen, closeAdminModal } = useUIContext();
 
   const [activeTab, setActiveTab] = useState('tests');
-  const [adminKey, setAdminKey] = useState<string | null>(null);
-  const [loginError, setLoginError] = useState<string | null>(null);
-
-  const handleLogin = async (key: string) => {
-    setLoginError(null);
-
-    try {
-      await ApiService.listTenants(key);
-      setAdminKey(key);
-    } catch (error) {
-      setAdminKey(null);
-      setLoginError('Invalid admin key');
-      console.error('Failed to validate admin API key', error);
-    }
-  };
-
-  const handleClearKey = () => {
-    setAdminKey(null);
-    setLoginError(null);
-  };
 
   const tabs: Tab[] = [
     { id: 'tests', label: 'Tests' },
@@ -1259,45 +1097,6 @@ const AdminModal: React.FC = () => {
 
   const scrollbarConfig = buildScrollbarStyle('admin-modal-content');
 
-  const keyStatusSection = adminKey ? (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 16,
-        padding: '16px 20px',
-        borderRadius: 8,
-        border: `1px solid ${theme.colors.admin.button.success}`,
-        background: '#ecfdf5',
-        textAlign: 'left',
-      }}
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontWeight: 600, color: '#065f46' }}>Admin API key verified</span>
-        <span style={{ fontSize: 12, color: '#047857' }}>
-          Admin tools are enabled for this session.
-        </span>
-      </div>
-      <button
-        onClick={handleClearKey}
-        style={{
-          padding: '8px 16px',
-          background: theme.colors.admin.button.secondary,
-          border: `1px solid ${theme.colors.border.default}`,
-          borderRadius: 6,
-          fontSize: 12,
-          cursor: 'pointer',
-          color: theme.colors.text.secondary,
-        }}
-      >
-        Change Key
-      </button>
-    </div>
-  ) : (
-    <AdminLoginForm onLogin={handleLogin} error={loginError || undefined} />
-  );
-
   return (
     <ModalOverlay isOpen={adminModalOpen} onClose={closeAdminModal}>
       <ModalContainer width={600} height="70vh">
@@ -1305,10 +1104,6 @@ const AdminModal: React.FC = () => {
           title="Admin Tools"
           onClose={closeAdminModal}
         />
-
-        <ModalContent>
-          {keyStatusSection}
-        </ModalContent>
 
         <TabNavigation
           tabs={tabs}
@@ -1322,15 +1117,14 @@ const AdminModal: React.FC = () => {
           className={scrollbarConfig.className}
         >
           {activeTab === 'tests' && (
-            <TestsTab adminKey={adminKey} />
+            <TestsTabContent />
           )}
 
           {activeTab === 'tenants' && (
-            <TenantsTab adminKey={adminKey} />
+            <TenantsTabContent />
           )}
         </ModalContent>
 
-        {/* Shared scrollbar CSS */}
         <style>{scrollbarConfig.cssString}</style>
       </ModalContainer>
     </ModalOverlay>
