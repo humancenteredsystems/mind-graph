@@ -31,9 +31,8 @@ export function useGraphElements(
 
       return {
         data: {
-          id: node.id,
-          label: node.label || node.id,
           ...node,
+          label: node.label || node.id,
           levelNumber: level,
           expanded,
         },
@@ -72,7 +71,7 @@ export function useGraphElements(
         },
       },
       {
-        selector: 'node[expanded = true]',
+        selector: 'node[expanded="true"]',
         style: {
           'border-width': config.activeBorderWidth,
           'border-color': theme.colors.node.border.expanded,

@@ -321,7 +321,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     // Dynamic level styles generated from theme
     ...generateLevelStyles(),
     {
-      selector: 'node[expanded = true]',
+      selector: 'node[expanded="true"]',
       style: {
         'border-width': config.activeBorderWidth,
         'border-color': theme.colors.node.border.expanded,
